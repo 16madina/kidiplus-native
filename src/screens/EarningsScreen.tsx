@@ -28,9 +28,8 @@ import {
   type PayoutRow,
   type SellerBalance,
 } from "../lib/earnings";
+import { defaultPayoutMethod, payoutMethodsForCurrency } from "../lib/payout-methods";
 import { GOLD, NAVY } from "../theme";
-
-const METHODS: PayoutMethod[] = ["wave", "orange_money", "paypal", "bank_transfer"];
 
 const STATUS_COLOR: Record<string, string> = {
   requested: "#B45309",
@@ -179,7 +178,7 @@ function WithdrawSheet({
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [method, setMethod] = useState<PayoutMethod>("wave");
+  const [method, setMethod] = useState<PayoutMethod>("paypal");
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
   const [holder, setHolder] = useState("");
@@ -188,14 +187,18 @@ function WithdrawSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const methods = payoutMethodsForCurrency(currency);
+
   useEffect(() => {
     if (open) {
       setAmount(String(available || ""));
       setError(null);
+      setMethod(defaultPayoutMethod(currency));
     }
-  }, [open, available]);
+  }, [open, available, currency]);
 
   const mobile = method === "wave" || method === "orange_money";
+  const connect = method === "stripe_connect";
 
   const submit = async () => {
     setError(null);
@@ -222,6 +225,9 @@ function WithdrawSheet({
         return;
       }
       destination.email = email.trim();
+    } else if (method === "stripe_connect") {
+      // Stripe Connect destination is resolved server-side from the seller account.
+      destination.note = "stripe_connect";
     } else {
       if (!iban.trim()) {
         setError(t("payout.errors.missingDestination"));
@@ -263,7 +269,7 @@ function WithdrawSheet({
               <View>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("payout.method.label")}</Text>
                 <View style={styles.methods}>
-                  {METHODS.map((m) => {
+                  {methods.map((m) => {
                     const on = method === m;
                     return (
                       <Press
@@ -311,6 +317,13 @@ function WithdrawSheet({
                   keyboardType="email-address"
                   placeholder={t("payout.paypalEmailPlaceholder")}
                 />
+              ) : connect ? (
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
+                  {t("payout.stripeConnectHint", {
+                    defaultValue:
+                      "Le virement part vers ton compte bancaire Stripe Connect (Europe / Amérique / UK).",
+                  })}
+                </Text>
               ) : (
                 <>
                   <FormField required label="IBAN" value={iban} onChangeText={setIban} autoCapitalize="characters" />

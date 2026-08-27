@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -10,12 +11,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CreditCard, X } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../Press";
+import { BrandBadge } from "../BrandBadge";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
-import { formatMoney, normalizeCurrency, topUpPresets } from "../../lib/money";
+import { convertMoney, formatMoney, normalizeCurrency, topUpPresets } from "../../lib/money";
 import { mapPayError } from "../../lib/pay-errors";
 import {
   confirmWalletTopup,
@@ -49,6 +51,7 @@ export function TopUpSheet({
   const currency = normalizeCurrency(user?.walletCurrency);
   const limits = topUpLimits(currency);
   const presets = topUpPresets(currency);
+  const showAfricaVisa = currency === "XOF";
 
   useEffect(() => {
     if (open) {
@@ -114,7 +117,6 @@ export function TopUpSheet({
     const piId = intent.data.clientSecret.split("_secret")[0] ?? "";
     const conf = await confirmWalletTopup(piId);
     if (!conf.ok) {
-      // Webhook may still credit — refresh anyway.
       await refreshUser();
       setBusy(null);
       setError(mapPayError(conf.error, t, conf.message));
@@ -123,6 +125,16 @@ export function TopUpSheet({
     await refreshUser();
     setBusy(null);
     onDone(t("wallet.topup.success"));
+  };
+
+  const topupAfricaVisa = () => {
+    Alert.alert(
+      t("pay.method.card"),
+      t("pay.method.useVisaCardHint", {
+        defaultValue: "Utilise ta carte Visa Wave / Orange / Djamo dans le formulaire carte.",
+      }),
+    );
+    void topupCard();
   };
 
   const topupPaypal = async () => {
@@ -157,6 +169,14 @@ export function TopUpSheet({
       onDone(t("wallet.topup.paypalPending", { defaultValue: "Paiement reçu — solde en cours de crédit." }));
     }
   };
+
+  const chosen = Number(String(amount).replace(",", ".")) || 0;
+  const paypalSub = showAfricaVisa
+    ? t("wallet.topup.paypalXofSub", {
+        defaultValue: "Débité en euros : ≈ {{eur}} (taux fixe officiel)",
+        eur: formatMoney(convertMoney(Math.max(chosen, limits.min), "XOF", "EUR"), "EUR", i18n.language),
+      })
+    : t("pay.method.paypalSub", { defaultValue: "Payer avec ton compte PayPal" });
 
   return (
     <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
@@ -206,27 +226,67 @@ export function TopUpSheet({
                 { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
               ]}
             />
-            <View style={{ gap: 8, marginTop: 12 }}>
-              <Press
+            <Text style={[styles.methodTitle, { color: colors.mutedForeground }]}>{t("pay.method.title")}</Text>
+            <View style={{ gap: 8 }}>
+              <MethodRow
+                icon={<BrandBadge brand="card" size={28} />}
+                label={t("pay.method.card")}
+                subtitle={t("pay.method.cardSub")}
+                busy={busy === "card"}
+                disabled={!!busy}
+                border={colors.border}
+                bg={colors.card}
+                fg={colors.foreground}
                 onPress={() => void topupCard()}
+              />
+              <MethodRow
+                icon={<BrandBadge brand="paypal" size={28} />}
+                label="PayPal"
+                subtitle={paypalSub}
+                busy={busy === "paypal"}
                 disabled={!!busy}
-                style={[styles.method, { borderColor: colors.border, backgroundColor: colors.card }]}
-              >
-                <CreditCard size={18} color={colors.foreground} />
-                <Text style={{ flex: 1, fontWeight: "800", fontSize: 14, color: colors.foreground }}>
-                  {t("pay.method.card")}
-                </Text>
-                {busy === "card" ? <ActivityIndicator color={GOLD} /> : null}
-              </Press>
-              <Press
+                border={colors.border}
+                bg={colors.card}
+                fg={colors.foreground}
                 onPress={() => void topupPaypal()}
-                disabled={!!busy}
-                style={[styles.method, { borderColor: colors.border, backgroundColor: colors.card }]}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "900", color: "#003087" }}>P</Text>
-                <Text style={{ flex: 1, fontWeight: "800", fontSize: 14, color: colors.foreground }}>PayPal</Text>
-                {busy === "paypal" ? <ActivityIndicator color={GOLD} /> : null}
-              </Press>
+              />
+              {showAfricaVisa ? (
+                <>
+                  <MethodRow
+                    icon={<BrandBadge brand="wave" size={28} />}
+                    label={t("pay.method.waveVisa")}
+                    subtitle={t("pay.method.waveVisaSub")}
+                    busy={busy === "card"}
+                    disabled={!!busy}
+                    border={colors.border}
+                    bg={colors.card}
+                    fg={colors.foreground}
+                    onPress={topupAfricaVisa}
+                  />
+                  <MethodRow
+                    icon={<BrandBadge brand="orange" size={28} />}
+                    label={t("pay.method.orangeVisa")}
+                    subtitle={t("pay.method.orangeVisaSub")}
+                    busy={busy === "card"}
+                    disabled={!!busy}
+                    border={colors.border}
+                    bg={colors.card}
+                    fg={colors.foreground}
+                    onPress={topupAfricaVisa}
+                  />
+                  <MethodRow
+                    icon={<BrandBadge brand="djamo" size={28} />}
+                    label={t("pay.method.djamo")}
+                    subtitle={t("pay.method.djamoSub")}
+                    busy={busy === "card"}
+                    disabled={!!busy}
+                    border={colors.border}
+                    bg={colors.card}
+                    fg={colors.foreground}
+                    onPress={topupAfricaVisa}
+                  />
+                </>
+              ) : null}
             </View>
             {error ? (
               <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10, marginTop: 10 }}>
@@ -237,6 +297,43 @@ export function TopUpSheet({
         </KeyboardAvoidingView>
       </View>
     </Modal>
+  );
+}
+
+function MethodRow({
+  icon,
+  label,
+  subtitle,
+  busy,
+  disabled,
+  border,
+  bg,
+  fg,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  subtitle: string;
+  busy?: boolean;
+  disabled?: boolean;
+  border: string;
+  bg: string;
+  fg: string;
+  onPress: () => void;
+}) {
+  return (
+    <Press
+      onPress={onPress}
+      disabled={disabled}
+      style={[styles.method, { borderColor: border, backgroundColor: bg, opacity: disabled && !busy ? 0.6 : 1 }]}
+    >
+      {icon}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontWeight: "800", fontSize: 14, color: fg }}>{label}</Text>
+        <Text style={{ color: "#888", fontSize: 11.5, marginTop: 1 }}>{subtitle}</Text>
+      </View>
+      {busy ? <ActivityIndicator color={GOLD} /> : null}
+    </Press>
   );
 }
 
@@ -277,6 +374,14 @@ const styles = StyleSheet.create({
     minHeight: 46,
     fontSize: 14,
     fontWeight: "600",
+  },
+  methodTitle: {
+    marginTop: 14,
+    marginBottom: 8,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   method: {
     flexDirection: "row",

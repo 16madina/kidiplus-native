@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -8,9 +9,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CreditCard, Wallet, X } from "lucide-react-native";
+import { Wallet, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../Press";
+import { BrandBadge } from "../BrandBadge";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
 import { convertMoney, formatMoney, normalizeCurrency } from "../../lib/money";
@@ -144,6 +146,18 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
     onPaid(t("pay.toasts.confirmed"));
   };
 
+  const payAfricaVisa = () => {
+    Alert.alert(
+      t("pay.method.card"),
+      t("pay.method.useVisaCardHint", {
+        defaultValue: "Utilise ta carte Visa Wave / Orange / Djamo dans le formulaire carte.",
+      }),
+    );
+    void payCard();
+  };
+
+  const showAfricaVisa = order.currency === "XOF";
+
   return (
     <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.sheetRoot}>
@@ -155,7 +169,7 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
               <X size={18} color={colors.foreground} />
             </Press>
           </View>
-          <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 12 }}>
+          <ScrollView style={{ maxHeight: 520 }} contentContainerStyle={{ gap: 12 }}>
             <View style={[styles.summary, { borderColor: colors.border, backgroundColor: colors.card }]}>
               <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.foreground }}>
                 {order.name}
@@ -182,19 +196,53 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
               onPress={() => void payWallet()}
             />
             <MethodBtn
-              icon={<CreditCard size={18} color={colors.foreground} />}
+              icon={<BrandBadge brand="card" size={28} />}
               label={t("pay.method.card")}
               subtitle={t("pay.method.cardSub")}
               busy={busy === "card"}
               disabled={!!busy}
               onPress={() => void payCard()}
             />
+            {showAfricaVisa ? (
+              <>
+                <MethodBtn
+                  icon={<BrandBadge brand="wave" size={28} />}
+                  label={t("pay.method.waveVisa")}
+                  subtitle={t("pay.method.waveVisaSub")}
+                  busy={busy === "card"}
+                  disabled={!!busy}
+                  onPress={payAfricaVisa}
+                />
+                <MethodBtn
+                  icon={<BrandBadge brand="orange" size={28} />}
+                  label={t("pay.method.orangeVisa")}
+                  subtitle={t("pay.method.orangeVisaSub")}
+                  busy={busy === "card"}
+                  disabled={!!busy}
+                  onPress={payAfricaVisa}
+                />
+                <MethodBtn
+                  icon={<BrandBadge brand="djamo" size={28} />}
+                  label={t("pay.method.djamo")}
+                  subtitle={t("pay.method.djamoSub")}
+                  busy={busy === "card"}
+                  disabled={!!busy}
+                  onPress={payAfricaVisa}
+                />
+              </>
+            ) : null}
             <MethodBtn
-              icon={<Text style={{ fontSize: 16, fontWeight: "900", color: "#003087" }}>P</Text>}
+              icon={<BrandBadge brand="paypal" size={28} />}
               label="PayPal"
-              subtitle={t("pay.paypalBrowser", {
-                defaultValue: "Paiement dans le navigateur, retour automatique dans l’app.",
-              })}
+              subtitle={
+                showAfricaVisa
+                  ? t("pay.method.paypalXofSub", {
+                      defaultValue: "Paiement en euros (équivalent XOF)",
+                    })
+                  : t("pay.method.paypalSub", {
+                      defaultValue: "Payer cette commande avec ton compte PayPal",
+                    })
+              }
               busy={busy === "paypal"}
               disabled={!!busy}
               onPress={() => void payPaypal()}
