@@ -53,6 +53,59 @@ export function nextBidAmount(currentPrice: number, currency: Currency): number 
   return roundForCurrency(currentPrice + step, currency);
 }
 
+/** Wallet top-up presets per currency (mirrors kidiplus.com). */
+export function topUpPresets(currency: Currency): number[] {
+  switch (currency) {
+    case "XOF": return [2000, 5000, 10000, 25000];
+    case "CAD":
+    case "USD":
+    case "GBP":
+    case "EUR":
+    default:    return [5, 10, 25, 50];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FX (mirrors public.fx_rate server-side — keep in sync with kidiplus.com)
+// ---------------------------------------------------------------------------
+
+/** Safety margin applied to non-peg pairs. */
+export const FX_MARGIN = 0.015;
+
+// 1 EUR references (XOF is an official BCEAO peg — no margin).
+const EUR_TO: Record<Currency, number> = {
+  EUR: 1,
+  XOF: 655.957,
+  CAD: 1.47,
+  USD: 1.09,
+  GBP: 0.85,
+};
+
+function isPegPair(from: Currency, to: Currency): boolean {
+  return (from === "EUR" && to === "XOF") || (from === "XOF" && to === "EUR");
+}
+
+/** Exchange rate `from → to` (1 unit of `from` = rate units of `to`). */
+export function fxRate(from: Currency, to: Currency): number {
+  if (from === to) return 1;
+  const raw = EUR_TO[to] / EUR_TO[from];
+  return isPegPair(from, to) ? raw : raw * (1 - FX_MARGIN);
+}
+
+/** Indicative converter (rounds for the target currency). */
+export function convertMoney(
+  amount: number,
+  from: string | null | undefined,
+  to: string | null | undefined,
+): number {
+  const f = normalizeCurrency(from);
+  const t = normalizeCurrency(to);
+  if (f === t) return roundForCurrency(amount, t);
+  const raw = amount * fxRate(f, t);
+  if (t === "XOF") return Math.round(raw);
+  return Math.ceil(raw * 100) / 100;
+}
+
 export function formatMoney(
   amount: number,
   currency: string | null | undefined = "EUR",

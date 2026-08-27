@@ -3,13 +3,15 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { ChevronRight, Moon, Sun } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
+import { CurrencySheet } from "../components/CurrencySheet";
 import { SurfaceCard } from "../components/SurfaceCard";
-import { OverlayHeader } from "../components/OverlayHeader";
+import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { PushScreen } from "../components/PushScreen";
 import { Press } from "../components/Press";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
+import { currencySymbol, normalizeCurrency } from "../lib/money";
 import { GOLD } from "../theme";
 import { LegalScreen } from "./LegalScreen";
 
@@ -19,6 +21,14 @@ export function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { closeOverlay } = useNav();
   const [legal, setLegal] = useState<null | "terms" | "privacy">(null);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const currency = normalizeCurrency(user?.walletCurrency);
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2600);
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -38,10 +48,13 @@ export function SettingsScreen() {
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("profile.menu.darkMode")}</Text>
             <Text style={{ color: GOLD, fontWeight: "800" }}>{dark ? "ON" : "OFF"}</Text>
           </Press>
-          <View style={styles.row}>
+          <Press onPress={() => setCurrencyOpen(true)} style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("settings.currency")}</Text>
-            <Text style={{ fontWeight: "800", color: colors.foreground }}>EUR · €</Text>
-          </View>
+            <Text style={{ fontWeight: "800", color: colors.foreground }}>
+              {currency} · {currencySymbol(currency)}
+            </Text>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Press>
         </SurfaceCard>
 
         <Label text={t("settings.account")} color={colors.mutedForeground} />
@@ -79,6 +92,8 @@ export function SettingsScreen() {
       <PushScreen open={!!legal} onClose={() => setLegal(null)} zIndex={20}>
         {legal ? <LegalScreen page={legal} onClose={() => setLegal(null)} /> : null}
       </PushScreen>
+      <CurrencySheet open={currencyOpen} onClose={() => setCurrencyOpen(false)} onToast={flash} />
+      <MockBanner text={toast} />
     </View>
   );
 }

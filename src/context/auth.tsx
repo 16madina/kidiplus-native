@@ -72,6 +72,7 @@ type Ctx = {
     bio?: string | null;
     country?: string | null;
     avatar_url?: string;
+    currency?: string;
   }) => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -344,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bio?: string | null;
       country?: string | null;
       avatar_url?: string;
+      currency?: string;
     }) => {
       const id = user?.id;
       if (!id) return;

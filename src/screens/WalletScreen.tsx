@@ -10,10 +10,9 @@ import { Press } from "../components/Press";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
-import { formatMoney } from "../lib/money";
+import { formatMoney, normalizeCurrency, topUpPresets } from "../lib/money";
 import { fetchMyWalletTransactions, formatWalletAmount, type WalletTxView } from "../lib/wallet";
 import { GOLD, NAVY } from "../theme";
-import { TOPUP_AMOUNTS } from "../mock/account";
 
 const TX_LABEL: Record<WalletTxView["type"], string> = {
   topup: "wallet.tx.topup",
@@ -33,7 +32,8 @@ export function WalletScreen() {
   const [tx, setTx] = useState<WalletTxView[]>([]);
   const [loading, setLoading] = useState(true);
   const balance = user?.walletBalance ?? 0;
-  const currency = user?.walletCurrency ?? "EUR";
+  const currency = normalizeCurrency(user?.walletCurrency);
+  const presets = topUpPresets(currency);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,12 +71,12 @@ export function WalletScreen() {
 
         <Text style={[styles.section, { color: colors.foreground }]}>{t("wallet.topup.chooseAmount")}</Text>
         <View style={styles.amounts}>
-          {TOPUP_AMOUNTS.map((cents) => (
-            <Press key={cents} onPress={soon} style={styles.amtPress}>
+          {presets.map((amount) => (
+            <Press key={amount} onPress={soon} style={styles.amtPress}>
               <SurfaceCard padded={false}>
                 <View style={styles.amtInner}>
                   <Plus size={14} color={GOLD} />
-                  <Text style={{ fontWeight: "800", color: colors.foreground }}>{formatMoney(cents / 100, "EUR", i18n.language)}</Text>
+                  <Text style={{ fontWeight: "800", color: colors.foreground }}>{formatMoney(amount, currency, i18n.language)}</Text>
                 </View>
               </SurfaceCard>
             </Press>
