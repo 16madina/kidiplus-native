@@ -31,12 +31,16 @@ import {
 import { Press } from "../Press";
 import { AddProductSheet } from "./AddProductSheet";
 import { ShopPickerSheet } from "./ShopPickerSheet";
+import { ModeratorsSheet } from "./ModeratorsSheet";
+import { BattleInviteSheet } from "./BattleInviteSheet";
+import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { useAuth } from "../../context/auth";
 import {
   fmtDuration,
   useHostLiveSession,
   type LiveProductRow,
 } from "../../lib/live-host";
+import { battleAccept, battleDecline, usePendingBattleInvite } from "../../lib/battles";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { GOLD, NAVY } from "../../theme";
@@ -78,8 +82,12 @@ export function HostStudioHud({
   const [viewersOpen, setViewersOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [modsOpen, setModsOpen] = useState(false);
+  const [battleOpen, setBattleOpen] = useState(false);
+  const [incomingBusy, setIncomingBusy] = useState(false);
   const [flash, setFlash] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const incoming = usePendingBattleInvite(user?.id ?? null);
 
   const viewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
   const featured = session.featured;
@@ -270,7 +278,7 @@ export function HostStudioHud({
         </View>
       ) : null}
 
-      <View pointerEvents="box-none" style={[styles.rail, { bottom: insets.bottom + 72 }]}>
+      <View pointerEvents="box-none" style={[styles.rail, { top: insets.top + 188 }]}>
         <RailBtn onPress={onToggleMic} off={!micOn}>
           {micOn ? <Mic size={19} color="#fff" strokeWidth={1.9} /> : <MicOff size={19} color="#fff" strokeWidth={1.9} />}
         </RailBtn>
@@ -283,16 +291,18 @@ export function HostStudioHud({
         <RailBtn onPress={() => soon(t("live.filtersSoon", "Les filtres arrivent bientôt sur l’app"))}>
           <Sparkles size={19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => soon(t("live.battleSoon", "Le Défi Plus arrive bientôt sur l’app"))}>
+        <RailBtn onPress={() => setBattleOpen(true)}>
           <Swords size={19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => soon(t("live.moderatorsSoon", "Les modérateurs sont pour l’instant sur kidiplus.com"))}>
+        <RailBtn onPress={() => setModsOpen(true)}>
           <Shield size={19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
         <Press onPress={() => setAddOpen(true)} style={styles.plusBtn}>
           <Plus size={22} color={NAVY} strokeWidth={2.6} />
         </Press>
       </View>
+
+      <AuctionFinalCountdown secondsLeft={session.timeLeft} active={!!session.auction} />
 
       {flash ? (
         <View pointerEvents="none" style={[styles.sdFlash, { top: insets.top + 118 }]}>
@@ -449,6 +459,66 @@ export function HostStudioHud({
         userId={user?.id}
         currency={currency}
       />
+      {user?.id ? (
+        <>
+          <ModeratorsSheet
+            open={modsOpen}
+            onClose={() => setModsOpen(false)}
+            liveId={liveId}
+            hostId={user.id}
+            presentIds={session.presentViewers.map((p) => ({ id: p.identity, name: p.name }))}
+            onToast={setToast}
+          />
+          <BattleInviteSheet
+            open={battleOpen}
+            onClose={() => setBattleOpen(false)}
+            liveId={liveId}
+            excludeSellerId={user.id}
+            onToast={setToast}
+          />
+        </>
+      ) : null}
+
+      {incoming ? (
+        <View style={styles.incomingWrap}>
+          <View style={styles.incomingCard}>
+            <Text style={styles.incomingTitle}>
+              {t("battle.incoming.title", { name: incoming.fromName })}
+            </Text>
+            <Text style={styles.incomingBody}>
+              {incoming.durationSec <= 90
+                ? t("battle.incoming.bodyDemo")
+                : t("battle.incoming.body", { count: Math.round(incoming.durationSec / 60) })}
+            </Text>
+            <Text style={styles.incomingAsk}>{t("battle.incoming.ask")}</Text>
+            <View style={styles.incomingBtns}>
+              <Press
+                onPress={() => {
+                  if (incomingBusy) return;
+                  setIncomingBusy(true);
+                  void battleDecline(incoming.id).finally(() => setIncomingBusy(false));
+                }}
+                style={styles.incomingNo}
+              >
+                <Text style={styles.incomingNoTxt}>{t("battle.incoming.decline")}</Text>
+              </Press>
+              <Press
+                onPress={() => {
+                  if (incomingBusy) return;
+                  setIncomingBusy(true);
+                  void battleAccept(incoming.id).then((res) => {
+                    if (!res.ok) setToast(res.error ?? t("battle.invite.failed"));
+                    else setToast(t("battle.brand"));
+                  }).finally(() => setIncomingBusy(false));
+                }}
+                style={styles.incomingYes}
+              >
+                <Text style={styles.incomingYesTxt}>{t("battle.incoming.accept")}</Text>
+              </Press>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -743,4 +813,35 @@ const styles = StyleSheet.create({
   },
   addRowTxt: { color: NAVY, fontWeight: "800" },
   viewerName: { color: NAVY, fontSize: 15, fontWeight: "600", paddingVertical: 8 },
+  incomingWrap: {
+    ...FILL,
+    zIndex: 60,
+    justifyContent: "center",
+    paddingHorizontal: 22,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  incomingCard: {
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    padding: 18,
+    gap: 8,
+  },
+  incomingTitle: { color: NAVY, fontSize: 18, fontWeight: "900" },
+  incomingBody: { color: "#6B7289", fontSize: 14 },
+  incomingAsk: { color: NAVY, fontSize: 14, fontWeight: "700", marginTop: 4 },
+  incomingBtns: { flexDirection: "row", gap: 8, marginTop: 8 },
+  incomingNo: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "#F2F3F7",
+  },
+  incomingNoTxt: { color: NAVY, fontWeight: "800" },
+  incomingYes: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+  },
+  incomingYesTxt: { color: NAVY, fontWeight: "900" },
 });
