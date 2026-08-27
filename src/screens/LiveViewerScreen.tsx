@@ -9,6 +9,7 @@ import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { guestLiveKitIdentity } from "../lib/livekit";
+import { isExpoGo } from "../lib/expo-go";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
 import type { LiveStream } from "../mock/lives";
 
@@ -32,7 +33,7 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
   const { closeOverlay } = useNav();
   const { user } = useAuth();
   const s = stream;
-  const liveVideo = Boolean(s.roomName && !s.fictitious);
+  const liveVideo = Boolean(s.roomName && !s.fictitious) && !isExpoGo();
   const identity = useMemo(
     () => user?.id ?? guestLiveKitIdentity(),
     [user?.id],

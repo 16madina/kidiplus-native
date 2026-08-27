@@ -1,0 +1,257 @@
+import { bootLiveKit } from "../lib/livekit-boot";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
+import {
+  AudioSession,
+  LiveKitRoom,
+  VideoTrack,
+  isTrackReference,
+  useLocalParticipant,
+  useParticipants,
+  useTracks,
+} from "@livekit/react-native";
+import { LocalVideoTrack, Track } from "livekit-client";
+import { Press } from "../components/Press";
+import { HostStudioHud } from "../components/broadcast/HostStudioHud";
+import { useNav } from "../context/navigation";
+import { fetchLiveKitSession } from "../lib/livekit";
+import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
+import { GOLD } from "../theme";
+import type { CameraType } from "expo-camera";
+
+bootLiveKit();
+
+const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+export function BroadcastLiveHost({
+  liveId,
+  roomName,
+  title,
+  identity,
+  displayName,
+  facing,
+}: {
+  liveId: string;
+  roomName: string;
+  title: string;
+  identity: string;
+  displayName: string;
+  facing: CameraType;
+}) {
+  const { closeOverlay } = useNav();
+  const [session, setSession] = useState<{ url: string; token: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        bootLiveKit();
+        await AudioSession.startAudioSession();
+        const s = await fetchLiveKitSession(roomName, identity, displayName, "host");
+        if (!cancelled) setSession(s);
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Connexion LiveKit impossible";
+        if (msg.includes("build natif") || msg.includes("Expo Go")) {
+          setError(
+            "LiveKit a besoin d’un build natif (pas Expo Go). Sur Mac : npx expo run:ios --device",
+          );
+        } else {
+          setError(msg);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomName, identity, displayName]);
+
+  useEffect(() => {
+    return () => {
+      void AudioSession.stopAudioSession();
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.err}>{error}</Text>
+        <Press onPress={closeOverlay} style={styles.tool}>
+          <Text style={styles.endTxt}>Fermer</Text>
+        </Press>
+      </View>
+    );
+  }
+  if (!session) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={GOLD} />
+        <Text style={styles.wait}>Connexion au live…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <LiveKitRoom
+        serverUrl={session.url}
+        token={session.token}
+        connect
+        audio={false}
+        video={false}
+        options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
+        connectOptions={{ autoSubscribe: true }}
+        onError={(e) => {
+          if (e.name === "ConnectionError") {
+            setError("Connexion live coupée. Vérifie le Wi-Fi et relance.");
+            return;
+          }
+          setError(e.message);
+        }}
+      >
+        <PublishLocalMedia facing={facing} />
+        <HostStage
+          liveId={liveId}
+          identity={identity}
+          displayName={displayName}
+          facing={facing}
+        />
+      </LiveKitRoom>
+    </View>
+  );
+}
+
+function PublishLocalMedia({ facing }: { facing: CameraType }) {
+  const { localParticipant } = useLocalParticipant();
+  useEffect(() => {
+    const facingMode = facing === "back" ? "environment" : "user";
+    void localParticipant.setMicrophoneEnabled(true).catch(() => undefined);
+    void localParticipant.setCameraEnabled(true, { facingMode }).catch(() => undefined);
+  }, [facing, localParticipant]);
+  return null;
+}
+
+function HostStage({
+  liveId,
+  identity,
+  displayName,
+  facing: initialFacing,
+}: {
+  liveId: string;
+  identity: string;
+  displayName: string;
+  facing: CameraType;
+}) {
+  const { closeOverlay } = useNav();
+  const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
+  const tracks = useTracks([Track.Source.Camera]);
+  const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
+  const people = useParticipants();
+  const [busy, setBusy] = useState(false);
+  const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const [flipBusy, setFlipBusy] = useState(false);
+
+  useEffect(() => {
+    const tick = () => void touchLiveHostInDb(liveId);
+    tick();
+    const id = setInterval(tick, 20_000);
+    return () => clearInterval(id);
+  }, [liveId]);
+
+  const finish = () => {
+    Alert.alert("Terminer le live ?", "Les spectateurs seront déconnectés.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Terminer",
+        style: "destructive",
+        onPress: () => {
+          if (busy) return;
+          setBusy(true);
+          void endLiveInDb(liveId).finally(() => {
+            closeOverlay();
+          });
+        },
+      },
+    ]);
+  };
+
+  const flip = async () => {
+    if (flipBusy || !isCameraEnabled) return;
+    setFlipBusy(true);
+    const next: CameraType = facing === "back" ? "front" : "back";
+    const facingMode = next === "back" ? "environment" : "user";
+    try {
+      const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+      const track = pub?.track;
+      if (track && track instanceof LocalVideoTrack) {
+        await track.restartTrack({ facingMode });
+      } else {
+        await localParticipant.setCameraEnabled(false);
+        await localParticipant.setCameraEnabled(true, { facingMode });
+      }
+      setFacing(next);
+    } catch {
+      /* keep current facing */
+    } finally {
+      setFlipBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      {cameraTrack && isTrackReference(cameraTrack) && isCameraEnabled ? (
+        <VideoTrack trackRef={cameraTrack} style={FILL} objectFit="cover" mirror={facing !== "back"} />
+      ) : (
+        <View style={[FILL, styles.center]}>
+          {isCameraEnabled ? (
+            <>
+              <ActivityIndicator color={GOLD} />
+              <Text style={styles.wait}>Ouverture de la caméra…</Text>
+            </>
+          ) : (
+            <Text style={styles.wait}>Caméra coupée</Text>
+          )}
+        </View>
+      )}
+      <HostStudioHud
+        liveId={liveId}
+        identity={identity}
+        displayName={displayName}
+        viewerFallback={Math.max(0, people.length - 1)}
+        micOn={isMicrophoneEnabled}
+        camOn={isCameraEnabled}
+        onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+        onToggleCam={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
+        onFlip={() => void flip()}
+        onEnd={finish}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#05060a" },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#05060a",
+    gap: 12,
+    padding: 24,
+  },
+  wait: { color: "rgba(255,255,255,0.8)", fontWeight: "700" },
+  err: { color: "#fff", textAlign: "center", fontWeight: "700", lineHeight: 22 },
+  tool: {
+    height: 48,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  endTxt: { color: "#fff", fontWeight: "800" },
+});
