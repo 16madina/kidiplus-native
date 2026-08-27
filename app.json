@@ -43,7 +43,13 @@
         }
       ],
       "expo-image",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "KiDi+ accède à tes photos pour la boutique, la bannière et la couverture des lives."
+        }
+      ]
     ]
   }
 }

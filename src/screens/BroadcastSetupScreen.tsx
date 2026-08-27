@@ -126,10 +126,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
 
   const pickCover = async () => {
     const picked = await pickImageFromLibrary();
-    if (!picked) {
-      if (Platform.OS !== "web") flash(t("shop.pickPhotoWeb"));
-      return;
-    }
+    if (!picked) return;
     setCover(picked);
     setCoverPreview(picked.preview);
   };

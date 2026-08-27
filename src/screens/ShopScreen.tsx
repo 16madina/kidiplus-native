@@ -146,10 +146,7 @@ export function ShopScreen({
 
   const pickPhoto = async () => {
     const picked = await pickImageFromLibrary();
-    if (!picked) {
-      if (Platform.OS !== "web") flash(t("shop.pickPhotoWeb"));
-      return;
-    }
+    if (!picked) return;
     if (!picked.blob.type.startsWith("image/") && picked.contentType && !picked.contentType.startsWith("image/")) {
       flash(t("shop.imageOnly"));
       return;
@@ -241,10 +238,7 @@ export function ShopScreen({
   const pickBanner = async () => {
     if (!own || !user?.id) return;
     const picked = await pickImageFromLibrary();
-    if (!picked) {
-      if (Platform.OS !== "web") flash(t("shop.pickPhotoWeb"));
-      return;
-    }
+    if (!picked) return;
     try {
       const url = await uploadBanner(user.id, picked);
       setSeller((prev) => (prev ? { ...prev, bannerUrl: url } : prev));
