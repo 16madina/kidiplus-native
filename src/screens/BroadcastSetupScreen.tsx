@@ -148,7 +148,7 @@ function GoLiveSetup() {
         products: liveProducts,
       });
       // Laisse expo-camera relâcher le capteur avant que LiveKit le prenne.
-      await new Promise((r) => setTimeout(r, 280));
+      await new Promise((r) => setTimeout(r, 600));
       openOverlay({
         kind: "broadcast-live",
         liveId,

@@ -1,3 +1,4 @@
+import { bootLiveKit } from "../lib/livekit-boot";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,11 +16,12 @@ import { Track } from "livekit-client";
 import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
 import { useNav } from "../context/navigation";
-import { bootLiveKit } from "../lib/livekit-boot";
 import { fetchLiveKitSession } from "../lib/livekit";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
 import { GOLD, LIVE_RED } from "../theme";
 import type { CameraType } from "expo-camera";
+
+bootLiveKit();
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -44,27 +46,34 @@ export function BroadcastLiveScreen({
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      bootLiveKit();
-    } catch (e) {
-      setError(
-        "LiveKit a besoin d’un build natif (pas Expo Go). Sur Mac : npx expo run:ios --device",
-      );
-      return;
-    }
-    void AudioSession.startAudioSession().catch(() => undefined);
-    void fetchLiveKitSession(roomName, identity, displayName, "host")
-      .then((s) => {
+    void (async () => {
+      try {
+        bootLiveKit();
+        await AudioSession.startAudioSession();
+        const s = await fetchLiveKitSession(roomName, identity, displayName, "host");
         if (!cancelled) setSession(s);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Connexion LiveKit impossible");
-      });
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Connexion LiveKit impossible";
+        if (msg.includes("build natif") || msg.includes("Expo Go")) {
+          setError(
+            "LiveKit a besoin d’un build natif (pas Expo Go). Sur Mac : npx expo run:ios --device",
+          );
+        } else {
+          setError(msg);
+        }
+      }
+    })();
     return () => {
       cancelled = true;
-      void AudioSession.stopAudioSession();
     };
   }, [roomName, identity, displayName]);
+
+  useEffect(() => {
+    return () => {
+      void AudioSession.stopAudioSession();
+    };
+  }, []);
 
   if (error) {
     return (
@@ -91,15 +100,33 @@ export function BroadcastLiveScreen({
         serverUrl={session.url}
         token={session.token}
         connect
-        audio
-        video={{ facingMode: facing === "back" ? "environment" : "user" }}
-        options={{ adaptiveStream: true, dynacast: true }}
-        onError={(e) => setError(e.message)}
+        audio={false}
+        video={false}
+        options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
+        connectOptions={{ autoSubscribe: true }}
+        onError={(e) => {
+          if (e.name === "ConnectionError") {
+            setError("Connexion live coupée. Vérifie le Wi-Fi et relance.");
+            return;
+          }
+          setError(e.message);
+        }}
       >
+        <PublishLocalMedia facing={facing} />
         <HostStage liveId={liveId} title={title} facing={facing} />
       </LiveKitRoom>
     </View>
   );
+}
+
+function PublishLocalMedia({ facing }: { facing: CameraType }) {
+  const { localParticipant } = useLocalParticipant();
+  useEffect(() => {
+    const facingMode = facing === "back" ? "environment" : "user";
+    void localParticipant.setMicrophoneEnabled(true).catch(() => undefined);
+    void localParticipant.setCameraEnabled(true, { facingMode }).catch(() => undefined);
+  }, [facing, localParticipant]);
+  return null;
 }
 
 function HostStage({

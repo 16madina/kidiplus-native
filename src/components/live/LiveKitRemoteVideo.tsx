@@ -1,9 +1,11 @@
+import { bootLiveKit } from "../../lib/livekit-boot";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useTracks } from "@livekit/react-native";
 import { Track } from "livekit-client";
-import { bootLiveKit } from "../../lib/livekit-boot";
 import { fetchLiveKitSession } from "../../lib/livekit";
+
+bootLiveKit();
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -21,16 +23,9 @@ export function LiveKitRemoteVideo({
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      bootLiveKit();
-    } catch {
-      setError(
-        "Les lives vidéo demandent un build natif (pas Expo Go). Sur Mac : npx expo run:ios --device",
-      );
-      return;
-    }
     void (async () => {
       try {
+        bootLiveKit();
         await AudioSession.startAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "viewer");
         if (!cancelled) setSession(s);
@@ -42,9 +37,14 @@ export function LiveKitRemoteVideo({
     })();
     return () => {
       cancelled = true;
-      void AudioSession.stopAudioSession();
     };
   }, [displayName, identity, roomName]);
+
+  useEffect(() => {
+    return () => {
+      void AudioSession.stopAudioSession();
+    };
+  }, []);
 
   if (error) {
     return (
@@ -69,6 +69,8 @@ export function LiveKitRemoteVideo({
         connect
         audio
         video={false}
+        options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
+        connectOptions={{ autoSubscribe: true }}
         onError={(e) => setError(e.message)}
       >
         <RemoteCamera />

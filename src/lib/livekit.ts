@@ -14,6 +14,12 @@ export function guestLiveKitIdentity(): string {
   return `guest_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export function normalizeLiveKitUrl(url: string): string {
+  if (url.startsWith("https://")) return `wss://${url.slice("https://".length)}`;
+  if (url.startsWith("http://")) return `ws://${url.slice("http://".length)}`;
+  return url;
+}
+
 export async function fetchLiveKitSession(
   room: string,
   identity: string,
@@ -41,5 +47,5 @@ export async function fetchLiveKitSession(
   if (!json.token || !json.url) {
     throw new Error(json.error || "Réponse LiveKit invalide");
   }
-  return { token: json.token, url: json.url };
+  return { token: json.token, url: normalizeLiveKitUrl(json.url) };
 }

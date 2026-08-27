@@ -67,6 +67,7 @@
         {
           "ios": {
             "useFrameworks": "static",
+            "networkInspector": false,
             "forceStaticLinking": [
               "livekit-react-native",
               "livekit-react-native-webrtc"
