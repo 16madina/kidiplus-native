@@ -1189,6 +1189,7 @@
       "orderExpired": "Le délai de paiement est dépassé.",
       "orderNotFound": "Commande introuvable.",
       "forbidden": "Tu ne peux pas payer cette commande.",
+      "paypalMerchantSelfPay": "Tu es connectée au compte PayPal marchand KiDi+. Déconnecte-toi de PayPal (ou utilise « Payer avec un autre compte ») pour tester en acheteuse.",
       "formTimeout": "Le formulaire de paiement n'a pas pu se charger. Vérifiez votre connexion et réessayez.",
       "retry": "Réessayer"
     },
@@ -1260,9 +1261,11 @@
       "other": "Autre",
       "continueCta": "Recharger {{amount}}",
       "confirmCta": "Payer {{amount}}",
-      "range": "Entre {{min}} € et {{max}} €",
+      "range": "Entre {{min}} et {{max}}",
       "success": "Rechargement réussi 🎉",
-      "credited": "{{amount}} crédités sur ton solde"
+      "credited": "{{amount}} crédités sur ton solde",
+      "paypalCancelled": "Paiement PayPal annulé — aucun montant prélevé.",
+      "paypalPending": "Paiement reçu — solde en cours de crédit."
     },
     "topupSoon": "Le rechargement sera branché ensuite — lecture seule pour l'instant.",
     "tx": {

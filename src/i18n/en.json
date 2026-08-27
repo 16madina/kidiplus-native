@@ -1260,9 +1260,11 @@
       "other": "Other",
       "continueCta": "Top up {{amount}}",
       "confirmCta": "Pay {{amount}}",
-      "range": "Between €{{min}} and €{{max}}",
+      "range": "Between {{min}} and {{max}}",
       "success": "Top-up successful 🎉",
-      "credited": "{{amount}} credited to your balance"
+      "credited": "{{amount}} credited to your balance",
+      "paypalCancelled": "PayPal payment cancelled — nothing was charged.",
+      "paypalPending": "Payment received — balance credit in progress."
     },
     "topupSoon": "Top-up will be wired next — read-only for now.",
     "tx": {

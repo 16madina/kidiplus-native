@@ -91,7 +91,8 @@
           "merchantIdentifier": "merchant.com.kidiplus.native",
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

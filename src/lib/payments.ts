@@ -1,19 +1,25 @@
 // Buyer payments — same Supabase RPCs + kidiplus.com HTTP APIs as the web app.
 
+import * as WebBrowser from "expo-web-browser";
 import { supabase } from "./supabase";
 import { normalizeCurrency, type Currency } from "./money";
+import { PAYPAL_REDIRECT_SCHEME, parsePaypalDoneUrl } from "./pay-errors";
 
 const API_BASE = "https://kidiplus.com";
+
+WebBrowser.maybeCompleteAuthSession();
 
 async function bearer(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
 
+export type ApiFail = { ok: false; error: string; message?: string };
+
 async function api<T>(
   path: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: T } | ApiFail> {
   const token = await bearer();
   if (!token) return { ok: false, error: "not_signed_in" };
   try {
@@ -22,12 +28,19 @@ async function api<T>(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        // RN sometimes omits Origin; kidiplus.com CORS allows this host.
+        Origin: "https://kidiplus.com",
       },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok || json.ok === false || json.error) {
-      return { ok: false, error: String(json.error ?? `http_${res.status}`) };
+    if (!res.ok || json.ok === false || (json.error && !json.clientSecret)) {
+      return {
+        ok: false,
+        error: String(json.error ?? `http_${res.status}`),
+        ...(typeof json.message === "string" ? { message: json.message } : {}),
+        ...(typeof json.detail === "string" ? { message: String(json.detail) } : {}),
+      };
     }
     return { ok: true, data: json as T };
   } catch {
@@ -96,7 +109,7 @@ export async function confirmWalletTopup(paymentIntentId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// PayPal (approve URL in browser + capture on return)
+// PayPal (ASWebAuthenticationSession → kidiplus://paypal-done)
 // ---------------------------------------------------------------------------
 
 export type PaypalCreate = {
@@ -124,6 +137,48 @@ export async function capturePaypalTopup(paypalOrderId: string) {
   return api<{ ok: true; balance: number; amount: number }>("/api/paypal-topup/capture", {
     orderId: paypalOrderId,
   });
+}
+
+export type PaypalBrowserResult =
+  | { ok: true; status: "ok" | "pending"; amount: string | null; currency: string | null; orderId: string | null }
+  | { ok: false; cancelled: true }
+  | { ok: false; cancelled: false; error: string };
+
+/**
+ * Opens PayPal approve URL in a system auth session that auto-closes when the
+ * server bounces to `kidiplus://paypal-done` — no "Open in KiDi+?" prompt.
+ * Server already finalizes capture on the return URL when native=1.
+ * Ephemeral session avoids reusing the merchant PayPal login from Safari.
+ */
+export async function openPaypalCheckout(approveUrl: string): Promise<PaypalBrowserResult> {
+  try {
+    const result = await WebBrowser.openAuthSessionAsync(approveUrl, PAYPAL_REDIRECT_SCHEME, {
+      // Critical: don't reuse Safari cookies where the KiDi+ merchant is logged in.
+      preferEphemeralSession: true,
+      showInRecents: false,
+    });
+    if (result.type === "success" && "url" in result && result.url) {
+      const parsed = parsePaypalDoneUrl(result.url);
+      if (parsed.status === "cancelled") return { ok: false, cancelled: true };
+      if (parsed.status === "ok" || parsed.status === "pending") {
+        return {
+          ok: true,
+          status: parsed.status === "ok" ? "ok" : "pending",
+          amount: parsed.amount,
+          currency: parsed.currency,
+          orderId: parsed.orderId,
+        };
+      }
+      return { ok: false, cancelled: false, error: parsed.status || "paypal_failed" };
+    }
+    // User closed the sheet (Done) without completing — treat as cancel.
+    if (result.type === "cancel" || result.type === "dismiss") {
+      return { ok: false, cancelled: true };
+    }
+    return { ok: false, cancelled: true };
+  } catch {
+    return { ok: false, cancelled: false, error: "network" };
+  }
 }
 
 // ---------------------------------------------------------------------------

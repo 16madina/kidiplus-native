@@ -1,9 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  AppState,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -18,11 +16,12 @@ import { Press } from "../Press";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
 import { formatMoney, normalizeCurrency, topUpPresets } from "../../lib/money";
+import { mapPayError } from "../../lib/pay-errors";
 import {
-  capturePaypalTopup,
   confirmWalletTopup,
   createPaypalTopup,
   createWalletTopup,
+  openPaypalCheckout,
   topUpLimits,
 } from "../../lib/payments";
 import { presentStripePayment, stripeAvailable } from "../../lib/stripe-native";
@@ -46,7 +45,6 @@ export function TopUpSheet({
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState<null | "card" | "paypal">(null);
   const [error, setError] = useState<string | null>(null);
-  const paypalRef = useRef<string | null>(null);
 
   const currency = normalizeCurrency(user?.walletCurrency);
   const limits = topUpLimits(currency);
@@ -57,33 +55,8 @@ export function TopUpSheet({
       setAmount(initialAmount ? String(initialAmount) : "");
       setError(null);
       setBusy(null);
-      paypalRef.current = null;
     }
   }, [open, initialAmount]);
-
-  useEffect(() => {
-    if (!open) return;
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s !== "active" || !paypalRef.current) return;
-      const id = paypalRef.current;
-      paypalRef.current = null;
-      void (async () => {
-        const res = await capturePaypalTopup(id);
-        if (res.ok) {
-          await refreshUser();
-          onDone(
-            t("wallet.topup.credited", {
-              amount: formatMoney(Number(res.data.amount ?? 0), currency, i18n.language),
-            }),
-          );
-        } else {
-          setBusy(null);
-          setError(t("pay.errors.generic"));
-        }
-      })();
-    });
-    return () => sub.remove();
-  }, [open, onDone, refreshUser, t, currency, i18n.language]);
 
   const parseAmount = (): number | null => {
     const n = Number(String(amount).replace(",", "."));
@@ -121,7 +94,12 @@ export function TopUpSheet({
     const intent = await createWalletTopup(n);
     if (!intent.ok) {
       setBusy(null);
-      setError(intent.error === "not_signed_in" ? t("pay.errors.notSignedIn") : t("pay.errors.network"));
+      setError(mapPayError(intent.error, t, intent.message));
+      return;
+    }
+    if (!intent.data.clientSecret || !intent.data.publishableKey) {
+      setBusy(null);
+      setError(t("pay.errors.notConfigured"));
       return;
     }
     const sheet = await presentStripePayment({
@@ -134,8 +112,16 @@ export function TopUpSheet({
       return;
     }
     const piId = intent.data.clientSecret.split("_secret")[0] ?? "";
-    await confirmWalletTopup(piId);
+    const conf = await confirmWalletTopup(piId);
+    if (!conf.ok) {
+      // Webhook may still credit — refresh anyway.
+      await refreshUser();
+      setBusy(null);
+      setError(mapPayError(conf.error, t, conf.message));
+      return;
+    }
     await refreshUser();
+    setBusy(null);
     onDone(t("wallet.topup.success"));
   };
 
@@ -148,15 +134,28 @@ export function TopUpSheet({
     const res = await createPaypalTopup(n);
     if (!res.ok || !res.data.approveUrl) {
       setBusy(null);
-      setError(t("pay.errors.network"));
+      setError(mapPayError(res.ok ? "generic" : res.error, t, res.ok ? undefined : res.message));
       return;
     }
-    paypalRef.current = res.data.paypalOrderId ?? res.data.orderId ?? null;
-    await Linking.openURL(res.data.approveUrl).catch(() => {
-      paypalRef.current = null;
+    const browser = await openPaypalCheckout(res.data.approveUrl);
+    if (!browser.ok) {
       setBusy(null);
-      setError(t("pay.errors.generic"));
-    });
+      if (!browser.cancelled) setError(mapPayError(browser.error, t));
+      return;
+    }
+    await refreshUser();
+    setBusy(null);
+    if (browser.status === "ok") {
+      onDone(
+        browser.amount
+          ? t("wallet.topup.credited", {
+              amount: formatMoney(Number(browser.amount), browser.currency || currency, i18n.language),
+            })
+          : t("wallet.topup.success"),
+      );
+    } else {
+      onDone(t("wallet.topup.paypalPending", { defaultValue: "Paiement reçu — solde en cours de crédit." }));
+    }
   };
 
   return (

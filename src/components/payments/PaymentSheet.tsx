@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  AppState,
-  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -16,11 +14,12 @@ import { Press } from "../Press";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
 import { convertMoney, formatMoney, normalizeCurrency } from "../../lib/money";
+import { mapPayError } from "../../lib/pay-errors";
 import {
-  capturePaypalOrder,
   confirmOrderCheckout,
   createOrderCheckout,
   createPaypalOrderCheckout,
+  openPaypalCheckout,
   payOrderWithWallet,
 } from "../../lib/payments";
 import { presentStripePayment, stripeAvailable } from "../../lib/stripe-native";
@@ -51,7 +50,6 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
   const { user, refreshUser } = useAuth();
   const [busy, setBusy] = useState<null | "wallet" | "card" | "paypal">(null);
   const [error, setError] = useState<string | null>(null);
-  const paypalRef = useRef<string | null>(null);
 
   const open = !!order;
   const walletCurrency = normalizeCurrency(user?.walletCurrency);
@@ -61,30 +59,8 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
     if (open) {
       setBusy(null);
       setError(null);
-      paypalRef.current = null;
     }
   }, [open, order?.id]);
-
-  // After the PayPal browser round-trip, capture when the app comes back.
-  useEffect(() => {
-    if (!open) return;
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s !== "active" || !paypalRef.current) return;
-      const id = paypalRef.current;
-      paypalRef.current = null;
-      void (async () => {
-        const res = await capturePaypalOrder(id);
-        if (res.ok) {
-          await refreshUser();
-          onPaid(t("pay.toasts.confirmed"));
-        } else {
-          setBusy(null);
-          setError(t("pay.errors.generic"));
-        }
-      })();
-    });
-    return () => sub.remove();
-  }, [open, onPaid, refreshUser, t]);
 
   if (!order) return null;
 
@@ -124,7 +100,12 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
     const intent = await createOrderCheckout(order.id);
     if (!intent.ok) {
       setBusy(null);
-      setError(intent.error === "not_signed_in" ? t("pay.errors.notSignedIn") : t("pay.errors.network"));
+      setError(mapPayError(intent.error, t, intent.message));
+      return;
+    }
+    if (!intent.data.clientSecret || !intent.data.publishableKey) {
+      setBusy(null);
+      setError(t("pay.errors.notConfigured"));
       return;
     }
     const sheet = await presentStripePayment({
@@ -149,15 +130,18 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
     const res = await createPaypalOrderCheckout(order.id);
     if (!res.ok || !res.data.approveUrl) {
       setBusy(null);
-      setError(t("pay.errors.network"));
+      setError(mapPayError(res.ok ? "generic" : res.error, t, res.ok ? undefined : res.message));
       return;
     }
-    paypalRef.current = res.data.paypalOrderId ?? res.data.orderId ?? null;
-    await Linking.openURL(res.data.approveUrl).catch(() => {
-      paypalRef.current = null;
+    const browser = await openPaypalCheckout(res.data.approveUrl);
+    if (!browser.ok) {
       setBusy(null);
-      setError(t("pay.errors.generic"));
-    });
+      if (!browser.cancelled) setError(mapPayError(browser.error, t));
+      return;
+    }
+    await refreshUser();
+    setBusy(null);
+    onPaid(t("pay.toasts.confirmed"));
   };
 
   return (
