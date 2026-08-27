@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Check, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -19,7 +29,7 @@ import { type ShopItem } from "../../mock/account";
 type ItemConfig = {
   mode: LiveSaleKind;
   amount: string;
-  timerSec: number;
+  timer: string;
 };
 
 function defaultAmount(item: ShopItem, currency: string) {
@@ -85,7 +95,7 @@ export function ShopPickerSheet({
         [item.id]: {
           mode: mode ?? existing?.mode ?? "auction",
           amount: existing?.amount ?? defaultAmount(item, currency),
-          timerSec: existing?.timerSec ?? 45,
+          timer: existing?.timer ?? "45",
         },
       };
     });
@@ -103,6 +113,7 @@ export function ShopPickerSheet({
     const drafts = Object.entries(configs).map(([id, c]) => {
       const item = items.find((p) => p.id === id);
       const amount = Math.max(1, Number(c.amount.replace(",", ".")) || 1);
+      const timerSec = Math.max(10, Math.floor(Number(c.timer) || 45));
       return {
         id: newDraftId(),
         name: item?.name ?? "Article",
@@ -112,7 +123,7 @@ export function ShopPickerSheet({
         mode: c.mode,
         startPrice: amount,
         price: amount,
-        timerSec: c.timerSec,
+        timerSec,
         stock: Math.max(1, item?.stock ?? 1),
       } satisfies LiveDraftProduct;
     });
@@ -124,6 +135,7 @@ export function ShopPickerSheet({
     <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Press haptic="none" onPress={onClose} style={styles.dismiss} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.handle} />
           <View style={styles.head}>
@@ -185,27 +197,46 @@ export function ShopPickerSheet({
                               </View>
                             </Press>
                           </View>
-                          <Text style={styles.subLbl}>
-                            {cfg.mode === "auction"
-                              ? `${t("shop.startPrice")} (${symbol})`
-                              : `${t("shop.price")} (${symbol})`}
-                          </Text>
-                          <TextInput
-                            value={cfg.amount}
-                            onChangeText={(amount) => patch(item.id, { amount: amount.replace(/[^0-9.,]/g, "") })}
-                            keyboardType="decimal-pad"
-                            style={styles.amount}
-                          />
-                          <Text style={styles.subLbl}>
-                            {cfg.mode === "auction" ? t("shop.durationSec") : t("productOptions.duration")}
-                          </Text>
+                          <View style={styles.two}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subLbl}>
+                                {cfg.mode === "auction"
+                                  ? `${t("shop.startPrice")} (${symbol})`
+                                  : `${t("shop.price")} (${symbol})`}
+                              </Text>
+                              <TextInput
+                                value={cfg.amount}
+                                onChangeText={(amount) =>
+                                  patch(item.id, { amount: amount.replace(/[^0-9.,]/g, "") })
+                                }
+                                keyboardType="decimal-pad"
+                                style={styles.amount}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subLbl}>{t("shop.durationSec")}</Text>
+                              <View style={styles.timerField}>
+                                <TextInput
+                                  value={cfg.timer}
+                                  onChangeText={(timer) =>
+                                    patch(item.id, { timer: timer.replace(/[^0-9]/g, "") })
+                                  }
+                                  keyboardType="number-pad"
+                                  placeholder="45"
+                                  placeholderTextColor="#9AA0B4"
+                                  style={styles.timerInput}
+                                />
+                                <Text style={styles.timerSuffix}>s</Text>
+                              </View>
+                            </View>
+                          </View>
                           <View style={styles.timers}>
                             {AUCTION_TIMER_PRESETS.map((p) => {
-                              const active = cfg.timerSec === p.sec;
+                              const active = cfg.timer === String(p.sec);
                               return (
                                 <Press
                                   key={p.sec}
-                                  onPress={() => patch(item.id, { timerSec: p.sec })}
+                                  onPress={() => patch(item.id, { timer: String(p.sec) })}
                                   style={styles.timerBtn}
                                 >
                                   <View style={[styles.timerInner, active && styles.timerOn]}>
@@ -227,6 +258,7 @@ export function ShopPickerSheet({
             <Text style={styles.ctaTxt}>{t("shop.pickConfirm", { n: count })}</Text>
           </Press>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -297,6 +329,7 @@ const styles = StyleSheet.create({
   kindTxt: { fontWeight: "800", fontSize: 12, color: NAVY },
   kindTxtOn: { color: "#fff" },
   subLbl: { fontSize: 11, fontWeight: "800", color: "#6B7289", textTransform: "uppercase", marginTop: 4 },
+  two: { flexDirection: "row", gap: 8 },
   amount: {
     height: 44,
     borderRadius: 12,
@@ -308,6 +341,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E6E8EF",
   },
+  timerField: {
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F2F3F7",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E6E8EF",
+  },
+  timerInput: { flex: 1, height: 44, color: NAVY, fontSize: 16, fontWeight: "700" },
+  timerSuffix: { fontWeight: "800", color: "#6B7289", fontSize: 13 },
   timers: { flexDirection: "row", gap: 6 },
   timerBtn: { flex: 1, minHeight: 0, minWidth: 0, alignItems: "stretch" },
   timerInner: {

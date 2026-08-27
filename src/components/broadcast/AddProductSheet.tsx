@@ -167,21 +167,28 @@ export function AddProductSheet({
                 />
               </View>
 
-              {mode === "auction" ? (
+              <View style={styles.two}>
+                {mode === "auction" ? (
+                  <NumField
+                    label={`${t("broadcast.setup.productSheet.startingPrice")} (${symbol})`}
+                    value={startPrice}
+                    onChangeText={setStartPrice}
+                  />
+                ) : (
+                  <NumField
+                    label={`${t("broadcast.setup.productSheet.price")} (${symbol})`}
+                    value={price}
+                    onChangeText={setPrice}
+                  />
+                )}
                 <NumField
-                  label={`${t("broadcast.setup.productSheet.startingPrice")} (${symbol})`}
-                  value={startPrice}
-                  onChangeText={setStartPrice}
+                  label={t("shop.durationSec")}
+                  value={timerSec}
+                  onChangeText={(v) => setTimerSec(v.replace(/[^0-9]/g, ""))}
+                  suffix="s"
+                  keyboardType="number-pad"
                 />
-              ) : (
-                <NumField
-                  label={`${t("broadcast.setup.productSheet.price")} (${symbol})`}
-                  value={price}
-                  onChangeText={setPrice}
-                />
-              )}
-
-              <Text style={styles.label}>{t("productOptions.duration")}</Text>
+              </View>
               <View style={styles.modeRow}>
                 {AUCTION_TIMER_PRESETS.map((p) => {
                   const on = timerSec === String(p.sec);
@@ -263,11 +270,15 @@ function NumField({
   value,
   onChangeText,
   icon,
+  suffix,
+  keyboardType = "decimal-pad",
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   icon?: React.ReactNode;
+  suffix?: string;
+  keyboardType?: "decimal-pad" | "number-pad";
 }) {
   return (
     <View style={{ flex: 1 }}>
@@ -277,9 +288,10 @@ function NumField({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          keyboardType="decimal-pad"
+          keyboardType={keyboardType}
           style={styles.numInput}
         />
+        {suffix ? <Text style={styles.suffix}>{suffix}</Text> : null}
       </View>
     </View>
   );
@@ -368,6 +380,7 @@ const styles = StyleSheet.create({
     borderColor: "#E6E8EF",
   },
   numInput: { flex: 1, fontSize: 15, color: NAVY, height: 48 },
+  suffix: { fontWeight: "800", color: "#8B90A0", fontSize: 13 },
   incRow: {
     height: 48,
     borderRadius: 12,

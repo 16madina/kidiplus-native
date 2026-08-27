@@ -277,7 +277,7 @@ export async function createScheduledLiveInDb(input: {
       start_price: p.price,
       price: p.price,
       stock: p.stock,
-      timer_seconds: p.mode === "auction" ? (p.timerSeconds ?? 45) : 0,
+      timer_seconds: p.timerSeconds ?? 45,
       status: "upcoming",
       position: i,
       ...(p.shopProductId ? { shop_product_id: p.shopProductId } : {}),
