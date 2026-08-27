@@ -34,10 +34,12 @@ import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
+import { WinnerReveal } from "../live/WinnerReveal";
 import { useAuth } from "../../context/auth";
 import {
   fmtDuration,
   useHostLiveSession,
+  type AuctionEndReveal,
   type LiveProductRow,
 } from "../../lib/live-host";
 import { battleAccept, battleDecline, usePendingBattleInvite } from "../../lib/battles";
@@ -87,6 +89,7 @@ export function HostStudioHud({
   const [incomingBusy, setIncomingBusy] = useState(false);
   const [flash, setFlash] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
 
   const viewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
@@ -107,6 +110,11 @@ export function HostStudioHud({
     const id = setTimeout(() => setFlash(false), 2600);
     return () => clearTimeout(id);
   }, [session.suddenDeathTick]);
+
+  useEffect(() => {
+    if (!session.lastEnd) return;
+    setReveal(session.lastEnd);
+  }, [session.lastEnd?.endId]);
 
   const soon = (msg: string) => setToast(msg);
 
@@ -302,7 +310,8 @@ export function HostStudioHud({
         </Press>
       </View>
 
-      <AuctionFinalCountdown secondsLeft={session.timeLeft} active={!!session.auction} />
+      <AuctionFinalCountdown secondsLeft={session.timeLeft} active={!!session.auction && !reveal} />
+      <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
 
       {flash ? (
         <View pointerEvents="none" style={[styles.sdFlash, { top: insets.top + 118 }]}>

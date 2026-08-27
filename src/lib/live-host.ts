@@ -37,6 +37,14 @@ export type AuctionStartEvt = {
   auctionRound?: number;
 };
 
+export type AuctionEndReveal = {
+  endId: string;
+  productId: string;
+  productName: string | null;
+  winnerId: string | null;
+  winnerName: string | null;
+};
+
 export type HostChatMsg = {
   id: string;
   user: string;
@@ -262,6 +270,7 @@ export function useHostLiveSession(args: {
   const [sales, setSales] = useState({ revenue: 0, count: 0 });
   const [gifts, setGifts] = useState({ count: 0, sellerNet: 0 });
   const [featuredId, setFeaturedId] = useState<string | null>(null);
+  const [lastEnd, setLastEnd] = useState<AuctionEndReveal | null>(null);
   const [startedAtMs, setStartedAtMs] = useState(Date.now());
   const [currency, setCurrency] = useState("EUR");
   const [nowMs, setNowMs] = useState(Date.now());
@@ -549,6 +558,13 @@ export function useHostLiveSession(args: {
       endId,
       ts: Date.now(),
     });
+    setLastEnd({
+      endId,
+      productId: auction.productId,
+      productName: product?.name ?? null,
+      winnerId,
+      winnerName,
+    });
     setAuction(null);
     void (async () => {
       let res = await finalizeAuctionInDb({
@@ -679,5 +695,6 @@ export function useHostLiveSession(args: {
     startAuction,
     toggleFixed,
     addDraft,
+    lastEnd,
   };
 }

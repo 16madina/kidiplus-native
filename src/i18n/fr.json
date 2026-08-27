@@ -1725,7 +1725,8 @@
       "you": "Tu as gagné !",
       "other": "{{name}} a gagné !",
       "said": "{{name}} a dit + 🎉",
-      "saidMe": "Tu as dit + 🎉"
+      "saidMe": "Tu as dit + 🎉",
+      "badge": "Gagnant"
     },
     "unsold": {
       "title": "Article non vendu"
