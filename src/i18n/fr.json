@@ -1724,8 +1724,8 @@
     "winner": {
       "you": "Tu as gagné !",
       "other": "{{name}} a gagné !",
-      "said": "{{name}} a dit + 🎉",
-      "saidMe": "Tu as dit + 🎉",
+      "said": "{{name}} a dit PLUS",
+      "saidMe": "Tu as dit PLUS",
       "badge": "Gagnant"
     },
     "unsold": {
