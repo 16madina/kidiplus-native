@@ -43,6 +43,7 @@ type Ctx = {
   }) => Promise<void>;
   signOut: () => void;
   becomeSeller: () => void;
+  adjustWallet: (deltaCents: number) => void;
   sendReset: (email: string) => Promise<void>;
 };
 
@@ -132,6 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => (prev ? { ...prev, isSeller: true } : prev));
   }, []);
 
+  const adjustWallet = useCallback((deltaCents: number) => {
+    setUser((prev) =>
+      prev ? { ...prev, walletBalance: Math.max(0, prev.walletBalance + deltaCents) } : prev,
+    );
+  }, []);
+
   const openAuth = useCallback((next: AuthView = "welcome") => {
     setView(next);
     setAuthOverlay(true);
@@ -160,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       becomeSeller,
+      adjustWallet,
       sendReset,
     }),
     [
@@ -174,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       becomeSeller,
+      adjustWallet,
       sendReset,
     ],
   );

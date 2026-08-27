@@ -13,7 +13,14 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { LiveViewerScreen } from "./screens/LiveViewerScreen";
 import { ActivityScreen } from "./screens/ActivityScreen";
 import { LegalScreen } from "./screens/LegalScreen";
-import { PlaceholderScreen } from "./screens/PlaceholderScreen";
+import { WalletScreen } from "./screens/WalletScreen";
+import { ShopScreen } from "./screens/ShopScreen";
+import { OrdersScreen } from "./screens/OrdersScreen";
+import { EarningsScreen } from "./screens/EarningsScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import { AddressesScreen } from "./screens/AddressesScreen";
+import { HelpScreen } from "./screens/HelpScreen";
+import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { NAVY } from "./theme";
 
 export function AppShell() {
@@ -44,18 +51,14 @@ export function AppShell() {
       {overlay.kind === "live" ? <LiveViewerScreen /> : null}
       {overlay.kind === "activity" ? <ActivityScreen /> : null}
       {overlay.kind === "legal" ? <LegalScreen page={overlay.page} onClose={closeOverlay} /> : null}
-      {overlay.kind === "shop" ||
-      overlay.kind === "wallet" ||
-      overlay.kind === "orders" ||
-      overlay.kind === "earnings" ||
-      overlay.kind === "settings" ||
-      overlay.kind === "help" ||
-      overlay.kind === "addresses" ||
-      overlay.kind === "broadcast-setup" ? (
-        <View style={styles.overlay}>
-          <PlaceholderScreen kind={overlay.kind} />
-        </View>
-      ) : null}
+      {overlay.kind === "wallet" ? <View style={styles.overlay}><WalletScreen /></View> : null}
+      {overlay.kind === "shop" ? <View style={styles.overlay}><ShopScreen /></View> : null}
+      {overlay.kind === "orders" ? <View style={styles.overlay}><OrdersScreen /></View> : null}
+      {overlay.kind === "earnings" ? <View style={styles.overlay}><EarningsScreen /></View> : null}
+      {overlay.kind === "settings" ? <View style={styles.overlay}><SettingsScreen /></View> : null}
+      {overlay.kind === "help" ? <View style={styles.overlay}><HelpScreen /></View> : null}
+      {overlay.kind === "addresses" ? <View style={styles.overlay}><AddressesScreen /></View> : null}
+      {overlay.kind === "broadcast-setup" ? <View style={styles.overlay}><BroadcastSetupScreen /></View> : null}
       {authOverlay ? <AuthFlow overlay /> : null}
     </View>
   );
@@ -66,5 +69,5 @@ const styles = StyleSheet.create({
   pane: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   shown: { zIndex: 2, opacity: 1 },
   hidden: { zIndex: 0, opacity: 0, pointerEvents: "none" },
-  overlay: { ...{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }, zIndex: 70, backgroundColor: "#fff" },
+  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 70 },
 });

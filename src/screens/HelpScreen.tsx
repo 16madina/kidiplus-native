@@ -1,0 +1,62 @@
+import { useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ChevronDown, Mail, MessageCircle } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
+import { GoldButton } from "../components/Buttons";
+import { Glass } from "../components/Glass";
+import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
+import { Press } from "../components/Press";
+import { useAppTheme } from "../context/theme";
+import { GOLD } from "../theme";
+import { HELP_FAQS } from "../mock/account";
+
+export function HelpScreen() {
+  const { t } = useTranslation();
+  const { colors, dark } = useAppTheme();
+  const [open, setOpen] = useState<string | null>(HELP_FAQS[0]?.q ?? null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <OverlayHeader title={t("profile.menu.help")} />
+      <ScrollView contentContainerStyle={styles.body}>
+        {HELP_FAQS.map((f) => {
+          const isOpen = open === f.q;
+          return (
+            <Press key={f.q} onPress={() => setOpen(isOpen ? null : f.q)} style={{ alignItems: "stretch" }}>
+              <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+                <View style={styles.q}>
+                  <Text style={{ flex: 1, fontWeight: "800", color: colors.foreground }}>{f.q}</Text>
+                  <ChevronDown size={18} color={GOLD} style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }} />
+                </View>
+                {isOpen ? (
+                  <Text style={[styles.a, { color: colors.mutedForeground }]}>{f.a}</Text>
+                ) : null}
+              </Glass>
+            </Press>
+          );
+        })}
+        <GoldButton
+          label="Écrire au support"
+          icon={<Mail size={16} color="#151022" />}
+          onPress={() => {
+            setToast("Message envoyé au support (mock)");
+            setTimeout(() => setToast(null), 2000);
+          }}
+        />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 4 }}>
+          <MessageCircle size={14} color={colors.mutedForeground} />
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>hello@kidiplus.com · données mock</Text>
+        </View>
+      </ScrollView>
+      <MockBanner text={toast} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  body: { padding: 16, paddingBottom: 48, gap: 10 },
+  q: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 14 },
+  a: { paddingHorizontal: 14, paddingBottom: 14, fontSize: 13, lineHeight: 19 },
+});
