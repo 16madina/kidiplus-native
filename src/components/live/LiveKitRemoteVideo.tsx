@@ -2,8 +2,16 @@ import { bootLiveKit } from "../../lib/livekit-boot";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useTracks } from "@livekit/react-native";
+import {
+  AudioSession,
+  LiveKitRoom,
+  VideoTrack,
+  isTrackReference,
+  useTracks,
+} from "@livekit/react-native";
 import { Track } from "livekit-client";
+import { BattleSplitStage, type BattleSplitFighter } from "../battle/BattleSplitStage";
+import { isBattleGuestIdentity } from "../../lib/battles";
 import { fetchLiveKitSession } from "../../lib/livekit";
 
 bootLiveKit();
@@ -14,10 +22,16 @@ export function LiveKitRemoteVideo({
   roomName,
   identity,
   displayName,
+  battleActive = false,
+  hostFighter = null,
+  guestFighter = null,
 }: {
   roomName: string;
   identity: string;
   displayName: string;
+  battleActive?: boolean;
+  hostFighter?: BattleSplitFighter | null;
+  guestFighter?: BattleSplitFighter | null;
 }) {
   const { t } = useTranslation();
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
@@ -92,24 +106,71 @@ export function LiveKitRemoteVideo({
           setError(e.message);
         }}
       >
-        <RemoteCamera />
+        <RemoteCamera
+          battleActive={battleActive}
+          hostFighter={hostFighter}
+          guestFighter={guestFighter}
+        />
       </LiveKitRoom>
     </View>
   );
 }
 
-function RemoteCamera() {
+function RemoteCamera({
+  battleActive,
+  hostFighter,
+  guestFighter,
+}: {
+  battleActive: boolean;
+  hostFighter?: BattleSplitFighter | null;
+  guestFighter?: BattleSplitFighter | null;
+}) {
   const tracks = useTracks([Track.Source.Camera]);
-  const remote = tracks.find((t) => isTrackReference(t) && !t.participant.isLocal);
-  if (!remote || !isTrackReference(remote)) {
-    return (
-      <View style={[FILL, styles.center]}>
-        <ActivityIndicator color="#fff" />
-        <Text style={styles.wait}>En attente de la caméra du vendeur…</Text>
-      </View>
+  const host = tracks.find(
+    (t) =>
+      isTrackReference(t) &&
+      !t.participant.isLocal &&
+      !isBattleGuestIdentity(t.participant.identity),
+  );
+  const guest = tracks.find(
+    (t) =>
+      isTrackReference(t) &&
+      !t.participant.isLocal &&
+      isBattleGuestIdentity(t.participant.identity),
+  );
+
+  const waiting = (
+    <View style={[FILL, styles.center]}>
+      <ActivityIndicator color="#fff" />
+      <Text style={styles.wait}>En attente de la caméra du vendeur…</Text>
+    </View>
+  );
+
+  const hostVideo =
+    host && isTrackReference(host) ? (
+      <VideoTrack trackRef={host} style={FILL} objectFit="cover" />
+    ) : (
+      waiting
     );
+
+  const guestVideo =
+    guest && isTrackReference(guest) ? (
+      <VideoTrack trackRef={guest} style={FILL} objectFit="cover" />
+    ) : null;
+
+  if (!battleActive) {
+    return hostVideo;
   }
-  return <VideoTrack trackRef={remote} style={FILL} objectFit="cover" />;
+
+  return (
+    <BattleSplitStage
+      active
+      hostVideo={hostVideo}
+      hostFighter={hostFighter}
+      guestVideo={guestVideo}
+      guestFighter={guestFighter}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

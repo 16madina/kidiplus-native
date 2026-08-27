@@ -1,5 +1,5 @@
 import { bootLiveKit } from "../lib/livekit-boot";
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ActivityIndicator, Alert, LogBox, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,11 +12,21 @@ import {
   useRoomContext,
   useTracks,
 } from "@livekit/react-native";
-import { LocalVideoTrack, Track } from "livekit-client";
+import { LocalAudioTrack, LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
+import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { useNav } from "../context/navigation";
+import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
+import {
+  battleHeartbeat,
+  fetchBattleForLive,
+  isBattleGuestIdentity,
+  isBattleLiveActive,
+  useBattleForLive,
+  type HydratedBattle,
+} from "../lib/battles";
 import { fetchLiveKitSession } from "../lib/livekit";
 import { startLiveReplay, stopLiveReplay } from "../lib/live-replay";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
@@ -183,12 +193,69 @@ function HostStage({
   const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
   const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
+  const guestCamTrack = tracks.find(
+    (t) =>
+      isTrackReference(t) &&
+      !t.participant.isLocal &&
+      isBattleGuestIdentity(t.participant.identity),
+  );
   const people = useParticipants();
   const [busy, setBusy] = useState(false);
   const [facing, setFacing] = useState<CameraType>(initialFacing);
   const [flipBusy, setFlipBusy] = useState(false);
+  const [battleOverride, setBattleOverride] = useState<HydratedBattle | null>(null);
   const startedAtMsRef = useRef(Date.now());
   const peakRef = useRef(0);
+  const liveBattle = useBattleForLive(liveId);
+  const battle = battleOverride ?? liveBattle;
+  const battleActive = isBattleLiveActive(battle);
+
+  const myLive = useMemo(
+    () => battle?.lives.find((l) => l.live_id === liveId) ?? null,
+    [battle, liveId],
+  );
+  const opponentLive = useMemo(
+    () => battle?.lives.find((l) => l.live_id !== liveId) ?? null,
+    [battle, liveId],
+  );
+
+  const getBattleSourceTrack = useCallback((): LocalVideoTrack | null => {
+    const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+    const track = pub?.track;
+    return track instanceof LocalVideoTrack ? track : null;
+  }, [localParticipant]);
+
+  const getBattleSourceAudioTrack = useCallback((): LocalAudioTrack | null => {
+    const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = pub?.track;
+    return track instanceof LocalAudioTrack ? track : null;
+  }, [localParticipant]);
+
+  const remoteBattleStatus = useBattleGuestPublish({
+    enabled: battleActive,
+    userId: identity,
+    displayName,
+    remoteRoomName: opponentLive?.room_name ?? null,
+    getSourceTrack: getBattleSourceTrack,
+    getSourceAudioTrack: getBattleSourceAudioTrack,
+  });
+
+  useEffect(() => {
+    if (!battleActive || !battle?.session.id) return;
+    const beat = () => void battleHeartbeat(battle.session.id);
+    beat();
+    const id = setInterval(beat, 10_000);
+    return () => clearInterval(id);
+  }, [battleActive, battle?.session.id]);
+
+  useEffect(() => {
+    if (liveBattle) setBattleOverride(null);
+  }, [liveBattle]);
+
+  const onBattleAccepted = useCallback(async () => {
+    const next = await fetchBattleForLive(liveId);
+    if (next) setBattleOverride(next);
+  }, [liveId]);
 
   useEffect(() => {
     const tick = () => void touchLiveHostInDb(liveId);
@@ -290,22 +357,53 @@ function HostStage({
     }
   };
 
+  const hostVideo =
+    cameraTrack && isTrackReference(cameraTrack) && isCameraEnabled ? (
+      <VideoTrack
+        trackRef={cameraTrack}
+        style={FILL}
+        objectFit="cover"
+        mirror={facing !== "back"}
+      />
+    ) : (
+      <View style={[FILL, styles.center]}>
+        {isCameraEnabled ? (
+          <>
+            <ActivityIndicator color={GOLD} />
+            <Text style={styles.wait}>Ouverture de la caméra…</Text>
+          </>
+        ) : (
+          <Text style={styles.wait}>Caméra coupée</Text>
+        )}
+      </View>
+    );
+
+  const guestVideo =
+    guestCamTrack && isTrackReference(guestCamTrack) ? (
+      <VideoTrack trackRef={guestCamTrack} style={FILL} objectFit="cover" />
+    ) : null;
+
   return (
     <View style={styles.root}>
-      {cameraTrack && isTrackReference(cameraTrack) && isCameraEnabled ? (
-        <VideoTrack trackRef={cameraTrack} style={FILL} objectFit="cover" mirror={facing !== "back"} />
-      ) : (
-        <View style={[FILL, styles.center]}>
-          {isCameraEnabled ? (
-            <>
-              <ActivityIndicator color={GOLD} />
-              <Text style={styles.wait}>Ouverture de la caméra…</Text>
-            </>
-          ) : (
-            <Text style={styles.wait}>Caméra coupée</Text>
-          )}
-        </View>
-      )}
+      <BattleSplitStage
+        active={battleActive}
+        hostVideo={hostVideo}
+        hostFighter={
+          myLive
+            ? { displayName: myLive.display_name, avatarUrl: myLive.avatar_url }
+            : { displayName, avatarUrl: null }
+        }
+        guestVideo={guestVideo}
+        guestFighter={
+          opponentLive
+            ? {
+                displayName: opponentLive.display_name,
+                avatarUrl: opponentLive.avatar_url,
+              }
+            : null
+        }
+        guestStatus={remoteBattleStatus}
+      />
       <HostStudioHud
         liveId={liveId}
         identity={identity}
@@ -317,6 +415,7 @@ function HostStage({
         onToggleCam={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
         onFlip={() => void flip()}
         onEnd={finish}
+        onBattleAccepted={onBattleAccepted}
       />
       {busy ? (
         <View style={[FILL, styles.ending]} pointerEvents="auto">

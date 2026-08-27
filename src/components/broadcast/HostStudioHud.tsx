@@ -63,6 +63,7 @@ export function HostStudioHud({
   onToggleCam,
   onFlip,
   onEnd,
+  onBattleAccepted,
 }: {
   liveId: string;
   identity: string;
@@ -74,6 +75,7 @@ export function HostStudioHud({
   onToggleCam: () => void;
   onFlip: () => void;
   onEnd: () => void;
+  onBattleAccepted?: () => void | Promise<void>;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -520,10 +522,16 @@ export function HostStudioHud({
                 onPress={() => {
                   if (incomingBusy) return;
                   setIncomingBusy(true);
-                  void battleAccept(incoming.id).then((res) => {
-                    if (!res.ok) setToast(res.error ?? t("battle.invite.failed"));
-                    else setToast(t("battle.brand"));
-                  }).finally(() => setIncomingBusy(false));
+                  void battleAccept(incoming.id)
+                    .then(async (res) => {
+                      if (!res.ok) {
+                        setToast(res.error ?? t("battle.invite.failed"));
+                        return;
+                      }
+                      await onBattleAccepted?.();
+                      setToast(t("battle.brand"));
+                    })
+                    .finally(() => setIncomingBusy(false));
                 }}
                 style={styles.incomingYes}
               >

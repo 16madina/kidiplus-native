@@ -28,6 +28,7 @@ import { useNav } from "../context/navigation";
 import { fetchDefaultAddress } from "../lib/addresses";
 import { canDeliver, fetchDeliverySettings } from "../lib/delivery";
 import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
+import { isBattleLiveActive, useBattleForLive } from "../lib/battles";
 import { guestLiveKitIdentity } from "../lib/livekit";
 import { useViewerLiveRoom } from "../lib/live-viewer";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
@@ -71,6 +72,16 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
     userId: user?.id ?? null,
     identity,
   });
+  const battle = useBattleForLive(liveId ?? null);
+  const battleActive = isBattleLiveActive(battle);
+  const hostBattleLive =
+    battle?.lives.find((l) => l.live_id === liveId) ??
+    battle?.lives.find((l) => l.seller_id === s.sellerId) ??
+    null;
+  const guestBattleLive =
+    battle?.lives.find((l) => l.live_id !== liveId && l.seller_id !== s.sellerId) ??
+    battle?.lives.find((l) => l.live_id !== hostBattleLive?.live_id) ??
+    null;
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -336,6 +347,23 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
             roomName={s.roomName}
             identity={identity}
             displayName={displayName}
+            battleActive={battleActive}
+            hostFighter={
+              hostBattleLive
+                ? {
+                    displayName: hostBattleLive.display_name || s.seller,
+                    avatarUrl: hostBattleLive.avatar_url,
+                  }
+                : { displayName: s.seller, avatarUrl: s.avatar }
+            }
+            guestFighter={
+              guestBattleLive
+                ? {
+                    displayName: guestBattleLive.display_name,
+                    avatarUrl: guestBattleLive.avatar_url,
+                  }
+                : null
+            }
           />
         </Suspense>
       ) : (
