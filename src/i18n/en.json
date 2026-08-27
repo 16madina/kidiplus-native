@@ -1699,7 +1699,10 @@
     "deniedBody": "Enable them in iPhone Settings → KiDi+ → Notifications.",
     "openSettings": "Open Settings",
     "enabledToast": "Notifications enabled",
-    "notEnabledToast": "Notifications not enabled"
+    "notEnabledToast": "Notifications not enabled",
+    "statusUnavailable": "Rebuild required (npx expo run:ios --device)",
+    "rebuildTitle": "Native build required",
+    "rebuildBody": "Notifications need a new build: npm install && npx expo run:ios --device"
   },
   "account": {
     "delete": {

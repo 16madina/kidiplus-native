@@ -1,22 +1,49 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 import { supabase } from "./supabase";
 
-export type PushStatus = "unknown" | "granted" | "denied" | "prompt";
+export type PushStatus = "unknown" | "granted" | "denied" | "prompt" | "unavailable";
 
 const PREPROMPT_KEY = "push:preprompt_shown";
 const LAST_TOKEN_KEY = "push:last_token";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+type NotificationsModule = typeof import("expo-notifications");
+
+let cached: NotificationsModule | null | undefined;
+let handlerReady = false;
+
+function loadNotifications(): NotificationsModule | null {
+  if (cached !== undefined) return cached;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    cached = require("expo-notifications") as NotificationsModule;
+  } catch {
+    cached = null;
+  }
+  return cached;
+}
+
+export function pushNativeAvailable(): boolean {
+  return loadNotifications() !== null;
+}
+
+function ensureHandler(Notifications: NotificationsModule) {
+  if (handlerReady) return;
+  handlerReady = true;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch {
+    /* native module missing in this binary */
+  }
+}
 
 function platform(): "ios" | "android" | "web" {
   if (Platform.OS === "ios") return "ios";
@@ -25,19 +52,25 @@ function platform(): "ios" | "android" | "web" {
 }
 
 export async function getPushPermissionStatus(): Promise<PushStatus> {
+  const Notifications = loadNotifications();
+  if (!Notifications) return "unavailable";
   try {
+    ensureHandler(Notifications);
     const cur = await Notifications.getPermissionsAsync();
     if (cur.granted) return "granted";
     if (cur.status === "denied") return "denied";
     if (cur.canAskAgain === false) return "denied";
     return "prompt";
   } catch {
-    return "unknown";
+    return "unavailable";
   }
 }
 
 export async function requestPushPermission(): Promise<PushStatus> {
+  const Notifications = loadNotifications();
+  if (!Notifications) return "unavailable";
   try {
+    ensureHandler(Notifications);
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "KiDi+",
@@ -52,7 +85,7 @@ export async function requestPushPermission(): Promise<PushStatus> {
     if (res.status === "denied" || res.canAskAgain === false) return "denied";
     return "prompt";
   } catch {
-    return "unknown";
+    return "unavailable";
   }
 }
 
@@ -74,7 +107,10 @@ export async function markPrepromptShown(): Promise<void> {
 
 /** Device push token (FCM on Android when google-services is set; APNs/FCM on iOS). */
 export async function getDevicePushToken(): Promise<string | null> {
+  const Notifications = loadNotifications();
+  if (!Notifications) return null;
   try {
+    ensureHandler(Notifications);
     const token = await Notifications.getDevicePushTokenAsync();
     const value = typeof token?.data === "string" ? token.data.trim() : "";
     return value || null;
@@ -127,6 +163,7 @@ export async function registerForPush(userId: string): Promise<{
   token: string | null;
 }> {
   let status = await getPushPermissionStatus();
+  if (status === "unavailable") return { status, token: null };
   if (status === "prompt" || status === "unknown") {
     status = await requestPushPermission();
   }
@@ -160,12 +197,41 @@ export function normalizePushData(raw: unknown): PushOpenPayload | null {
   return out;
 }
 
-export function payloadFromNotificationResponse(
-  response: Notifications.NotificationResponse,
-): PushOpenPayload | null {
-  const content = response.notification.request.content;
-  const data = normalizePushData(content.data);
-  if (data) return data;
-  // Fallback: title/body only → open activity inbox.
+export function payloadFromNotificationData(data: unknown): PushOpenPayload | null {
+  const normalized = normalizePushData(data);
+  if (normalized) return normalized;
   return { kind: "notif" };
+}
+
+type Subscription = { remove: () => void };
+
+/** Subscribe to notification taps. No-op when native module is missing. */
+export function subscribeNotificationResponses(
+  onResponse: (payload: PushOpenPayload | null, id: string) => void,
+): () => void {
+  const Notifications = loadNotifications();
+  if (!Notifications) return () => undefined;
+  ensureHandler(Notifications);
+  const subs: Subscription[] = [];
+  try {
+    subs.push(
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const id = response.notification.request.identifier;
+        const data = response.notification.request.content.data;
+        onResponse(payloadFromNotificationData(data), id);
+      }),
+    );
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const id = response.notification.request.identifier;
+      const data = response.notification.request.content.data;
+      onResponse(payloadFromNotificationData(data), id);
+    });
+    subs.push(Notifications.addNotificationReceivedListener(() => undefined));
+  } catch {
+    return () => undefined;
+  }
+  return () => {
+    for (const s of subs) s.remove();
+  };
 }

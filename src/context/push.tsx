@@ -12,15 +12,15 @@ import { Modal, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import * as Notifications from "expo-notifications";
 import { Press } from "../components/Press";
 import { useAuth } from "./auth";
 import { useNav } from "./navigation";
 import {
   getPushPermissionStatus,
   markPrepromptShown,
-  payloadFromNotificationResponse,
+  pushNativeAvailable,
   registerForPush,
+  subscribeNotificationResponses,
   unregisterDeviceToken,
   wasPrepromptShown,
   type PushOpenPayload,
@@ -87,6 +87,10 @@ export function PushProvider({ children }: { children: ReactNode }) {
 
   const enable = useCallback(async () => {
     if (!user?.id) return false;
+    if (!pushNativeAvailable()) {
+      setStatus("unavailable");
+      return false;
+    }
     const res = await registerForPush(user.id);
     setStatus(res.status);
     setToken(res.token);
@@ -96,6 +100,10 @@ export function PushProvider({ children }: { children: ReactNode }) {
   const requestWithPrePrompt = useCallback(
     async (reason: string) => {
       if (!user?.id) return false;
+      if (!pushNativeAvailable()) {
+        setStatus("unavailable");
+        return false;
+      }
       const cur = await getPushPermissionStatus();
       if (cur === "granted") {
         const res = await registerForPush(user.id);
@@ -103,8 +111,8 @@ export function PushProvider({ children }: { children: ReactNode }) {
         setToken(res.token);
         return true;
       }
-      if (cur === "denied") {
-        setStatus("denied");
+      if (cur === "denied" || cur === "unavailable") {
+        setStatus(cur);
         return false;
       }
       const shown = await wasPrepromptShown();
@@ -119,7 +127,6 @@ export function PushProvider({ children }: { children: ReactNode }) {
     [user?.id, enable],
   );
 
-  // Auto-register when already granted + signed in.
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -147,7 +154,6 @@ export function PushProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  // Clear token on sign-out.
   const prevUser = useRef<string | null>(null);
   useEffect(() => {
     const id = user?.id ?? null;
@@ -157,28 +163,12 @@ export function PushProvider({ children }: { children: ReactNode }) {
     prevUser.current = id;
   }, [user?.id]);
 
-  // Tap handlers (foreground / background / cold start).
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const key = response.notification.request.identifier;
-      if (handledRef.current === key) return;
-      handledRef.current = key;
-      routePush(payloadFromNotificationResponse(response));
+    return subscribeNotificationResponses((payload, id) => {
+      if (handledRef.current === id) return;
+      handledRef.current = id;
+      routePush(payload);
     });
-    void Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (!response) return;
-      const key = response.notification.request.identifier;
-      if (handledRef.current === key) return;
-      handledRef.current = key;
-      routePush(payloadFromNotificationResponse(response));
-    });
-    const received = Notifications.addNotificationReceivedListener(() => {
-      // Foreground: banner already shown by handler; badge inbox can refresh later.
-    });
-    return () => {
-      sub.remove();
-      received.remove();
-    };
   }, [routePush]);
 
   const value = useMemo<Ctx>(

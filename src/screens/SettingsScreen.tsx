@@ -41,12 +41,26 @@ export function SettingsScreen() {
       ? t("push.statusOn", { defaultValue: "Activées" })
       : push.status === "denied"
         ? t("push.statusDenied", { defaultValue: "Refusées" })
-        : t("push.statusOff", { defaultValue: "Désactivées" });
+        : push.status === "unavailable"
+          ? t("push.statusUnavailable", {
+              defaultValue: "Rebuild requis (npx expo run:ios --device)",
+            })
+          : t("push.statusOff", { defaultValue: "Désactivées" });
 
   const onTogglePush = async () => {
     if (pushBusy) return;
     setPushBusy(true);
     try {
+      if (push.status === "unavailable") {
+        Alert.alert(
+          t("push.rebuildTitle", { defaultValue: "Build natif requis" }),
+          t("push.rebuildBody", {
+            defaultValue:
+              "Les notifications demandent un nouveau build : npm install && npx expo run:ios --device",
+          }),
+        );
+        return;
+      }
       if (push.status === "granted") {
         flash(t("push.alreadyOn", { defaultValue: "Les notifications sont déjà activées." }));
         return;
