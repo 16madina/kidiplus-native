@@ -765,6 +765,8 @@
     "like": "J'aime",
     "comment": "Commenter",
     "share": "Partager",
+    "sound": "Son",
+    "muted": "Muet",
     "shop": "Boutique",
     "commentsTitle": "Commentaires",
     "commentsEmpty": "Aucun commentaire pour l'instant.",
@@ -1318,7 +1320,9 @@
       "risk": "Risque",
       "verify": "Certifs",
       "referral": "Parrainage",
-      "sim": "Simu"
+      "sim": "Simu",
+      "push": "Push",
+      "media": "Vidéos"
     },
     "risk": {
       "title": "Alertes risque",
@@ -1444,6 +1448,11 @@
       "gmv": "GMV"
     },
     "onlyAdmins": "Accès réservé aux administrateurs.",
+    "webOnly": "Push, parrainage détaillé et réparation vidéo : ouvre kidiplus.com (même compte).",
+    "searchUsers": "Rechercher un @pseudo…",
+    "endLive": "Couper le live",
+    "dismiss": "Classer",
+    "approve": "Approuver",
     "approxEurTotal": "≈ EUR (indicatif)"
   },
   "moderation": {

@@ -765,6 +765,8 @@
     "like": "Like",
     "comment": "Comment",
     "share": "Share",
+    "sound": "Sound",
+    "muted": "Muted",
     "shop": "Shop",
     "commentsTitle": "Comments",
     "commentsEmpty": "No comments yet.",
@@ -1318,7 +1320,9 @@
       "risk": "Risk",
       "verify": "Verify",
       "referral": "Referrals",
-      "sim": "Sim"
+      "sim": "Sim",
+      "push": "Push",
+      "media": "Videos"
     },
     "risk": {
       "title": "Risk alerts",
@@ -1444,6 +1448,11 @@
       "gmv": "GMV"
     },
     "onlyAdmins": "Admins only.",
+    "webOnly": "Push, detailed referrals and video repair: open kidiplus.com (same account).",
+    "searchUsers": "Search a @handle…",
+    "endLive": "End live",
+    "dismiss": "Dismiss",
+    "approve": "Approve",
     "approxEurTotal": "≈ EUR (indicative)"
   },
   "moderation": {

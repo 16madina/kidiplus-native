@@ -12,6 +12,7 @@ import {
   Moon,
   Package,
   Settings,
+  Shield,
   ShoppingBag,
   Store,
   TrendingUp,
@@ -188,6 +189,11 @@ function AuthedProfile() {
         <Row icon={<ShoppingBag size={18} color={colors.foreground} />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
         <Row icon={<MapPin size={18} color={colors.foreground} />} label={t("address.title")} onPress={() => openOverlay({ kind: "addresses" })} />
       </Section>
+      {user.isAdmin ? (
+        <Section title={t("profile.sections.admin")}>
+          <Row icon={<Shield size={18} color={GOLD} />} label={t("admin.title")} onPress={() => openOverlay({ kind: "admin" })} />
+        </Section>
+      ) : null}
       <Section title={t("profile.sections.general")}>
         <Row icon={<Settings size={18} color={colors.foreground} />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />
         <Row icon={<Moon size={18} color={colors.foreground} />} label={t("profile.menu.darkMode")} right={<Text style={{ color: GOLD, fontWeight: "700" }}>{dark ? "ON" : "OFF"}</Text>} onPress={() => setDark(!dark)} />

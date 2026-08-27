@@ -27,6 +27,7 @@ export type AuthUser = {
   country: string;
   phone: string;
   isSeller: boolean;
+  isAdmin: boolean;
   avatarUrl?: string | null;
   followers: number;
   following: number;
@@ -119,6 +120,7 @@ async function toAuthUser(
       profile?.country || (typeof meta.country === "string" ? meta.country : "") || "",
     phone: profile?.phone || (typeof meta.phone === "string" ? meta.phone : "") || "",
     isSeller: !!profile?.is_seller,
+    isAdmin: !!profile?.is_admin,
     avatarUrl,
     followers: profile?.followers_count ?? 0,
     following: profile?.following_count ?? 0,

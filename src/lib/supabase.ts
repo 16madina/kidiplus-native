@@ -47,4 +47,5 @@ export type ProfileRow = {
   phone: string | null;
   followers_count: number | null;
   following_count: number | null;
+  is_admin: boolean | null;
 };

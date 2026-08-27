@@ -14,7 +14,8 @@ export type Overlay =
   | { kind: "settings" }
   | { kind: "help" }
   | { kind: "addresses" }
-  | { kind: "broadcast-setup"; mode: "now" | "schedule" };
+  | { kind: "broadcast-setup"; mode: "now" | "schedule" }
+  | { kind: "admin" };
 
 type Ctx = {
   tab: TabKey;

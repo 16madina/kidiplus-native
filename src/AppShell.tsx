@@ -23,6 +23,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { AddressesScreen } from "./screens/AddressesScreen";
 import { HelpScreen } from "./screens/HelpScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
+import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
 import { NAVY } from "./theme";
 
 export function AppShell() {
@@ -85,6 +86,9 @@ export function AppShell() {
       </PushScreen>
       <PushScreen open={overlay.kind === "broadcast-setup"} onClose={closeOverlay}>
         {shown.kind === "broadcast-setup" ? <BroadcastSetupScreen mode={shown.mode} /> : null}
+      </PushScreen>
+      <PushScreen open={overlay.kind === "admin"} onClose={closeOverlay}>
+        <AdminDashboardScreen />
       </PushScreen>
       <PushScreen open={overlay.kind === "live"} onClose={closeOverlay} zIndex={80}>
         {shown.kind === "live" ? <LiveViewerScreen stream={shown.stream} /> : null}

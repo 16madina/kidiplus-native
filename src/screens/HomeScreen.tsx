@@ -17,6 +17,7 @@ import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import {
   applyHomeCategory,
+  sampleLivesForCategory,
   sortLivesNewestFirst,
   type HomeCategory,
   type HomeFilter,
@@ -38,8 +39,9 @@ export function HomeScreen() {
   const [liveOnly, setLiveOnly] = useState(false);
 
   const filtered = useMemo(() => {
-    const scoped = applyHomeCategory(active, category);
-    let list = sortLivesNewestFirst(scoped);
+    const scopedReal = applyHomeCategory(active, category);
+    const samples = sampleLivesForCategory(category, scopedReal.length);
+    let list = sortLivesNewestFirst([...scopedReal, ...samples]);
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
     if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
     if (liveOnly) list = list.filter((s) => !s.scheduled);

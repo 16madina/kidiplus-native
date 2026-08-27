@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Compass, Heart, Home, MessageCircle, Plus, Share2, Store } from "lucide-react-native";
+import { Compass, Heart, Home, MessageCircle, Plus, Share2, Store, Volume2, VolumeX } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,6 +24,8 @@ import { GOLD, LIVE_RED, initials } from "../theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import { fetchVitrinePosts, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { isHttpUrl } from "../lib/storage";
+import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
+import { sampleLivesForCategory } from "../mock/home-categories";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -41,6 +43,10 @@ export function VitrineScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const lives = active;
   const soon = upcoming;
+  const liveCards = useMemo(() => {
+    const samples = sampleLivesForCategory("Pour toi", lives.length);
+    return [...lives, ...samples];
+  }, [lives]);
   const tabVisible = tab === "vitrine";
 
   const load = useCallback(async (soft = false) => {
@@ -113,7 +119,8 @@ export function VitrineScreen() {
             maxToRenderPerBatch={2}
             initialNumToRender={1}
             getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
-            onViewableItemsChanged={onViewableItemsChanged}
+            onScrollBeginDrag={unlockVitrineSound}
+            onMomentumScrollBegin={unlockVitrineSound}
             viewabilityConfig={viewabilityConfig}
             refreshControl={
               <RefreshControl refreshing={refreshing} tintColor={GOLD} onRefresh={() => {
@@ -142,13 +149,13 @@ export function VitrineScreen() {
 
       {cat === "live" ? (
         <View style={{ flex: 1, paddingTop: insets.top + 56, paddingHorizontal: 8 }}>
-          {lives.length === 0 ? (
+          {liveCards.length === 0 ? (
             <Empty onExplore={() => setTab("search")} />
           ) : (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {lives.map((s, i) => (
+              {liveCards.map((s, i) => (
                 <View key={s.id} style={{ width: "48.5%" }}>
-                  <LiveCard stream={s} onPress={() => openList(lives, i)} />
+                  <LiveCard stream={s} onPress={() => openList(liveCards, i)} />
                 </View>
               ))}
             </View>
@@ -196,11 +203,20 @@ function VitrinePostSlide({
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(post.likedByMe);
   const [likes, setLikes] = useState(post.likes);
+  const [muted, toggleMuted] = useVitrineSound();
   return (
-    <View style={{ width, height, backgroundColor: "#000" }}>
+    <View style={{ width, height, backgroundColor: "#000" }} onTouchStart={unlockVitrineSound}>
       <VitrineMedia post={post} active={active} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} />
       <View style={[styles.side, { bottom: insets.bottom + 28 }]}>
+        <Action
+          icon={muted ? <VolumeX size={26} color="#fff" /> : <Volume2 size={26} color="#fff" />}
+          label={muted ? t("vitrine.muted") : t("vitrine.sound")}
+          onPress={() => {
+            if (muted) unlockVitrineSound();
+            else toggleMuted();
+          }}
+        />
         <Action
           icon={<Heart size={26} color={liked ? LIVE_RED : "#fff"} fill={liked ? LIVE_RED : "none"} />}
           label={String(likes)}
@@ -254,11 +270,13 @@ function VitrineVideo({
     p.loop = true;
     p.muted = true;
   });
+  const [muted] = useVitrineSound();
 
   useEffect(() => {
+    player.muted = muted;
     if (active) player.play();
     else player.pause();
-  }, [active, player]);
+  }, [active, muted, player]);
 
   return (
     <View style={FILL}>
