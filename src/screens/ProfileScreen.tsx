@@ -87,8 +87,8 @@ function GuestProfile() {
           <Feat icon={<Store size={17} color={NAVY} />} label={t("profile.quick.myShop")} onPress={() => openAuth()} />
         </View>
         <View style={[styles.featGrid, { marginTop: 8 }]}>
-          <Feat icon={<MapPin size={17} color={NAVY} />} label="Adresses" onPress={() => openAuth()} wide />
-          <Feat icon={<Settings size={17} color={NAVY} />} label="Réglages" onPress={() => openAuth()} wide />
+          <Feat icon={<MapPin size={17} color={NAVY} />} label={t("address.title")} onPress={() => openAuth()} wide />
+          <Feat icon={<Settings size={17} color={NAVY} />} label={t("settings.title")} onPress={() => openAuth()} wide />
         </View>
       </ScrollView>
     </View>
