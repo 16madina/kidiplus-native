@@ -73,7 +73,7 @@ export function BottomTabBar({
             {RIGHT.map(renderTab)}
           </View>
         </Glass>
-        <View style={styles.liveWrap}>
+        <View style={styles.liveWrap} pointerEvents="box-none">
           <Press accessibilityLabel={t("tabs.live")} onPress={() => onChange("live")} style={styles.liveBtn} haptic="light">
             <View style={styles.liveGlow} />
             <Image source={liveBadge} style={styles.liveImg} resizeMode="contain" />
