@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kidiplus.native",
+      "bitcode": false,
       "infoPlist": {
+        "CFBundleDisplayName": "KiDi+",
         "UIViewControllerBasedStatusBarAppearance": true,
         "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
         "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives."
@@ -60,6 +62,18 @@
           "recordAudioAndroid": true
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": [
+              "livekit-react-native",
+              "livekit-react-native-webrtc"
+            ]
+          }
+        }
+      ],
       "@livekit/react-native-expo-plugin",
       [
         "@config-plugins/react-native-webrtc",
@@ -67,7 +81,8 @@
           "cameraPermission": "KiDi+ utilise la caméra pour tes lives.",
           "microphonePermission": "KiDi+ utilise le micro pour tes lives."
         }
-      ]
+      ],
+      "./plugins/withLiveKitIos.js"
     ]
   }
 }
