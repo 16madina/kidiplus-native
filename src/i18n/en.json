@@ -1922,7 +1922,11 @@
     "badgeTitle": "KiDi+ referred member",
     "wallet": {
       "title": "Referral wallet",
-      "withdraw": "Withdraw"
+      "tagline": "Qui dit plus ?",
+      "partner": "Gold · Partner",
+      "withdraw": "Withdraw",
+      "withdrawEmpty": "Withdraw (no earnings yet)",
+      "withdrawWeb": "OTP withdrawal is coming in the app. For now, withdraw on kidiplus.com."
     },
     "intro": "Share your code. For every signup, you earn the KiDi+ commission on their first orders.",
     "quota": "Quota",

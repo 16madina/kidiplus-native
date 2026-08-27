@@ -22,6 +22,7 @@ import { EarningsScreen } from "./screens/EarningsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { AddressesScreen } from "./screens/AddressesScreen";
 import { HelpScreen } from "./screens/HelpScreen";
+import { ReferralScreen } from "./screens/ReferralScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
 import { GOLD, NAVY } from "./theme";
@@ -111,6 +112,9 @@ export function AppShell() {
       </PushScreen>
       <PushScreen open={overlay.kind === "help"} onClose={closeOverlay}>
         <HelpScreen />
+      </PushScreen>
+      <PushScreen open={overlay.kind === "referral"} onClose={closeOverlay}>
+        <ReferralScreen />
       </PushScreen>
       <PushScreen open={overlay.kind === "addresses"} onClose={closeOverlay}>
         <AddressesScreen />

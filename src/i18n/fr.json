@@ -1922,12 +1922,16 @@
     "badgeTitle": "Membre parrainé KiDi+",
     "wallet": {
       "title": "Portefeuille parrainage",
-      "withdraw": "Retirer"
+      "tagline": "Qui dit plus ?",
+      "partner": "Gold · Partenaire",
+      "withdraw": "Retirer",
+      "withdrawEmpty": "Retirer (aucun gain)",
+      "withdrawWeb": "Le retrait OTP arrive dans l’app. En attendant, retire tes gains sur kidiplus.com."
     },
     "intro": "Partage ton code. Pour chaque inscrit, tu gagnes la commission KiDi+ sur ses premières commandes.",
     "quota": "Quota",
     "claim": {
-      "entry": "Réclamer mon code parrainage 🤝",
+      "entry": "Réclamer mon code influenceur 🤝",
       "title": "Deviens partenaire KiDi+",
       "intro": "Reçois la commission KiDi+ sur les premières commandes de chaque personne qui s'inscrit avec ton code.",
       "tokenLabel": "Code d'activation",

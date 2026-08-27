@@ -14,9 +14,11 @@ import i18n from "../i18n";
 import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
 import { resolveAvatarUrl } from "../lib/storage";
 import { fetchMyWallet } from "../lib/wallet";
+import { applyPromoCode } from "../lib/referrals";
 import { normalizeCurrency, type Currency } from "../lib/money";
 
 const GUEST_KEY = "kidiplus.guestMode";
+const PENDING_PROMO_KEY = "kidiplus.pendingPromo";
 const RESET_REDIRECT = "https://kidiplus.com/reset-password";
 
 export type AuthUser = {
@@ -58,6 +60,7 @@ type Ctx = {
     displayName: string;
     country: string;
     phone: string;
+    promoCode?: string;
   }) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   becomeSeller: () => Promise<void>;
@@ -167,6 +170,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await toAuthUser(authUser, profile, { balance, currency }));
     setGuestMode(false);
     await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
+    const pending = await AsyncStorage.getItem(PENDING_PROMO_KEY).catch(() => null);
+    if (pending?.trim()) {
+      void applyPromoCode(pending).finally(() => {
+        void AsyncStorage.removeItem(PENDING_PROMO_KEY);
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -242,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       displayName: string;
       country: string;
       phone: string;
+      promoCode?: string;
     }) => {
       const { data, error } = await supabase.auth.signUp({
         email: input.email,
@@ -267,7 +277,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("id", uid);
       }
       if (!data.session || !data.user) {
+        if (input.promoCode?.trim()) {
+          await AsyncStorage.setItem(PENDING_PROMO_KEY, input.promoCode.trim()).catch(() => undefined);
+        }
         return { needsEmailConfirmation: true };
+      }
+      if (input.promoCode?.trim()) {
+        void applyPromoCode(input.promoCode);
       }
       await hydrate(data.user);
       setAuthOverlay(false);

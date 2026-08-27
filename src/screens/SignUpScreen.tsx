@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
 import { ChevronDown, Eye, EyeOff } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { Glass } from "../components/Glass";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD } from "../theme";
+import { validatePromoCode } from "../lib/referrals";
 import { AuthScreenShell } from "./SignInScreen";
 import { LegalScreen } from "./LegalScreen";
 
@@ -48,7 +49,20 @@ export function SignUpScreen() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [confirmAge, setConfirmAge] = useState(false);
   const [promoCode, setPromoCode] = useState("");
+  const [promoValid, setPromoValid] = useState<boolean | null>(null);
   const [legal, setLegal] = useState<null | "terms" | "privacy">(null);
+
+  useEffect(() => {
+    const c = promoCode.trim();
+    if (!c) {
+      setPromoValid(null);
+      return;
+    }
+    const id = setTimeout(() => {
+      void validatePromoCode(c).then(setPromoValid);
+    }, 280);
+    return () => clearTimeout(id);
+  }, [promoCode]);
 
   if (legal) return <LegalScreen page={legal} onClose={() => setLegal(null)} />;
 
@@ -79,6 +93,7 @@ export function SignUpScreen() {
         displayName: displayName.trim(),
         country,
         phone: phone.trim(),
+        promoCode: promoCode.trim() && promoValid ? promoCode.trim() : undefined,
       });
       if (result.needsEmailConfirmation) {
         setInfo(t("auth.signUp.checkEmailBody"));
@@ -118,10 +133,10 @@ export function SignUpScreen() {
         </Press>
         <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>{t("auth.signUp.passwordHint")}</Text>
       </View>
-      <AuthInput label={t("auth.signUp.promoCode")} autoCapitalize="characters" value={promoCode} onChangeText={setPromoCode} placeholder="KIDIPLUS" />
-      {promoCode.trim() ? (
-        <Text style={{ fontSize: 12, fontWeight: "700", color: promoCode.trim().toUpperCase() === "KIDIPLUS" ? "#1B7A3A" : "#C0392B" }}>
-          {promoCode.trim().toUpperCase() === "KIDIPLUS" ? "✓ KIDIPLUS" : "—"}
+      <AuthInput label={t("auth.signUp.promoCode")} autoCapitalize="characters" value={promoCode} onChangeText={setPromoCode} placeholder="KIDI-XXXX" />
+      {promoCode.trim() && promoValid !== null ? (
+        <Text style={{ fontSize: 12, fontWeight: "700", color: promoValid ? "#1B7A3A" : "#C0392B" }}>
+          {promoValid ? `✓ ${promoCode.trim().toUpperCase()}` : t("referral.claim.errInvalid")}
         </Text>
       ) : null}
       {info ? (

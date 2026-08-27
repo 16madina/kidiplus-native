@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -5,6 +6,7 @@ import {
   ChevronRight,
   Coins,
   HelpCircle,
+  HeartHandshake,
   LogIn,
   LogOut,
   MapPin,
@@ -31,6 +33,7 @@ import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { GOLD, GUEST_CREAM, NAVY, NAVY_600, NAVY_INSET, initials } from "../theme";
 import { formatMoney } from "../lib/money";
+import { fetchMyPromoCodes } from "../lib/referrals";
 import { isHttpUrl } from "../lib/storage";
 
 const guestBg = require("../../assets/guest/guest-profile-bg-v2.jpg");
@@ -124,8 +127,21 @@ function AuthedProfile() {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const { user, signOut, becomeSeller } = useAuth();
-  const { openOverlay } = useNav();
+  const { overlay, openOverlay } = useNav();
   const { dark, setDark, colors } = useAppTheme();
+  const [hasCode, setHasCode] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    void fetchMyPromoCodes().then((rows) => {
+      if (alive) setHasCode(rows.length > 0);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id, overlay.kind]);
+
   if (!user) return null;
 
   const money = formatMoney(user.walletBalance, user.walletCurrency, i18n.language);
@@ -188,6 +204,13 @@ function AuthedProfile() {
       <Section title={t("profile.sections.purchases")}>
         <Row icon={<ShoppingBag size={18} color={colors.foreground} />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
         <Row icon={<MapPin size={18} color={colors.foreground} />} label={t("address.title")} onPress={() => openOverlay({ kind: "addresses" })} />
+      </Section>
+      <Section title={t("profile.sections.community")}>
+        <Row
+          icon={<HeartHandshake size={18} color={GOLD} />}
+          label={hasCode ? t("referral.menu") : t("referral.claim.entry")}
+          onPress={() => openOverlay({ kind: "referral" })}
+        />
       </Section>
       {user.isAdmin ? (
         <Section title={t("profile.sections.admin")}>
