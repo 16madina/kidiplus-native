@@ -226,29 +226,6 @@ export async function reviewVerification(id: string, approve: boolean): Promise<
   return !!data?.ok;
 }
 
-export async function fetchPrelaunchSimEnabled(): Promise<boolean> {
-  const data = await rpc<unknown>("admin_get_prelaunch_live_sim");
-  if (data == null) return false;
-  try {
-    const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    return !!(parsed as { enabled?: boolean }).enabled;
-  } catch {
-    return false;
-  }
-}
-
-export async function setPrelaunchSimEnabled(enabled: boolean): Promise<boolean> {
-  const payload = JSON.stringify({
-    enabled,
-    viewersMin: 12,
-    viewersMax: 48,
-    commentsPerMin: 8,
-    bidsPerMin: 2,
-  });
-  const data = await rpc<unknown>("admin_set_prelaunch_live_sim", { _value: payload });
-  return data != null;
-}
-
 export function verificationHandle(row: PendingVerification): string {
   const p = Array.isArray(row.profile) ? row.profile[0] : row.profile;
   return p?.handle || p?.display_name || "utilisateur";

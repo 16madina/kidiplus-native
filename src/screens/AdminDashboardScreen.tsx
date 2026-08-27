@@ -25,9 +25,11 @@ import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { Glass } from "../components/Glass";
 import { GoldButton } from "../components/Buttons";
+import { AdminPrelaunchSimPanel } from "../components/admin/AdminPrelaunchSimPanel";
+import { PaymentsModeBadge } from "../components/admin/PaymentsModeBadge";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
-import { GOLD } from "../theme";
+import { GOLD, NAVY } from "../theme";
 import { formatMoney } from "../lib/money";
 import {
   adminEndLive,
@@ -41,12 +43,10 @@ import {
   fetchAdminUsers,
   fetchOverviewStats,
   fetchPendingVerifications,
-  fetchPrelaunchSimEnabled,
   firstCurrency,
   resolveAdminRiskAlert,
   reviewVerification,
   setAdminRiskRestricted,
-  setPrelaunchSimEnabled,
   verificationHandle,
   type AdminLiveRow,
   type AdminPayoutRow,
@@ -110,14 +110,15 @@ export function AdminDashboardScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("admin.title")} />
+      <PaymentsModeBadge />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         {TABS.map((x) => {
           const active = tab === x.id;
           return (
             <Press key={x.id} onPress={() => setTab(x.id)} style={styles.tabBtn}>
-              <View style={[styles.tabPill, active && { backgroundColor: colors.foreground }]}>
-                <x.Icon size={13} color={active ? colors.background : colors.foreground} />
-                <Text style={{ fontWeight: "800", fontSize: 12, color: active ? colors.background : colors.foreground }}>
+              <View style={[styles.tabPill, active ? styles.tabOn : { backgroundColor: colors.muted }]}>
+                <x.Icon size={13} color={active ? "#fff" : colors.foreground} />
+                <Text style={{ fontWeight: "800", fontSize: 12, color: active ? "#fff" : colors.foreground }}>
                   {t(x.labelKey, { defaultValue: x.fallback })}
                 </Text>
               </View>
@@ -133,7 +134,7 @@ export function AdminDashboardScreen() {
         {tab === "verify" ? <VerifyTab flash={flash} /> : null}
         {tab === "payments" ? <PaymentsTab flash={flash} /> : null}
         {tab === "lives" ? <LivesTab flash={flash} /> : null}
-        {tab === "sim" ? <SimTab flash={flash} /> : null}
+        {tab === "sim" ? <AdminPrelaunchSimPanel flash={flash} /> : null}
         {tab === "push" || tab === "referral" || tab === "media" ? (
           <Glass tone={dark ? "dark" : "light"} intensity={32} radius={18} padded elevated={false}>
             <Text style={{ color: colors.foreground, fontWeight: "700" }}>{t("admin.webOnly")}</Text>
@@ -437,42 +438,6 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
   );
 }
 
-function SimTab({ flash }: { flash: (s: string) => void }) {
-  const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
-  const [on, setOn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    void fetchPrelaunchSimEnabled().then((v) => {
-      setOn(v);
-      setLoading(false);
-    });
-  }, []);
-  return (
-    <Glass tone={dark ? "dark" : "light"} intensity={32} radius={18} padded elevated={false}>
-      <Text style={{ fontWeight: "800", color: colors.foreground }}>{t("admin.prelaunchSim.title")}</Text>
-      <Text style={{ color: colors.mutedForeground, marginTop: 6 }}>{t("admin.prelaunchSim.panelHint")}</Text>
-      {loading ? (
-        <ActivityIndicator color={GOLD} style={{ marginTop: 12 }} />
-      ) : (
-        <View style={{ marginTop: 12 }}>
-          <GoldButton
-            label={on ? t("admin.prelaunchSim.turnOff") : t("admin.prelaunchSim.turnOn")}
-            onPress={async () => {
-              const next = !on;
-              const ok = await setPrelaunchSimEnabled(next);
-              if (ok) {
-                setOn(next);
-                flash(next ? t("admin.prelaunchSim.onToast") : t("admin.prelaunchSim.offToast"));
-              } else flash(t("admin.prelaunchSim.saveFail"));
-            }}
-          />
-        </View>
-      )}
-    </Glass>
-  );
-}
-
 function Mini({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Press onPress={onPress} style={styles.mini}>
@@ -492,8 +457,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(232,185,59,0.12)",
+    backgroundColor: "#F2F3F7",
   },
+  tabOn: { backgroundColor: NAVY },
   body: { padding: 16, paddingBottom: 48, gap: 10 },
   input: {
     borderWidth: 1,
