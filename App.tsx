@@ -15,13 +15,21 @@ import { NAVY } from "./src/theme";
 
 function Root() {
   const [splashDone, setSplashDone] = useState(false);
-  const { user, guestMode } = useAuth();
+  const { user, guestMode, loading } = useAuth();
 
   if (!splashDone) {
     return (
       <View style={styles.fill}>
         <StatusBar style="light" />
         <SplashScreen onDone={() => setSplashDone(true)} />
+      </View>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.fill}>
+        <StatusBar style="light" />
       </View>
     );
   }

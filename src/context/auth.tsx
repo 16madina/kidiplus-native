@@ -2,10 +2,20 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { User } from "@supabase/supabase-js";
+import i18n from "../i18n";
+import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
+
+const GUEST_KEY = "kidiplus.guestMode";
+const MOCK_WALLET_CENTS = 24500;
+const RESET_REDIRECT = "https://kidiplus.com/reset-password";
 
 export type AuthUser = {
   id: string;
@@ -26,6 +36,7 @@ type AuthView = "welcome" | "signin" | "signup" | "forgot";
 
 type Ctx = {
   user: AuthUser | null;
+  loading: boolean;
   guestMode: boolean;
   view: AuthView;
   setView: (v: AuthView) => void;
@@ -40,8 +51,8 @@ type Ctx = {
     displayName: string;
     country: string;
     phone: string;
-  }) => Promise<void>;
-  signOut: () => void;
+  }) => Promise<{ needsEmailConfirmation: boolean }>;
+  signOut: () => Promise<void>;
   becomeSeller: () => void;
   adjustWallet: (deltaCents: number) => void;
   sendReset: (email: string) => Promise<void>;
@@ -49,56 +60,169 @@ type Ctx = {
 
 const AuthContext = createContext<Ctx | null>(null);
 
-function mockUser(
-  email: string,
-  displayName: string,
-  extras: Partial<AuthUser> = {},
-): AuthUser {
-  const handle = displayName
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 16);
-  const sellerHint = /seller|vendeur/i.test(email) || /seller|vendeur/i.test(displayName);
+function slug(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .slice(0, 16) || "kidi"
+  );
+}
+
+export function mapAuthError(err: unknown): Error {
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : i18n.t("auth.errors.generic");
+  const m = raw.toLowerCase();
+  const t = (k: string) => i18n.t(k);
+  if (m.includes("failed to fetch") || m.includes("network") || m.includes("fetch")) {
+    return new Error(t("auth.errors.network"));
+  }
+  if (m.includes("invalid login")) return new Error(t("auth.errors.invalidCredentials"));
+  if (m.includes("email not confirmed")) return new Error(t("auth.errors.emailNotConfirmed"));
+  if (m.includes("already registered") || m.includes("already been registered")) {
+    return new Error(t("auth.errors.alreadyRegistered"));
+  }
+  if (m.includes("password should be at least")) return new Error(t("auth.errors.passwordShort"));
+  if (m.includes("rate") || m.includes("too many")) return new Error(t("auth.errors.rateLimit"));
+  if (m.includes("invalid email")) return new Error(t("auth.errors.invalidEmail"));
+  return new Error(raw || t("auth.errors.generic"));
+}
+
+function toAuthUser(authUser: User, profile: ProfileRow | null, walletCents: number): AuthUser {
+  const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
+  const displayName =
+    profile?.display_name ||
+    (typeof meta.display_name === "string" ? meta.display_name : "") ||
+    authUser.email?.split("@")[0] ||
+    "KiDi";
   return {
-    id: `mock-${handle || "user"}`,
-    email,
+    id: authUser.id,
+    email: authUser.email ?? "",
     displayName,
-    handle: handle || "kidi",
-    country: extras.country ?? "🇫🇷 France",
-    phone: extras.phone ?? "",
-    isSeller: sellerHint,
-    avatarUrl: `https://i.pravatar.cc/160?u=${encodeURIComponent(email)}`,
-    followers: sellerHint ? 1284 : 12,
-    following: 38,
-    sales: sellerHint ? 47 : 0,
-    walletBalance: 24500,
-    ...extras,
+    handle: profile?.handle || slug(displayName),
+    country:
+      profile?.country || (typeof meta.country === "string" ? meta.country : "") || "",
+    phone: profile?.phone || (typeof meta.phone === "string" ? meta.phone : "") || "",
+    isSeller: !!profile?.is_seller,
+    avatarUrl: profile?.avatar_url,
+    followers: profile?.followers_count ?? 0,
+    following: profile?.following_count ?? 0,
+    sales: 0,
+    walletBalance: walletCents,
   };
+}
+
+async function readProfile(userId: string): Promise<ProfileRow | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(PROFILE_SAFE_SELECT)
+      .eq("id", userId)
+      .maybeSingle();
+    if (!error && data) return data as ProfileRow;
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  return null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [guestMode, setGuestMode] = useState(false);
   const [view, setView] = useState<AuthView>("welcome");
   const [authOverlay, setAuthOverlay] = useState(false);
+  const wallets = useRef<Record<string, number>>({});
+
+  const walletFor = useCallback((id: string) => {
+    if (wallets.current[id] == null) wallets.current[id] = MOCK_WALLET_CENTS;
+    return wallets.current[id];
+  }, []);
+
+  const hydrate = useCallback(
+    async (authUser: User | null) => {
+      if (!authUser) {
+        setUser(null);
+        return;
+      }
+      const profile = await readProfile(authUser.id);
+      setUser(toAuthUser(authUser, profile, walletFor(authUser.id)));
+      setGuestMode(false);
+      await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
+    },
+    [walletFor],
+  );
+
+  useEffect(() => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setLoading(false);
+    };
+    const watchdog = setTimeout(finish, 6000);
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setTimeout(() => void hydrate(session.user), 0);
+      } else {
+        setUser(null);
+      }
+    });
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+          await hydrate(data.session.user);
+        } else {
+          const guest = await AsyncStorage.getItem(GUEST_KEY);
+          if (guest === "1") setGuestMode(true);
+        }
+      } catch {
+        /* still show welcome */
+      } finally {
+        finish();
+        clearTimeout(watchdog);
+      }
+    })();
+
+    return () => {
+      clearTimeout(watchdog);
+      sub.subscription.unsubscribe();
+    };
+  }, [hydrate]);
 
   const enterGuestMode = useCallback(() => {
     setGuestMode(true);
     setUser(null);
     setAuthOverlay(false);
     setView("welcome");
+    void AsyncStorage.setItem(GUEST_KEY, "1");
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    if (!email.trim() || !password) throw new Error("Email ou mot de passe incorrect.");
-    await new Promise((r) => setTimeout(r, 450));
-    setUser(mockUser(email.trim(), email.split("@")[0] || "KiDi"));
-    setGuestMode(false);
-    setAuthOverlay(false);
-    setView("welcome");
-  }, []);
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      if (!email.trim() || !password) {
+        throw new Error(i18n.t("auth.errors.invalidCredentials"));
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) throw mapAuthError(error);
+      if (!data.user) throw new Error(i18n.t("auth.errors.generic"));
+      await hydrate(data.user);
+      setAuthOverlay(false);
+      setView("welcome");
+    },
+    [hydrate],
+  );
 
   const signUp = useCallback(
     async (input: {
@@ -108,35 +232,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       country: string;
       phone: string;
     }) => {
-      await new Promise((r) => setTimeout(r, 550));
-      setUser(
-        mockUser(input.email, input.displayName, {
-          country: input.country,
-          phone: input.phone,
-          isSeller: false,
-        }),
-      );
-      setGuestMode(false);
+      const { data, error } = await supabase.auth.signUp({
+        email: input.email,
+        password: input.password,
+        options: {
+          data: {
+            display_name: input.displayName,
+            country: input.country,
+            phone: input.phone,
+          },
+        },
+      });
+      if (error) throw mapAuthError(error);
+      const uid = data.user?.id ?? data.session?.user?.id;
+      if (uid && (input.country || input.phone)) {
+        void supabase
+          .from("profiles")
+          .update({
+            ...(input.country ? { country: input.country } : {}),
+            ...(input.phone ? { phone: input.phone } : {}),
+            display_name: input.displayName,
+          })
+          .eq("id", uid);
+      }
+      if (!data.session || !data.user) {
+        return { needsEmailConfirmation: true };
+      }
+      await hydrate(data.user);
       setAuthOverlay(false);
       setView("welcome");
+      return { needsEmailConfirmation: false };
     },
-    [],
+    [hydrate],
   );
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setGuestMode(false);
     setView("welcome");
+    setAuthOverlay(false);
+    await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
   }, []);
 
   const becomeSeller = useCallback(() => {
+    const id = user?.id;
+    if (!id) return;
     setUser((prev) => (prev ? { ...prev, isSeller: true } : prev));
-  }, []);
+    void supabase.from("profiles").update({ is_seller: true }).eq("id", id);
+  }, [user?.id]);
 
   const adjustWallet = useCallback((deltaCents: number) => {
-    setUser((prev) =>
-      prev ? { ...prev, walletBalance: Math.max(0, prev.walletBalance + deltaCents) } : prev,
-    );
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = Math.max(0, prev.walletBalance + deltaCents);
+      wallets.current[prev.id] = next;
+      return { ...prev, walletBalance: next };
+    });
   }, []);
 
   const openAuth = useCallback((next: AuthView = "welcome") => {
@@ -149,14 +301,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setView("welcome");
   }, []);
 
-  const sendReset = useCallback(async (_email: string) => {
-    await new Promise((r) => setTimeout(r, 400));
+  const sendReset = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: RESET_REDIRECT,
+    });
+    if (error) throw mapAuthError(error);
   }, []);
 
   const value = useMemo<Ctx>(
     () => ({
       user,
-      guestMode,
+      loading,
+      guestMode: guestMode && !user,
       view,
       setView,
       authOverlay,
@@ -172,6 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       user,
+      loading,
       guestMode,
       view,
       authOverlay,

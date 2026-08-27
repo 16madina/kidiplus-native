@@ -44,6 +44,7 @@ export function SignUpScreen() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [confirmAge, setConfirmAge] = useState(false);
   const [promoCode, setPromoCode] = useState("");
@@ -70,14 +71,18 @@ export function SignUpScreen() {
     }
     setLoading(true);
     setError(null);
+    setInfo(null);
     try {
-      await signUp({
+      const result = await signUp({
         email: email.trim(),
         password,
         displayName: displayName.trim(),
         country,
         phone: phone.trim(),
       });
+      if (result.needsEmailConfirmation) {
+        setInfo(t("auth.signUp.checkEmailBody"));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("auth.errors.generic"));
     } finally {
@@ -118,6 +123,11 @@ export function SignUpScreen() {
         <Text style={{ fontSize: 12, fontWeight: "700", color: promoCode.trim().toUpperCase() === "KIDIPLUS" ? "#1B7A3A" : "#C0392B" }}>
           {promoCode.trim().toUpperCase() === "KIDIPLUS" ? "✓ KIDIPLUS" : "—"}
         </Text>
+      ) : null}
+      {info ? (
+        <View style={{ backgroundColor: "#E8F6EE", borderRadius: 12, padding: 10 }}>
+          <Text style={{ color: "#1B7A3A", fontSize: 13, fontWeight: "600" }}>{info}</Text>
+        </View>
       ) : null}
       {error ? (
         <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10 }}>
@@ -171,21 +181,33 @@ export function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <AuthScreenShell title={t("auth.forgot.title")} onBack={() => setView("signin")}>
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.forgot.title")}</Text>
       <Text style={{ fontSize: 14, color: colors.mutedForeground }}>{t("auth.forgot.subtitle")}</Text>
       <AuthInput label={t("auth.forgot.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder={t("auth.signIn.emailPlaceholder")} />
+      {error ? (
+        <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10 }}>
+          <Text style={{ color: "#9B1C1C", fontSize: 13, fontWeight: "600" }}>{error}</Text>
+        </View>
+      ) : null}
       {sent ? <Text style={{ color: "#1B7A3A", fontWeight: "700" }}>{t("auth.forgot.sent")}</Text> : null}
       <RedButton
         label={loading ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
         disabled={loading}
         onPress={async () => {
+          setError(null);
           setLoading(true);
-          await sendReset(email);
-          setSent(true);
-          setLoading(false);
+          try {
+            await sendReset(email);
+            setSent(true);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : t("auth.errors.generic"));
+          } finally {
+            setLoading(false);
+          }
         }}
       />
     </AuthScreenShell>

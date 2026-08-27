@@ -4,7 +4,7 @@ Version **native** de [KiDi+](https://kidiplus.com) (React Native / Expo).
 
 Bundle temporaire : `com.kidiplus.native`.
 
-Cette app recrée le UI de KiDi+ (splash, welcome / auth, onglets Accueil · Explorer · Live · Vitrine · Profil) avec **données mock**. Aucun backend, secret, ni listing store n’est branché.
+Cette app recrée le UI de KiDi+ avec **auth Superbase réelle** (même projet que le site : email / mot de passe, session persistée). Lives, portefeuille, commandes, studio restent **mock**.
 
 L’app Capacitor existante (`com.kidiplus.app`, repo `16madina/kidiplus`) n’est **pas** modifiée.
 
@@ -14,6 +14,8 @@ L’app Capacitor existante (`com.kidiplus.app`, repo `16madina/kidiplus`) n’e
 npm install
 npx expo start
 ```
+
+Optionnel : copie `.env.example` vers `.env` si tu changes d’URL / clé anon.
 
 - `npm run web` — aperçu web
 - `npm run android` / `npm run ios` — Expo Go ou build natif
