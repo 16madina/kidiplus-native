@@ -25,19 +25,19 @@ export function AppShell() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar style={tab === "vitrine" || overlay.kind === "live" || dark ? "light" : "dark"} />
-      <View style={[styles.pane, tab !== "home" && styles.hidden]}>
+      <View style={[styles.pane, tab === "home" ? styles.shown : styles.hidden]}>
         <HomeScreen />
       </View>
-      <View style={[styles.pane, tab !== "search" && styles.hidden]}>
+      <View style={[styles.pane, tab === "search" ? styles.shown : styles.hidden]}>
         <SearchScreen />
       </View>
-      <View style={[styles.pane, tab !== "live" && styles.hidden]}>
+      <View style={[styles.pane, tab === "live" ? styles.shown : styles.hidden]}>
         <LiveTabScreen />
       </View>
-      <View style={[styles.pane, tab !== "vitrine" && styles.hidden]}>
+      <View style={[styles.pane, tab === "vitrine" ? styles.shown : styles.hidden]}>
         <VitrineScreen />
       </View>
-      <View style={[styles.pane, tab !== "profile" && styles.hidden]}>
+      <View style={[styles.pane, tab === "profile" ? styles.shown : styles.hidden]}>
         <ProfileScreen />
       </View>
       <BottomTabBar active={tab} onChange={setTab} hidden={hideTabs} />
@@ -63,7 +63,8 @@ export function AppShell() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: NAVY },
-  pane: { ...{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 } },
-  hidden: { display: "none" },
+  pane: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  shown: { zIndex: 2, opacity: 1 },
+  hidden: { zIndex: 0, opacity: 0, pointerEvents: "none" },
   overlay: { ...{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }, zIndex: 70, backgroundColor: "#fff" },
 });
