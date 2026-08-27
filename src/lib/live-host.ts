@@ -192,6 +192,30 @@ export async function fetchLiveGiftsTotal(liveId: string): Promise<{ count: numb
   };
 }
 
+export type LivePaidOrder = {
+  id: string;
+  item_name: string;
+  amount: number;
+  currency: string | null;
+  kind: string | null;
+};
+
+export async function fetchLivePaidOrders(liveId: string): Promise<LivePaidOrder[]> {
+  const { data } = await supabase
+    .from("orders")
+    .select("id, item_name, amount, currency, kind, status")
+    .eq("live_id", liveId)
+    .eq("status", "paid")
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as LivePaidOrder[]).map((row) => ({
+    id: row.id,
+    item_name: row.item_name,
+    amount: Number(row.amount ?? 0),
+    currency: row.currency,
+    kind: row.kind,
+  }));
+}
+
 export async function createLiveProductFromDraft(args: {
   liveId: string;
   userId: string;

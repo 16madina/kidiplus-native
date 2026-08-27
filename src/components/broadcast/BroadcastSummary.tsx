@@ -1,14 +1,28 @@
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { Home } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { Home, Play, Share2 } from "lucide-react-native";
 import { Logo } from "../Logo";
 import { Press } from "../Press";
-import { fetchLiveGiftsTotal, fetchLiveSales, fmtDuration } from "../../lib/live-host";
+import { MockBanner } from "../OverlayHeader";
+import {
+  fetchLiveGiftsTotal,
+  fetchLivePaidOrders,
+  fmtDuration,
+  type LivePaidOrder,
+} from "../../lib/live-host";
+import {
+  fetchLiveReplayMeta,
+  isReplayPlayable,
+  playableReplayUrl,
+  type LiveReplayMeta,
+} from "../../lib/live-replay";
 import { formatMoney } from "../../lib/money";
 import { supabase } from "../../lib/supabase";
-import { GOLD, LIVE_RED, NAVY } from "../../theme";
+import { GOLD, NAVY } from "../../theme";
 
 export function BroadcastSummary({
   liveId,
@@ -25,66 +39,182 @@ export function BroadcastSummary({
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const [heading, setHeading] = useState(title);
+  const [category, setCategory] = useState("");
   const [currency, setCurrency] = useState("EUR");
-  const [sales, setSales] = useState({ revenue: 0, count: 0 });
+  const [orders, setOrders] = useState<LivePaidOrder[]>([]);
   const [gifts, setGifts] = useState({ count: 0, sellerNet: 0 });
-  const fmt = (n: number) => formatMoney(n, currency, i18n.language);
+  const [replayMeta, setReplayMeta] = useState<LiveReplayMeta | null>(null);
+  const [replayUrl, setReplayUrl] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const fmt = (n: number, cur: string = currency) => formatMoney(n, cur, i18n.language);
+
+  const revenue = orders.reduce((s, o) => s + o.amount, 0);
+  const salesCount = orders.length;
+  const replayReady = isReplayPlayable(replayMeta);
+  const replayPending =
+    replayMeta?.replay_status === "recording" || replayMeta?.replay_status === "processing";
+  const showReplay = replayReady || replayPending;
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   useEffect(() => {
     let alive = true;
     void Promise.all([
-      fetchLiveSales(liveId),
+      fetchLivePaidOrders(liveId),
       fetchLiveGiftsTotal(liveId),
-      supabase.from("lives").select("currency").eq("id", liveId).maybeSingle(),
-    ]).then(([s, g, liveRes]) => {
+      supabase.from("lives").select("title, category, currency").eq("id", liveId).maybeSingle(),
+    ]).then(([paid, g, liveRes]) => {
       if (!alive) return;
-      setSales(s);
+      setOrders(paid);
       setGifts(g);
-      if (liveRes.data?.currency) setCurrency(String(liveRes.data.currency));
+      const row = liveRes.data;
+      if (row?.title) setHeading(String(row.title));
+      if (row?.category) setCategory(String(row.category));
+      if (row?.currency) setCurrency(String(row.currency));
     });
     return () => {
       alive = false;
     };
   }, [liveId]);
 
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      const meta = await fetchLiveReplayMeta(liveId);
+      if (alive) setReplayMeta(meta);
+    };
+    void poll();
+    const iv = setInterval(() => void poll(), 4000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, [liveId]);
+
+  const openReplay = async () => {
+    if (!replayReady) return;
+    const url = await playableReplayUrl(liveId, replayMeta);
+    if (!url) {
+      setToast(t("broadcast.replay.openFailed"));
+      return;
+    }
+    setReplayUrl(url);
+  };
+
+  const share = async () => {
+    try {
+      await Share.share({
+        title: heading,
+        message: `https://kidiplus.com/live/${liveId}`,
+        url: `https://kidiplus.com/live/${liveId}`,
+      });
+    } catch {
+      setToast(t("common.copied"));
+    }
+  };
+
+  const subtitle = category ? `${heading} · ${category}` : heading;
+
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24 },
-      ]}
-    >
-      <Logo size={56} />
-      <Text style={styles.title}>{t("broadcast.summary.title")} 🎉</Text>
-      <Text style={styles.sub}>{title}</Text>
-
-      <View style={styles.tiles}>
-        <Tile label={t("broadcast.summary.duration")} value={fmtDuration(durationSec)} />
-        <Tile label={t("broadcast.summary.peakViewers")} value={String(Math.max(0, peakViewers))} />
-        <Tile label={t("broadcast.summary.sales")} value={String(sales.count)} />
-      </View>
-
-      <View style={styles.revenue}>
-        <Text style={styles.revenueLabel}>{t("broadcast.summary.revenue")}</Text>
-        <Text style={styles.revenueValue}>{fmt(sales.revenue)}</Text>
-      </View>
-
-      {gifts.count > 0 ? (
-        <View style={styles.gifts}>
-          <View>
-            <Text style={styles.giftsTitle}>{t("gifts.summaryTitle")}</Text>
-            <Text style={styles.giftsCount}>{t("gifts.summaryCount", { count: gifts.count })}</Text>
-          </View>
-          <Text style={styles.giftsNet}>+{fmt(gifts.sellerNet)}</Text>
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24 },
+        ]}
+      >
+        <Logo size={48} />
+        <View style={styles.hero}>
+          <Text style={styles.title}>{t("broadcast.summary.title")} 🎉</Text>
+          <Text style={styles.sub}>{subtitle}</Text>
         </View>
-      ) : null}
 
-      <Press onPress={onDone} style={styles.home}>
-        <Home size={18} color={NAVY} />
-        <Text style={styles.homeTxt}>{t("broadcast.summary.close")}</Text>
-      </Press>
-    </ScrollView>
+        <View style={styles.tiles}>
+          <Tile label={t("broadcast.summary.duration")} value={fmtDuration(durationSec)} />
+          <Tile label={t("broadcast.summary.peakViewers")} value={String(Math.max(0, peakViewers))} />
+          <Tile label={t("broadcast.summary.sales")} value={String(salesCount)} />
+        </View>
+
+        <LinearGradient colors={["#E85A62", "#C62828"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.revenue}>
+          <Text style={styles.revenueLabel}>{t("broadcast.summary.revenue")}</Text>
+          <Text style={styles.revenueValue}>{fmt(revenue)}</Text>
+        </LinearGradient>
+
+        {gifts.count > 0 ? (
+          <View style={styles.gifts}>
+            <View style={styles.giftsLeft}>
+              <Text style={styles.giftsEmoji}>🎁</Text>
+              <View>
+                <Text style={styles.giftsTitle}>{t("gifts.summaryTitle")}</Text>
+                <Text style={styles.giftsCount}>{t("gifts.summaryCount", { count: gifts.count })}</Text>
+              </View>
+            </View>
+            <Text style={styles.giftsNet}>+{fmt(gifts.sellerNet)}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.salesBlock}>
+          <Text style={styles.salesHead}>{t("broadcast.summary.sales")}</Text>
+          {salesCount === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTxt}>{t("home.empty")}</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 6 }}>
+              {orders.map((o) => (
+                <View key={o.id} style={styles.saleRow}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.saleName} numberOfLines={1}>
+                      {o.item_name}
+                    </Text>
+                    <Text style={styles.saleKind}>
+                      {o.kind === "auction" ? t("pay.kind.auction") : t("pay.kind.fixed")}
+                    </Text>
+                  </View>
+                  <Text style={styles.saleAmt}>{fmt(o.amount, o.currency ?? currency)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.actions}>
+          {showReplay ? (
+            <Press disabled={!replayReady} onPress={() => void openReplay()} style={styles.replayBtn}>
+              <LinearGradient
+                colors={["#B4232C", "#8E1B22"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.replayGrad}
+              >
+                <Play size={16} color="#fff" fill="#fff" />
+                <Text style={styles.replayTxt}>
+                  {replayReady ? t("broadcast.replay.watch") : t("broadcast.replay.preparing")}
+                </Text>
+              </LinearGradient>
+            </Press>
+          ) : null}
+
+          <Press onPress={() => void share()} style={styles.shareBtn}>
+            <Share2 size={16} color="#fff" />
+            <Text style={styles.shareTxt}>{t("common.share")}</Text>
+          </Press>
+
+          <Press onPress={onDone} style={styles.home}>
+            <Home size={16} color={NAVY} />
+            <Text style={styles.homeTxt}>{t("broadcast.summary.close")}</Text>
+          </Press>
+        </View>
+      </ScrollView>
+      <MockBanner text={toast} />
+      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+    </View>
   );
 }
 
@@ -97,53 +227,134 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
+  const { t } = useTranslation();
+  if (!url) return null;
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={styles.replayRoot}>
+        <ReplayPlayer uri={url} />
+        <Press onPress={onClose} style={styles.replayClose}>
+          <Text style={styles.replayCloseTxt}>{t("common.close")}</Text>
+        </Press>
+      </View>
+    </Modal>
+  );
+}
+
+function ReplayPlayer({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = false;
+    p.play();
+  });
+  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
+}
+
+const MUTED = "#F2F3F7";
+const MUTED_FG = "#6B7289";
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#fff" },
-  content: { paddingHorizontal: 22, alignItems: "center", gap: 14 },
-  title: { color: NAVY, fontSize: 28, fontWeight: "900", textAlign: "center" },
-  sub: { color: "#6B7289", fontSize: 14, textAlign: "center", marginTop: -6 },
-  tiles: { flexDirection: "row", gap: 8, width: "100%", marginTop: 8 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 20, alignItems: "center", gap: 16 },
+  hero: { alignItems: "center", gap: 4 },
+  title: { color: NAVY, fontSize: 28, fontWeight: "800", textAlign: "center", letterSpacing: -0.4 },
+  sub: { color: MUTED_FG, fontSize: 14, textAlign: "center" },
+  tiles: { flexDirection: "row", gap: 8, width: "100%" },
   tile: {
     flex: 1,
-    backgroundColor: "#F2F3F7",
+    backgroundColor: MUTED,
     borderRadius: 16,
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     alignItems: "center",
   },
-  tileLabel: { color: "#6B7289", fontSize: 10, fontWeight: "700", textTransform: "uppercase", textAlign: "center" },
-  tileValue: { color: NAVY, fontSize: 16, fontWeight: "900", marginTop: 4, fontVariant: ["tabular-nums"] },
+  tileLabel: {
+    color: MUTED_FG,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    textAlign: "center",
+  },
+  tileValue: { color: NAVY, fontSize: 18, fontWeight: "800", marginTop: 4, fontVariant: ["tabular-nums"] },
   revenue: {
     width: "100%",
-    borderRadius: 20,
+    borderRadius: 16,
     paddingVertical: 22,
     paddingHorizontal: 16,
     alignItems: "center",
-    backgroundColor: LIVE_RED,
   },
-  revenueLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
-  revenueValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 4 },
+  revenueLabel: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  revenueValue: { color: "#fff", fontSize: 36, fontWeight: "800", marginTop: 6, fontVariant: ["tabular-nums"] },
   gifts: {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F2F3F7",
+    backgroundColor: MUTED,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  giftsTitle: { color: NAVY, fontWeight: "800", fontSize: 14 },
-  giftsCount: { color: "#6B7289", fontSize: 12, marginTop: 2 },
-  giftsNet: { color: GOLD, fontWeight: "900", fontSize: 16 },
-  home: {
-    marginTop: 8,
-    height: 52,
+  giftsLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  giftsEmoji: { fontSize: 24 },
+  giftsTitle: { color: NAVY, fontWeight: "800", fontSize: 13 },
+  giftsCount: { color: MUTED_FG, fontSize: 11, marginTop: 2 },
+  giftsNet: { color: GOLD, fontWeight: "800", fontSize: 16 },
+  salesBlock: { width: "100%", gap: 8 },
+  salesHead: { color: NAVY, fontSize: 15, fontWeight: "800" },
+  empty: { backgroundColor: MUTED, borderRadius: 16, paddingVertical: 16, paddingHorizontal: 12 },
+  emptyTxt: { color: MUTED_FG, fontSize: 13, textAlign: "center" },
+  saleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: MUTED,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  saleName: { color: NAVY, fontSize: 14, fontWeight: "700" },
+  saleKind: { color: MUTED_FG, fontSize: 12, marginTop: 2 },
+  saleAmt: { color: NAVY, fontSize: 15, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  actions: { width: "100%", gap: 8, paddingTop: 4 },
+  replayBtn: { width: "100%", height: 48, borderRadius: 16, overflow: "hidden" },
+  replayGrad: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  replayTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  shareBtn: {
+    height: 48,
     width: "100%",
-    borderRadius: 999,
-    backgroundColor: GOLD,
+    borderRadius: 16,
+    backgroundColor: NAVY,
     flexDirection: "row",
     gap: 8,
   },
-  homeTxt: { color: NAVY, fontWeight: "900", fontSize: 16 },
+  shareTxt: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  home: {
+    height: 48,
+    width: "100%",
+    borderRadius: 16,
+    backgroundColor: MUTED,
+    flexDirection: "row",
+    gap: 8,
+  },
+  homeTxt: { color: NAVY, fontWeight: "700", fontSize: 15 },
+  replayRoot: { flex: 1, backgroundColor: "#000" },
+  replayClose: { position: "absolute", top: 48, left: 16, minHeight: 40 },
+  replayCloseTxt: { color: "#fff", fontWeight: "800" },
 });

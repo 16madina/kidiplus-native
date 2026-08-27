@@ -18,6 +18,7 @@ import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { useNav } from "../context/navigation";
 import { fetchLiveKitSession } from "../lib/livekit";
+import { startLiveReplay, stopLiveReplay } from "../lib/live-replay";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
 import { supabase } from "../lib/supabase";
 import { GOLD } from "../theme";
@@ -197,6 +198,10 @@ function HostStage({
   }, [liveId]);
 
   useEffect(() => {
+    void startLiveReplay(liveId);
+  }, [liveId]);
+
+  useEffect(() => {
     let alive = true;
     void supabase
       .from("lives")
@@ -232,6 +237,7 @@ function HostStage({
       Alert.alert(t("live.endFailed"));
       return;
     }
+    await stopLiveReplay(liveId).catch(() => undefined);
 
     try {
       await localParticipant.setCameraEnabled(false);

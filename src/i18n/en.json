@@ -547,6 +547,11 @@
       "newFollowers": "New followers",
       "close": "Close"
     },
+    "replay": {
+      "watch": "Watch replay",
+      "preparing": "Replay coming soon…",
+      "openFailed": "Couldn't open this replay — try again in a moment."
+    },
     "rtmp": {
       "toggleTitle": "Multi-platform (Restream / OBS)",
       "toggleHint": "Stream from Restream to TikTok, Facebook, YouTube and KiDi+ at the same time.",
