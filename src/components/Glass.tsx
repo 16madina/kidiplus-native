@@ -14,21 +14,21 @@ const TINT: Record<GlassTone, BlurTint> = {
 };
 
 const FILL: Record<GlassTone, string> = {
-  light: "rgba(255,255,255,0.28)",
-  dark: "rgba(12,17,34,0.38)",
-  gold: "rgba(232,185,59,0.22)",
+  light: "rgba(255,255,255,0.16)",
+  dark: "rgba(8,12,26,0.28)",
+  gold: "rgba(232,185,59,0.16)",
 };
 
 const BORDER: Record<GlassTone, string> = {
-  light: "rgba(255,255,255,0.62)",
-  dark: "rgba(255,255,255,0.28)",
-  gold: "rgba(255,226,140,0.7)",
+  light: "rgba(255,255,255,0.72)",
+  dark: "rgba(255,255,255,0.34)",
+  gold: "rgba(255,226,140,0.78)",
 };
 
 const SHINE: Record<GlassTone, readonly [string, string]> = {
-  light: ["rgba(255,255,255,0.78)", "rgba(255,255,255,0)"],
-  dark: ["rgba(255,255,255,0.34)", "rgba(255,255,255,0)"],
-  gold: ["rgba(255,246,210,0.62)", "rgba(232,185,59,0)"],
+  light: ["rgba(255,255,255,0.7)", "rgba(255,255,255,0)"],
+  dark: ["rgba(255,255,255,0.38)", "rgba(255,255,255,0)"],
+  gold: ["rgba(255,246,210,0.7)", "rgba(232,185,59,0)"],
 };
 
 export function Glass({
@@ -36,7 +36,7 @@ export function Glass({
   style,
   contentStyle,
   tone = "light",
-  intensity = 48,
+  intensity = 55,
   radius = 20,
   padded,
   elevated = true,
@@ -53,47 +53,48 @@ export function Glass({
   borderless?: boolean;
 }) {
   return (
-    <View
-      style={[
-        {
-          borderRadius: radius,
-          overflow: "hidden",
-          borderWidth: borderless ? 0 : StyleSheet.hairlineWidth + 0.6,
-          borderColor: BORDER[tone],
-          backgroundColor: FILL[tone],
-        },
-        elevated ? platformShadow(tone) : null,
-        style,
-      ]}
-    >
-      <BlurView
-        intensity={intensity}
-        tint={TINT[tone]}
-        experimentalBlurMethod="dimezisBlurView"
-        style={styles.fill}
-      />
-      <LinearGradient
-        colors={[SHINE[tone][0], SHINE[tone][1]]}
-        start={{ x: 0.08, y: 0 }}
-        end={{ x: 0.92, y: 0.85 }}
-        style={styles.shine}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={["rgba(255,255,255,0)", tone === "gold" ? "rgba(255,226,140,0.18)" : "rgba(255,255,255,0.14)"]}
-        style={styles.glint}
-        pointerEvents="none"
-      />
-      {borderless ? null : (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.innerStroke,
-            { borderRadius: Math.max(0, radius - 1), borderColor: "rgba(255,255,255,0.34)" },
-          ]}
+    <View style={[elevated ? platformShadow(tone) : null, style]}>
+      <View
+        style={[
+          {
+            borderRadius: radius,
+            overflow: "hidden",
+            borderWidth: borderless ? 0 : StyleSheet.hairlineWidth + 0.7,
+            borderColor: BORDER[tone],
+          },
+          styles.clip,
+        ]}
+      >
+        <BlurView
+          intensity={intensity}
+          tint={TINT[tone]}
+          experimentalBlurMethod="dimezisBlurView"
+          style={styles.fill}
         />
-      )}
-      <View style={[padded && styles.pad, contentStyle]}>{children}</View>
+        <View pointerEvents="none" style={[styles.fill, { backgroundColor: FILL[tone] }]} />
+        <LinearGradient
+          colors={[SHINE[tone][0], SHINE[tone][1]]}
+          start={{ x: 0.08, y: 0 }}
+          end={{ x: 0.92, y: 0.85 }}
+          style={styles.shine}
+          pointerEvents="none"
+        />
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", tone === "gold" ? "rgba(255,226,140,0.22)" : "rgba(255,255,255,0.16)"]}
+          style={styles.glint}
+          pointerEvents="none"
+        />
+        {borderless ? null : (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.innerStroke,
+              { borderRadius: Math.max(0, radius - 1), borderColor: "rgba(255,255,255,0.42)" },
+            ]}
+          />
+        )}
+        <View style={[padded && styles.pad, contentStyle]}>{children}</View>
+      </View>
     </View>
   );
 }
@@ -102,7 +103,7 @@ export function GlassIcon({
   children,
   tone = "dark",
   size = 44,
-  intensity = 42,
+  intensity = 48,
   style,
 }: {
   children: ReactNode;
@@ -150,13 +151,14 @@ function platformShadow(tone: GlassTone): ViewStyle {
   }
   return {
     shadowColor: tone === "gold" ? GOLD : tone === "light" ? "#8FA0C8" : "#040814",
-    shadowOpacity: tone === "light" ? 0.18 : 0.38,
-    shadowRadius: 22,
+    shadowOpacity: tone === "light" ? 0.2 : 0.42,
+    shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
   };
 }
 
 const styles = StyleSheet.create({
+  clip: { flexGrow: 0 },
   fill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   shine: {
     position: "absolute",

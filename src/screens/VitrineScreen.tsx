@@ -33,18 +33,20 @@ export function VitrineScreen() {
         <GlassIconButton tone="dark" onPress={() => setTab("home")}>
           <Home size={20} color="#fff" />
         </GlassIconButton>
-        <View style={styles.cats}>
-          {([
-            ["forYou", "vitrine.tabs.forYou"],
-            ["live", "vitrine.tabs.live"],
-            ["soon", "vitrine.tabs.soon"],
-          ] as const).map(([k, label]) => (
-            <Press key={k} onPress={() => setCat(k)} style={styles.catBtn}>
-              <Text style={[styles.catLabel, cat === k && styles.catActive]}>{t(label)}</Text>
-              {cat === k ? <View style={styles.underline} /> : null}
-            </Press>
-          ))}
-        </View>
+        <Glass tone="dark" intensity={40} radius={999} elevated={false} style={{ flex: 1, marginHorizontal: 8 }}>
+          <View style={styles.cats}>
+            {([
+              ["forYou", "vitrine.tabs.forYou"],
+              ["live", "vitrine.tabs.live"],
+              ["soon", "vitrine.tabs.soon"],
+            ] as const).map(([k, label]) => (
+              <Press key={k} onPress={() => setCat(k)} style={styles.catBtn}>
+                <Text style={[styles.catLabel, cat === k && styles.catActive]}>{t(label)}</Text>
+                {cat === k ? <View style={styles.underline} /> : null}
+              </Press>
+            ))}
+          </View>
+        </Glass>
         <GlassIconButton tone="gold" onPress={() => (guestMode ? openAuth() : undefined)}>
           <Plus size={22} color="#fff" />
         </GlassIconButton>
