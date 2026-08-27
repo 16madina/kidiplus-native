@@ -1,18 +1,18 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ChevronDown, Mail, MessageCircle } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { GoldButton } from "../components/Buttons";
-import { Glass } from "../components/Glass";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { useAppTheme } from "../context/theme";
 import { GOLD } from "../theme";
 import { HELP_FAQS } from "../mock/account";
 
 export function HelpScreen() {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [open, setOpen] = useState<string | null>(HELP_FAQS[0]?.q ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -24,7 +24,7 @@ export function HelpScreen() {
           const isOpen = open === f.q;
           return (
             <Press key={f.q} onPress={() => setOpen(isOpen ? null : f.q)} style={{ alignItems: "stretch" }}>
-              <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+              <SurfaceCard padded={false}>
                 <View style={styles.q}>
                   <Text style={{ flex: 1, fontWeight: "800", color: colors.foreground }}>{f.q}</Text>
                   <ChevronDown size={18} color={GOLD} style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }} />
@@ -32,7 +32,7 @@ export function HelpScreen() {
                 {isOpen ? (
                   <Text style={[styles.a, { color: colors.mutedForeground }]}>{f.a}</Text>
                 ) : null}
-              </Glass>
+              </SurfaceCard>
             </Press>
           );
         })}
@@ -40,13 +40,15 @@ export function HelpScreen() {
           label="Écrire au support"
           icon={<Mail size={16} color="#151022" />}
           onPress={() => {
-            setToast("Message envoyé au support (mock)");
-            setTimeout(() => setToast(null), 2000);
+            void Linking.openURL("mailto:hello@kidiplus.com").catch(() => {
+              setToast("hello@kidiplus.com");
+              setTimeout(() => setToast(null), 2000);
+            });
           }}
         />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 4 }}>
           <MessageCircle size={14} color={colors.mutedForeground} />
-          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>hello@kidiplus.com · données mock</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>hello@kidiplus.com</Text>
         </View>
       </ScrollView>
       <MockBanner text={toast} />

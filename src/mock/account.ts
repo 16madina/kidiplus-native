@@ -162,7 +162,7 @@ export const HELP_FAQS = [
   },
   {
     q: "Comment recharger mon portefeuille ?",
-    a: "Profil → Portefeuille → Recharger. Choisis 20, 50, 100 ou 200 €. (Mock : le solde se met à jour tout de suite.)",
+    a: "Profil → Portefeuille → Recharger. Choisis 20, 50, 100 ou 200 €.",
   },
   {
     q: "Je veux vendre en live",

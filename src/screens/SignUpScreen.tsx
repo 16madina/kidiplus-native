@@ -1,46 +1,28 @@
 import { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
-import { ChevronDown, Eye, EyeOff } from "lucide-react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Eye, EyeOff } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthInput } from "../components/AuthInput";
 import { RedButton } from "../components/Buttons";
+import { CountrySelect } from "../components/CountrySelect";
 import { Press } from "../components/Press";
-import { Glass } from "../components/Glass";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD } from "../theme";
+import { countryLabel } from "../lib/countries";
 import { validatePromoCode } from "../lib/referrals";
 import { AuthScreenShell } from "./SignInScreen";
 import { LegalScreen } from "./LegalScreen";
 
-const COUNTRIES = [
-  { code: "FR", name: "France", value: "🇫🇷 France" },
-  { code: "BE", name: "Belgique", value: "🇧🇪 Belgique" },
-  { code: "CH", name: "Suisse", value: "🇨🇭 Suisse" },
-  { code: "CA", name: "Canada", value: "🇨🇦 Canada" },
-  { code: "CI", name: "Côte d'Ivoire", value: "🇨🇮 Côte d'Ivoire" },
-  { code: "SN", name: "Sénégal", value: "🇸🇳 Sénégal" },
-  { code: "MA", name: "Maroc", value: "🇲🇦 Maroc" },
-  { code: "DZ", name: "Algérie", value: "🇩🇿 Algérie" },
-  { code: "TN", name: "Tunisie", value: "🇹🇳 Tunisie" },
-  { code: "CM", name: "Cameroun", value: "🇨🇲 Cameroun" },
-  { code: "CD", name: "RD Congo", value: "🇨🇩 RD Congo" },
-  { code: "GA", name: "Gabon", value: "🇬🇦 Gabon" },
-  { code: "ML", name: "Mali", value: "🇲🇱 Mali" },
-  { code: "BF", name: "Burkina Faso", value: "🇧🇫 Burkina Faso" },
-  { code: "", name: "Autre", value: "🌍 Autre" },
-];
-
 export function SignUpScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { setView, signUp } = useAuth();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [emailConfirm, setEmailConfirm] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
-  const [countryOpen, setCountryOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -105,8 +87,6 @@ export function SignUpScreen() {
     }
   };
 
-  const selected = COUNTRIES.find((c) => c.value === country);
-
   return (
     <AuthScreenShell title={t("auth.welcome.signUp")} onBack={() => setView("welcome")}>
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.title")}</Text>
@@ -114,17 +94,14 @@ export function SignUpScreen() {
       <AuthInput label={t("auth.signUp.displayName")} value={displayName} onChangeText={setDisplayName} placeholder={t("auth.signUp.displayNamePlaceholder")} maxLength={40} />
       <AuthInput label={t("auth.signUp.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder={t("auth.signIn.emailPlaceholder")} />
       <AuthInput label={t("auth.signUp.emailConfirm")} autoCapitalize="none" keyboardType="email-address" value={emailConfirm} onChangeText={setEmailConfirm} placeholder={t("auth.signIn.emailPlaceholder")} />
-      <View>
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("auth.signUp.country")}</Text>
-        <Glass tone={dark ? "dark" : "light"} intensity={32} radius={16} elevated={false}>
-          <Press onPress={() => setCountryOpen(true)} style={styles.select}>
-            <Text style={{ color: selected ? colors.foreground : colors.mutedForeground, fontSize: 15 }}>
-              {selected?.value ?? t("auth.signUp.countryPlaceholder")}
-            </Text>
-            <ChevronDown size={18} color={colors.mutedForeground} />
-          </Press>
-        </Glass>
-      </View>
+      <CountrySelect
+        required
+        label={t("auth.signUp.country")}
+        value={country}
+        placeholder={t("auth.signUp.countryPlaceholder")}
+        includeOther
+        onChange={(code) => setCountry(code ? countryLabel(code, i18n.language) : "🌍 Autre")}
+      />
       <AuthInput label={t("auth.signUp.phone")} keyboardType="phone-pad" value={phone} onChangeText={setPhone} placeholder={t("auth.signUp.phonePlaceholder")} />
       <View>
         <AuthInput label={t("auth.signUp.password")} secureTextEntry={!show} value={password} onChangeText={setPassword} placeholder="••••••••" />
@@ -168,23 +145,6 @@ export function SignUpScreen() {
           <Text style={{ fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.signIn")}</Text>
         </Press>
       </View>
-      <Modal visible={countryOpen} animationType="slide" onRequestClose={() => setCountryOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: 20 }}>
-          <Text style={{ fontSize: 20, fontWeight: "800", marginBottom: 12, color: colors.foreground }}>{t("auth.signUp.country")}</Text>
-          {COUNTRIES.map((c) => (
-            <Press
-              key={c.value}
-              onPress={() => {
-                setCountry(c.value);
-                setCountryOpen(false);
-              }}
-              style={{ minHeight: 48, alignItems: "flex-start" }}
-            >
-              <Text style={{ fontSize: 16, color: colors.foreground }}>{c.value}</Text>
-            </Press>
-          ))}
-        </View>
-      </Modal>
     </AuthScreenShell>
   );
 }
@@ -230,18 +190,7 @@ export function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { marginBottom: 6, fontSize: 12, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
-  select: {
-    height: 48,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    minHeight: 48,
-  },
-  eye: { position: "absolute", right: 8, top: 30, width: 40, height: 40 },
+  eye: { position: "absolute", right: 8, top: 26, width: 40, height: 40 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8, minHeight: 0 },
   box: { width: 16, height: 16, marginTop: 2, borderRadius: 3, borderWidth: 1.5, borderColor: GOLD },
 });

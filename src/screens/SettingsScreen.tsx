@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { ChevronRight, Moon, Sun } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
-import { Glass } from "../components/Glass";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { OverlayHeader } from "../components/OverlayHeader";
 import { PushScreen } from "../components/PushScreen";
 import { Press } from "../components/Press";
@@ -25,7 +25,7 @@ export function SettingsScreen() {
       <OverlayHeader title={t("settings.title")} />
       <ScrollView contentContainerStyle={styles.body}>
         <Label text={t("settings.preferences")} color={colors.mutedForeground} />
-        <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+        <SurfaceCard padded={false}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowTitle, { color: colors.foreground }]}>{t("settings.language")}</Text>
@@ -42,10 +42,10 @@ export function SettingsScreen() {
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("settings.currency")}</Text>
             <Text style={{ fontWeight: "800", color: colors.foreground }}>EUR · €</Text>
           </View>
-        </Glass>
+        </SurfaceCard>
 
         <Label text={t("settings.account")} color={colors.mutedForeground} />
-        <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+        <SurfaceCard padded={false}>
           <View style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{user?.email ?? "—"}</Text>
           </View>
@@ -58,13 +58,13 @@ export function SettingsScreen() {
           >
             <Text style={[styles.rowTitle, { color: "#C0392B" }]}>{t("settings.logout")}</Text>
           </Press>
-        </Glass>
+        </SurfaceCard>
 
         <Label text={t("settings.about")} color={colors.mutedForeground} />
-        <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+        <SurfaceCard padded={false}>
           <View style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("settings.version")}</Text>
-            <Text style={{ color: colors.mutedForeground, fontWeight: "700" }}>1.0.0 · mock</Text>
+            <Text style={{ color: colors.mutedForeground, fontWeight: "700" }}>1.0.0</Text>
           </View>
           <Press onPress={() => setLegal("terms")} style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("profile.menu.terms")}</Text>
@@ -74,7 +74,7 @@ export function SettingsScreen() {
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("profile.menu.privacy")}</Text>
             <ChevronRight size={18} color={colors.mutedForeground} />
           </Press>
-        </Glass>
+        </SurfaceCard>
       </ScrollView>
       <PushScreen open={!!legal} onClose={() => setLegal(null)} zIndex={20}>
         {legal ? <LegalScreen page={legal} onClose={() => setLegal(null)} /> : null}

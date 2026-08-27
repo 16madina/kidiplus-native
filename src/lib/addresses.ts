@@ -1,3 +1,4 @@
+import { countryName, normalizeCountryCode as resolveCountryCode } from "./countries";
 import { supabase } from "./supabase";
 
 export type AddressRow = {
@@ -30,43 +31,12 @@ export type AddressInput = {
   is_default?: boolean;
 };
 
-export const ADDRESS_COUNTRIES: Array<{ code: string; label: string }> = [
-  { code: "CI", label: "Côte d'Ivoire" },
-  { code: "SN", label: "Sénégal" },
-  { code: "ML", label: "Mali" },
-  { code: "BF", label: "Burkina Faso" },
-  { code: "GN", label: "Guinée" },
-  { code: "TG", label: "Togo" },
-  { code: "BJ", label: "Bénin" },
-  { code: "CM", label: "Cameroun" },
-  { code: "FR", label: "France" },
-  { code: "BE", label: "Belgique" },
-  { code: "CA", label: "Canada" },
-  { code: "US", label: "États-Unis" },
-  { code: "GB", label: "Royaume-Uni" },
-];
-
 export function normalizeCountryCode(input: string | null | undefined): string {
-  const raw = (input ?? "").trim();
-  if (/^[A-Za-z]{2}$/.test(raw)) return raw.toUpperCase();
-  const stripped = raw
-    .replace(/[^\p{L}\p{N}\s'-]/gu, "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  const hit = ADDRESS_COUNTRIES.find(
-    (c) =>
-      c.label
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") === stripped || c.code.toLowerCase() === stripped,
-  );
-  return hit?.code ?? "CI";
+  return resolveCountryCode(input) ?? "CI";
 }
 
-export function countryLabel(code: string): string {
-  return ADDRESS_COUNTRIES.find((c) => c.code === code)?.label ?? code;
+export function countryLabel(code: string, locale?: string): string {
+  return countryName(code, locale) || code;
 }
 
 export function formatAddressLine(row: AddressRow): string {

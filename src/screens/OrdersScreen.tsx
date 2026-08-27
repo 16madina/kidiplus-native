@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
-import { Glass } from "../components/Glass";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { fetchMyPurchases, fetchMySales } from "../lib/orders";
@@ -33,7 +33,7 @@ const STATUS_COLOR: Record<MockOrder["status"], string> = {
 
 export function OrdersScreen() {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const { user } = useAuth();
   const [tab, setTab] = useState<"purchases" | "sales">("purchases");
   const [toast, setToast] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export function OrdersScreen() {
           <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32 }}>{t("orders.empty")}</Text>
         ) : (
           list.map((o) => (
-            <Glass key={o.id} tone={dark ? "dark" : "light"} intensity={32} radius={18} elevated={false}>
+            <SurfaceCard key={o.id} padded={false}>
               <View style={styles.card}>
                 {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
                 <View style={{ flex: 1, gap: 3 }}>
@@ -115,7 +115,7 @@ export function OrdersScreen() {
                   <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.payNow")}</Text>
                 </Press>
               ) : null}
-            </Glass>
+            </SurfaceCard>
           ))
         )}
       </ScrollView>

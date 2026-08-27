@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,15 +11,15 @@ import {
 } from "react-native";
 import { MapPin, Plus, Star, Trash2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import { AuthInput } from "../components/AuthInput";
+import { CountrySelect } from "../components/CountrySelect";
+import { FormField } from "../components/FormField";
 import { GoldButton } from "../components/Buttons";
-import { Glass } from "../components/Glass";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import {
-  ADDRESS_COUNTRIES,
   createAddress,
   deleteAddress,
   fetchMyAddresses,
@@ -31,6 +31,7 @@ import {
   type AddressInput,
   type AddressRow,
 } from "../lib/addresses";
+import { countryFlag, isCompactAddressCountry, suggestionsFor } from "../lib/countries";
 import { GOLD } from "../theme";
 
 type FormState = AddressInput & { id?: string };
@@ -64,7 +65,7 @@ function confirmDelete(message: string): Promise<boolean> {
 
 export function AddressesScreen() {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const { user } = useAuth();
   const [list, setList] = useState<AddressRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,11 +95,7 @@ export function AddressesScreen() {
   };
 
   const openNew = () => {
-    setForm(
-      blankForm(
-        normalizeCountryCode(user?.country) || "CI",
-      ),
-    );
+    setForm(blankForm(normalizeCountryCode(user?.country) || "CI"));
   };
 
   const openEdit = (row: AddressRow) => {
@@ -112,6 +109,7 @@ export function AddressesScreen() {
       zone_or_commune: row.zone_or_commune ?? "",
       street_address: row.street_address ?? "",
       postal_code: row.postal_code ?? "",
+      region: row.region ?? "",
       details: row.details ?? "",
       is_default: row.is_default,
     });
@@ -119,6 +117,7 @@ export function AddressesScreen() {
 
   const save = async () => {
     if (!user?.id || !form) return;
+    const compact = isCompactAddressCountry(form.country);
     if (!form.full_name.trim()) {
       flash(t("address.nameRequired"));
       return;
@@ -135,6 +134,18 @@ export function AddressesScreen() {
       flash(t("address.cityRequired"));
       return;
     }
+    if (compact && !(form.zone_or_commune ?? "").trim()) {
+      flash(t("address.communeRequired"));
+      return;
+    }
+    if (!compact && !(form.street_address ?? "").trim()) {
+      flash(t("address.streetRequired"));
+      return;
+    }
+    if (!compact && !(form.postal_code ?? "").trim()) {
+      flash(t("address.postalRequired"));
+      return;
+    }
     setSaving(true);
     const payload: AddressInput = {
       label: form.label,
@@ -145,6 +156,7 @@ export function AddressesScreen() {
       zone_or_commune: form.zone_or_commune,
       street_address: form.street_address,
       postal_code: form.postal_code,
+      region: form.region,
       details: form.details,
       is_default: form.is_default,
     };
@@ -187,97 +199,15 @@ export function AddressesScreen() {
 
   if (form) {
     return (
-      <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <OverlayHeader
-          title={form.id ? t("address.edit") : t("address.add")}
-          onBack={() => setForm(null)}
-          backLabel={t("common.back")}
-        />
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <AuthInput
-              label={t("address.fields.fullName")}
-              value={form.full_name}
-              onChangeText={(full_name) => setForm({ ...form, full_name })}
-            />
-            <AuthInput
-              label={t("address.fields.phone")}
-              value={form.phone}
-              onChangeText={(phone) => setForm({ ...form, phone })}
-              keyboardType="phone-pad"
-            />
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("address.fields.country")}</Text>
-            <View style={styles.chips}>
-              {ADDRESS_COUNTRIES.map((c) => {
-                const on = form.country === c.code;
-                return (
-                  <Press key={c.code} onPress={() => setForm({ ...form, country: c.code })} style={styles.chipPress}>
-                    <Glass tone={on ? "gold" : dark ? "dark" : "light"} intensity={32} radius={999} elevated={false}>
-                      <View style={styles.chip}>
-                        <Text style={{ fontWeight: "700", fontSize: 12, color: on ? "#fff" : colors.foreground }}>
-                          {c.label}
-                        </Text>
-                      </View>
-                    </Glass>
-                  </Press>
-                );
-              })}
-            </View>
-            <AuthInput
-              label={t("address.fields.city")}
-              value={form.city}
-              onChangeText={(city) => setForm({ ...form, city })}
-            />
-            <AuthInput
-              label={t("address.fields.zoneOrCommune")}
-              value={form.zone_or_commune ?? ""}
-              onChangeText={(zone_or_commune) => setForm({ ...form, zone_or_commune })}
-            />
-            <AuthInput
-              label={t("address.fields.streetAddress")}
-              value={form.street_address ?? ""}
-              onChangeText={(street_address) => setForm({ ...form, street_address })}
-            />
-            <AuthInput
-              label={t("address.fields.postalCode")}
-              value={form.postal_code ?? ""}
-              onChangeText={(postal_code) => setForm({ ...form, postal_code })}
-            />
-            <AuthInput
-              label={t("address.fields.details")}
-              value={form.details ?? ""}
-              onChangeText={(details) => setForm({ ...form, details })}
-            />
-            <AuthInput
-              label={t("address.fields.label")}
-              value={form.label ?? ""}
-              onChangeText={(label) => setForm({ ...form, label })}
-              placeholder={t("address.fields.labelPlaceholder")}
-            />
-            <Press onPress={() => setForm({ ...form, is_default: !form.is_default })} style={{ alignItems: "stretch" }}>
-              <Glass tone={form.is_default ? "gold" : dark ? "dark" : "light"} intensity={32} radius={16} elevated={false}>
-                <View style={styles.defaultRow}>
-                  <Star size={16} color={GOLD} fill={form.is_default ? GOLD : "none"} />
-                  <Text style={{ flex: 1, fontWeight: "700", color: colors.foreground }}>{t("address.setDefault")}</Text>
-                  <Text style={{ color: GOLD, fontWeight: "800" }}>{form.is_default ? "ON" : "OFF"}</Text>
-                </View>
-              </Glass>
-            </Press>
-            <GoldButton
-              label={saving ? t("common.loading") : t("common.save")}
-              onPress={() => void save()}
-              disabled={saving}
-            />
-            {form.id ? (
-              <Press onPress={() => void remove(form.id!)} style={styles.delete}>
-                <Trash2 size={16} color="#C0392B" />
-                <Text style={{ color: "#C0392B", fontWeight: "800" }}>{t("address.delete")}</Text>
-              </Press>
-            ) : null}
-          </ScrollView>
-        </KeyboardAvoidingView>
-        <MockBanner text={toast} />
-      </View>
+      <AddressForm
+        form={form}
+        setForm={setForm}
+        saving={saving}
+        toast={toast}
+        onClose={() => setForm(null)}
+        onSave={() => void save()}
+        onRemove={(id) => void remove(id)}
+      />
     );
   }
 
@@ -291,30 +221,31 @@ export function AddressesScreen() {
           <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 8 }}>{t("address.empty")}</Text>
         ) : (
           list.map((a) => (
-            <Press key={a.id} onPress={() => openEdit(a)} onLongPress={() => void makeDefault(a.id)} style={{ alignItems: "stretch" }}>
-              <Glass tone={a.is_default ? "gold" : dark ? "dark" : "light"} intensity={36} radius={18}>
-                <View style={styles.card}>
-                  <View style={styles.icon}>
-                    <MapPin size={18} color={GOLD} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ fontWeight: "800", color: colors.foreground }}>
-                        {a.label?.trim() || a.full_name}
-                      </Text>
-                      {a.is_default ? <Star size={12} color={GOLD} fill={GOLD} /> : null}
-                    </View>
-                    <Text style={{ color: colors.mutedForeground, marginTop: 2 }}>{formatAddressLine(a)}</Text>
-                    <Text style={{ color: colors.mutedForeground }}>{formatAddressCity(a)}</Text>
-                  </View>
-                  {!a.is_default ? (
-                    <Press onPress={() => void makeDefault(a.id)} style={{ minHeight: 32, minWidth: 0 }}>
-                      <Text style={{ color: GOLD, fontWeight: "700", fontSize: 12 }}>{t("address.setDefault")}</Text>
-                    </Press>
-                  ) : null}
+            <SurfaceCard key={a.id} onPress={() => openEdit(a)}>
+              <View style={styles.card}>
+                <View style={styles.icon}>
+                  <MapPin size={18} color={GOLD} />
                 </View>
-              </Glass>
-            </Press>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontWeight: "800", color: colors.foreground }}>
+                      {a.label?.trim() || a.full_name}
+                    </Text>
+                    {a.is_default ? <Star size={12} color={GOLD} fill={GOLD} /> : null}
+                  </View>
+                  <Text style={{ color: colors.mutedForeground, marginTop: 2 }}>{formatAddressLine(a)}</Text>
+                  <Text style={{ color: colors.mutedForeground }}>
+                    {countryFlag(a.country) ? `${countryFlag(a.country)}  ` : ""}
+                    {formatAddressCity(a)}
+                  </Text>
+                </View>
+                {!a.is_default ? (
+                  <Press onPress={() => void makeDefault(a.id)} style={{ minHeight: 32, minWidth: 0 }}>
+                    <Text style={{ color: GOLD, fontWeight: "700", fontSize: 12 }}>{t("address.setDefault")}</Text>
+                  </Press>
+                ) : null}
+              </View>
+            </SurfaceCard>
           ))
         )}
         <GoldButton label={t("address.add")} onPress={openNew} icon={<Plus size={18} color="#151022" />} />
@@ -324,10 +255,193 @@ export function AddressesScreen() {
   );
 }
 
+function AddressForm({
+  form,
+  setForm,
+  saving,
+  toast,
+  onClose,
+  onSave,
+  onRemove,
+}: {
+  form: FormState;
+  setForm: (f: FormState) => void;
+  saving: boolean;
+  toast: string | null;
+  onClose: () => void;
+  onSave: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const compact = isCompactAddressCountry(form.country);
+  const zones = useMemo(() => {
+    const all = suggestionsFor(form.country);
+    const q = (form.zone_or_commune ?? "").trim().toLowerCase();
+    if (!q) return all.slice(0, 8);
+    return all.filter((z) => z.toLowerCase().includes(q)).slice(0, 8);
+  }, [form.country, form.zone_or_commune]);
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <OverlayHeader
+        title={form.id ? t("address.edit") : t("address.add")}
+        onBack={onClose}
+        backLabel={t("common.back")}
+      />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          <FormField
+            required
+            label={t("address.fields.fullName")}
+            value={form.full_name}
+            onChangeText={(full_name) => setForm({ ...form, full_name })}
+          />
+          <FormField
+            required
+            label={t("address.fields.phone")}
+            value={form.phone}
+            onChangeText={(phone) => setForm({ ...form, phone })}
+            keyboardType="phone-pad"
+          />
+          <CountrySelect
+            required
+            label={t("address.fields.country")}
+            value={form.country ?? ""}
+            hintCountry={form.country}
+            onChange={(country) => setForm({ ...form, country })}
+          />
+          {compact ? (
+            <>
+              <FormField
+                required
+                label={t("address.fields.city")}
+                value={form.city}
+                onChangeText={(city) => setForm({ ...form, city })}
+              />
+              <FormField
+                required
+                label={t("address.fields.zoneOrCommune")}
+                value={form.zone_or_commune ?? ""}
+                onChangeText={(zone_or_commune) => setForm({ ...form, zone_or_commune })}
+              />
+              {zones.length > 0 ? (
+                <View style={styles.chips}>
+                  {zones.map((z) => (
+                    <Press
+                      key={z}
+                      onPress={() => setForm({ ...form, zone_or_commune: z })}
+                      style={[
+                        styles.chip,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: form.zone_or_commune === z ? GOLD : colors.card,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "700",
+                          color: form.zone_or_commune === z ? "#151022" : colors.foreground,
+                        }}
+                      >
+                        {z}
+                      </Text>
+                    </Press>
+                  ))}
+                </View>
+              ) : null}
+              <FormField
+                label={t("address.fields.details")}
+                placeholder={t("address.landmarkPlaceholder")}
+                value={form.details ?? ""}
+                onChangeText={(details) => setForm({ ...form, details })}
+              />
+              <FormField
+                label={t("address.fields.streetOptional")}
+                value={form.street_address ?? ""}
+                onChangeText={(street_address) => setForm({ ...form, street_address })}
+              />
+            </>
+          ) : (
+            <>
+              <FormField
+                required
+                label={t("address.fields.streetAddress")}
+                placeholder={t("address.streetPlaceholder")}
+                value={form.street_address ?? ""}
+                onChangeText={(street_address) => setForm({ ...form, street_address })}
+              />
+              <View style={styles.row2}>
+                <View style={{ flex: 1 }}>
+                  <FormField
+                    required
+                    label={t("address.fields.city")}
+                    value={form.city}
+                    onChangeText={(city) => setForm({ ...form, city })}
+                  />
+                </View>
+                <View style={{ width: 120 }}>
+                  <FormField
+                    required
+                    label={t("address.fields.postalCode")}
+                    value={form.postal_code ?? ""}
+                    onChangeText={(postal_code) => setForm({ ...form, postal_code })}
+                  />
+                </View>
+              </View>
+              <FormField
+                label={t("address.fields.region")}
+                value={form.region ?? ""}
+                onChangeText={(region) => setForm({ ...form, region })}
+              />
+              <FormField
+                label={t("address.fields.details")}
+                value={form.details ?? ""}
+                onChangeText={(details) => setForm({ ...form, details })}
+              />
+            </>
+          )}
+          <FormField
+            label={t("address.fields.label")}
+            value={form.label ?? ""}
+            onChangeText={(label) => setForm({ ...form, label })}
+            placeholder={t("address.fields.labelPlaceholder")}
+          />
+          <Press onPress={() => setForm({ ...form, is_default: !form.is_default })} style={{ alignItems: "stretch" }}>
+            <SurfaceCard>
+              <View style={styles.defaultRow}>
+                <Star size={16} color={GOLD} fill={form.is_default ? GOLD : "none"} />
+                <Text style={{ flex: 1, fontWeight: "600", fontSize: 14, color: colors.foreground }}>
+                  {t("address.setDefault")}
+                </Text>
+                <Text style={{ color: GOLD, fontWeight: "800" }}>{form.is_default ? "ON" : "OFF"}</Text>
+              </View>
+            </SurfaceCard>
+          </Press>
+          <GoldButton
+            label={saving ? t("common.loading") : t("common.save")}
+            onPress={onSave}
+            disabled={saving}
+          />
+          {form.id ? (
+            <Press onPress={() => void onRemove(form.id!)} style={styles.delete}>
+              <Trash2 size={16} color="#C0392B" />
+              <Text style={{ color: "#C0392B", fontWeight: "800" }}>{t("address.delete")}</Text>
+            </Press>
+          ) : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
+      <MockBanner text={toast} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  body: { padding: 16, paddingBottom: 48, gap: 10 },
-  card: { flexDirection: "row", gap: 12, padding: 14, alignItems: "center" },
+  body: { padding: 16, paddingBottom: 48, gap: 12 },
+  card: { flexDirection: "row", gap: 12, alignItems: "center" },
   icon: {
     width: 40,
     height: 40,
@@ -336,17 +450,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  label: {
-    marginBottom: 2,
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: -4 },
+  chip: {
+    minHeight: 32,
+    minWidth: 0,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
   },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chipPress: { minHeight: 32, minWidth: 0 },
-  chip: { height: 32, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
-  defaultRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, height: 48 },
+  row2: { flexDirection: "row", gap: 8 },
+  defaultRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24 },
   delete: { minHeight: 44, flexDirection: "row", gap: 8 },
 });

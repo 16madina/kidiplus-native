@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,19 +19,20 @@ import {
   LayoutDashboard,
   Radio,
   RefreshCw,
+  Search,
   Shield,
   Users,
 } from "lucide-react-native";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
-import { Glass } from "../components/Glass";
-import { GoldButton } from "../components/Buttons";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { AdminPrelaunchSimPanel } from "../components/admin/AdminPrelaunchSimPanel";
 import { PaymentsModeBadge } from "../components/admin/PaymentsModeBadge";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
-import { GOLD, NAVY } from "../theme";
+import { GOLD, NAVY, initials } from "../theme";
 import { formatMoney } from "../lib/money";
+import { countryFlag, countryName } from "../lib/countries";
 import {
   adminEndLive,
   adminIssueSanction,
@@ -86,7 +88,7 @@ const TABS: Array<{ id: Tab; labelKey: string; fallback: string; Icon: typeof La
 
 export function AdminDashboardScreen() {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
   const [toast, setToast] = useState<string | null>(null);
@@ -136,9 +138,9 @@ export function AdminDashboardScreen() {
         {tab === "lives" ? <LivesTab flash={flash} /> : null}
         {tab === "sim" ? <AdminPrelaunchSimPanel flash={flash} /> : null}
         {tab === "push" || tab === "referral" || tab === "media" ? (
-          <Glass tone={dark ? "dark" : "light"} intensity={32} radius={18} padded elevated={false}>
-            <Text style={{ color: colors.foreground, fontWeight: "700" }}>{t("admin.webOnly")}</Text>
-          </Glass>
+          <SurfaceCard>
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("admin.webOnly")}</Text>
+          </SurfaceCard>
         ) : null}
       </ScrollView>
       <MockBanner text={toast} />
@@ -146,15 +148,56 @@ export function AdminDashboardScreen() {
   );
 }
 
+function SectionTitle({ text }: { text: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <Text
+      style={{
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 0.6,
+        textTransform: "uppercase",
+        color: colors.mutedForeground,
+        marginBottom: 8,
+        marginTop: 4,
+      }}
+    >
+      {text}
+    </Text>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  onPress,
+  accent,
+}: {
+  label: string;
+  value: string;
+  onPress?: () => void;
+  accent?: string;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <SurfaceCard onPress={onPress} style={{ flexGrow: 1, flexBasis: "46%", minWidth: "46%" }}>
+      <Text style={{ fontSize: 22, fontWeight: "800", color: accent || colors.foreground }}>{value}</Text>
+      <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2 }}>{label}</Text>
+    </SurfaceCard>
+  );
+}
+
 function OverviewTab({ onGo }: { onGo: (t: Tab) => void }) {
   const { t, i18n } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [stats, setStats] = useState<OverviewStats | null>(null);
+  const [openReports, setOpenReports] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void fetchOverviewStats().then((s) => {
+    void Promise.all([fetchOverviewStats(), fetchAdminReports("open")]).then(([s, reports]) => {
       setStats(s);
+      setOpenReports(reports.length);
       setLoading(false);
     });
   }, []);
@@ -165,36 +208,55 @@ function OverviewTab({ onGo }: { onGo: (t: Tab) => void }) {
   }
 
   const gmv = firstCurrency(stats.gmv);
-  const kpis: Array<{ label: string; value: string; tab?: Tab }> = [
-    { label: t("admin.kpi.gmv"), value: formatMoney(gmv.amount, gmv.currency, i18n.language) },
-    { label: t("admin.kpi.users"), value: String(stats.counts.users_total) },
-    { label: t("admin.kpi.sellers"), value: String(stats.counts.sellers) },
-    { label: t("admin.kpi.livesLive"), value: String(stats.counts.lives_live), tab: "lives" },
-    { label: t("admin.toDo.reports"), value: String(stats.pending_payouts?.count ?? 0), tab: "reports" },
-    {
-      label: t("admin.toDo.payouts"),
-      value: String(stats.pending_payouts?.count ?? 0),
-      tab: "payments",
-    },
-  ];
+  const payouts = stats.pending_payouts?.count ?? 0;
+  const fmt = (n: number) => {
+    try {
+      return new Intl.NumberFormat(i18n.language).format(n);
+    } catch {
+      return String(n);
+    }
+  };
 
   return (
-    <View style={{ gap: 10 }}>
-      {kpis.map((k) => (
-        <Press key={k.label} onPress={() => k.tab && onGo(k.tab)} style={{ alignItems: "stretch" }}>
-          <Glass tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
-            <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: "700" }}>{k.label}</Text>
-            <Text style={{ color: colors.foreground, fontSize: 22, fontWeight: "900", marginTop: 4 }}>{k.value}</Text>
-          </Glass>
-        </Press>
-      ))}
+    <View style={{ gap: 12 }}>
+      <View>
+        <SectionTitle text={t("admin.toDo.title")} />
+        <View style={styles.grid}>
+          <StatTile
+            label={t("admin.toDo.reports")}
+            value={fmt(openReports)}
+            accent={openReports > 0 ? "#C62828" : undefined}
+            onPress={() => onGo("reports")}
+          />
+          <StatTile
+            label={t("admin.toDo.payouts")}
+            value={fmt(payouts)}
+            accent={payouts > 0 ? "#B45309" : undefined}
+            onPress={() => onGo("payments")}
+          />
+        </View>
+      </View>
+      <View>
+        <SectionTitle text={t("admin.kpi.gmv")} />
+        <SurfaceCard>
+          <Text style={{ fontSize: 22, fontWeight: "800", color: colors.foreground }}>
+            {formatMoney(gmv.amount, gmv.currency, i18n.language)}
+          </Text>
+        </SurfaceCard>
+      </View>
+      <View style={styles.grid}>
+        <StatTile label={t("admin.kpi.users")} value={fmt(stats.counts.users_total)} onPress={() => onGo("users")} />
+        <StatTile label={t("admin.kpi.sellers")} value={fmt(stats.counts.sellers)} />
+        <StatTile label={t("admin.kpi.livesLive")} value={fmt(stats.counts.lives_live)} onPress={() => onGo("lives")} />
+        <StatTile label={t("admin.kpi.ordersPaid")} value={fmt(stats.counts.orders_paid)} />
+      </View>
     </View>
   );
 }
 
 function UsersTab({ flash }: { flash: (s: string) => void }) {
-  const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { t, i18n } = useTranslation();
+  const { colors } = useAppTheme();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,43 +269,93 @@ function UsersTab({ flash }: { flash: (s: string) => void }) {
   }, []);
 
   useEffect(() => {
-    void load("");
-  }, [load]);
+    const id = setTimeout(() => void load(q), 280);
+    return () => clearTimeout(id);
+  }, [q, load]);
+
+  const sanction = (u: AdminUserRow, type: "warning" | "ban") => {
+    const title = type === "warning" ? t("moderation.userDetail.warn") : t("moderation.userDetail.ban");
+    Alert.alert(title, `@${u.handle}`, [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: title,
+        style: "destructive",
+        onPress: () => {
+          void adminIssueSanction(
+            u.id,
+            type,
+            type === "warning" ? "Avertissement admin" : "Bannissement admin",
+          ).then(() => flash("OK"));
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={{ gap: 10 }}>
-      <TextInput
-        value={q}
-        onChangeText={setQ}
-        onSubmitEditing={() => void load(q)}
-        placeholder={t("admin.searchUsers", { defaultValue: "Rechercher un @pseudo…" })}
-        placeholderTextColor={colors.mutedForeground}
-        autoCapitalize="none"
-        style={[styles.input, { color: colors.foreground, borderColor: colors.border }]}
-      />
-      <GoldButton label={t("common.search", { defaultValue: "Rechercher" })} onPress={() => void load(q)} />
+      <View style={[styles.search, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <Search size={14} color={colors.mutedForeground} />
+        <TextInput
+          value={q}
+          onChangeText={setQ}
+          onSubmitEditing={() => void load(q)}
+          placeholder={t("admin.users.searchPh")}
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="none"
+          style={[styles.searchInput, { color: colors.foreground }]}
+        />
+      </View>
       {loading ? <ActivityIndicator color={GOLD} /> : null}
-      {rows.map((u) => (
-        <Glass key={u.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
-          <Text style={{ fontWeight: "800", color: colors.foreground }}>
-            {u.display_name} @{u.handle}
-          </Text>
-          <Text style={{ color: colors.mutedForeground, marginTop: 2 }}>
-            {u.is_seller ? "Vendeur" : "Acheteur"} · {u.country || "—"}
-          </Text>
-          <View style={styles.rowBtns}>
-            <Mini label="Warn" onPress={() => void adminIssueSanction(u.id, "warning", "Avertissement admin").then(() => flash("OK"))} />
-            <Mini label="Ban" onPress={() => void adminIssueSanction(u.id, "ban", "Bannissement admin").then(() => flash("OK"))} />
-          </View>
-        </Glass>
-      ))}
+      {!loading && rows.length === 0 ? (
+        <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 16 }}>{t("admin.users.empty")}</Text>
+      ) : null}
+      {rows.map((u) => {
+        const flag = countryFlag(u.country);
+        const cname = countryName(u.country, i18n.language) || u.country || "—";
+        return (
+          <SurfaceCard key={u.id}>
+            <View style={styles.userRow}>
+              <View style={[styles.avatar, { backgroundColor: colors.muted }]}>
+                <Text style={{ fontWeight: "800", color: colors.foreground }}>{initials(u.display_name || u.handle)}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontWeight: "700", fontSize: 14, color: colors.foreground }}>
+                  {u.display_name}
+                </Text>
+                <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>
+                  @{u.handle}
+                </Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 4 }}>
+                  {u.is_seller ? t("admin.kpi.sellers") : "Acheteur"}
+                  {u.is_admin ? " · ADMIN" : ""}
+                  {" · "}
+                  {flag ? `${flag} ` : ""}
+                  {cname}
+                </Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.foreground }}>
+                  {formatMoney(Number(u.wallet_balance), u.wallet_currency || "EUR", i18n.language)}
+                </Text>
+                <Text style={{ fontSize: 10, color: colors.mutedForeground }}>
+                  {u.orders_count} / {u.sales_count}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.rowBtns}>
+              <ActionPill label={t("moderation.userDetail.warn")} onPress={() => sanction(u, "warning")} />
+              <ActionPill label={t("moderation.userDetail.ban")} danger onPress={() => sanction(u, "ban")} />
+            </View>
+          </SurfaceCard>
+        );
+      })}
     </View>
   );
 }
 
 function ReportsTab({ flash }: { flash: (s: string) => void }) {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [rows, setRows] = useState<ReportRow[]>([]);
   useEffect(() => {
     void fetchAdminReports("open").then(setRows);
@@ -252,15 +364,15 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
     <View style={{ gap: 10 }}>
       {rows.length === 0 ? <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text> : null}
       {rows.map((r) => (
-        <Glass key={r.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
+        <SurfaceCard key={r.id}>
           <Text style={{ fontWeight: "800", color: colors.foreground }}>
             {r.target_type} · {r.reason}
           </Text>
-          <Text style={{ color: colors.mutedForeground, marginTop: 4 }}>
+          <Text style={{ color: colors.mutedForeground, marginTop: 4, fontSize: 12 }}>
             @{r.reporter_handle || "?"} → {r.target_label || r.target_type}
           </Text>
           <View style={styles.rowBtns}>
-            <Mini
+            <ActionPill
               label={t("admin.dismiss", { defaultValue: "Classer" })}
               onPress={async () => {
                 await adminResolveReport(r.id, "dismissed");
@@ -269,8 +381,9 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
               }}
             />
             {r.target_user_id ? (
-              <Mini
-                label="Warn"
+              <ActionPill
+                label={t("moderation.userDetail.warn")}
+                danger
                 onPress={async () => {
                   await adminIssueSanction(r.target_user_id!, "warning", r.reason);
                   await adminResolveReport(r.id, "actioned");
@@ -280,7 +393,7 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
               />
             ) : null}
           </View>
-        </Glass>
+        </SurfaceCard>
       ))}
     </View>
   );
@@ -288,7 +401,7 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
 
 function RiskTab({ flash }: { flash: (s: string) => void }) {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [rows, setRows] = useState<AdminRiskAlertRow[]>([]);
   useEffect(() => {
     void fetchAdminRiskAlerts("open").then(setRows);
@@ -297,11 +410,11 @@ function RiskTab({ flash }: { flash: (s: string) => void }) {
     <View style={{ gap: 10 }}>
       {rows.length === 0 ? <Text style={{ color: colors.mutedForeground }}>{t("admin.risk.empty")}</Text> : null}
       {rows.map((r) => (
-        <Glass key={r.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
+        <SurfaceCard key={r.id}>
           <Text style={{ fontWeight: "800", color: colors.foreground }}>{r.kind}</Text>
-          <Text style={{ color: colors.mutedForeground }}>@{r.user_handle || "—"}</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>@{r.user_handle || "—"}</Text>
           <View style={styles.rowBtns}>
-            <Mini
+            <ActionPill
               label={t("admin.risk.resolve")}
               onPress={async () => {
                 await resolveAdminRiskAlert(r.id);
@@ -310,8 +423,9 @@ function RiskTab({ flash }: { flash: (s: string) => void }) {
               }}
             />
             {r.user_id ? (
-              <Mini
+              <ActionPill
                 label={r.risk_restricted ? t("admin.risk.unfreeze") : t("admin.risk.freeze")}
+                danger={!r.risk_restricted}
                 onPress={async () => {
                   await setAdminRiskRestricted(r.user_id!, !r.risk_restricted);
                   flash("OK");
@@ -319,7 +433,7 @@ function RiskTab({ flash }: { flash: (s: string) => void }) {
               />
             ) : null}
           </View>
-        </Glass>
+        </SurfaceCard>
       ))}
     </View>
   );
@@ -327,7 +441,7 @@ function RiskTab({ flash }: { flash: (s: string) => void }) {
 
 function VerifyTab({ flash }: { flash: (s: string) => void }) {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [rows, setRows] = useState<PendingVerification[]>([]);
   useEffect(() => {
     void fetchPendingVerifications().then(setRows);
@@ -336,11 +450,11 @@ function VerifyTab({ flash }: { flash: (s: string) => void }) {
     <View style={{ gap: 10 }}>
       {rows.length === 0 ? <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text> : null}
       {rows.map((r) => (
-        <Glass key={r.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
+        <SurfaceCard key={r.id}>
           <Text style={{ fontWeight: "800", color: colors.foreground }}>@{verificationHandle(r)}</Text>
-          {r.message ? <Text style={{ color: colors.mutedForeground, marginTop: 4 }}>{r.message}</Text> : null}
+          {r.message ? <Text style={{ color: colors.mutedForeground, marginTop: 4, fontSize: 13 }}>{r.message}</Text> : null}
           <View style={styles.rowBtns}>
-            <Mini
+            <ActionPill
               label={t("admin.approve", { defaultValue: "Approuver" })}
               onPress={async () => {
                 await reviewVerification(r.id, true);
@@ -348,8 +462,9 @@ function VerifyTab({ flash }: { flash: (s: string) => void }) {
                 flash("OK");
               }}
             />
-            <Mini
+            <ActionPill
               label={t("admin.reject")}
+              danger
               onPress={async () => {
                 await reviewVerification(r.id, false);
                 setRows((prev) => prev.filter((x) => x.id !== r.id));
@@ -357,7 +472,7 @@ function VerifyTab({ flash }: { flash: (s: string) => void }) {
               }}
             />
           </View>
-        </Glass>
+        </SurfaceCard>
       ))}
     </View>
   );
@@ -365,7 +480,7 @@ function VerifyTab({ flash }: { flash: (s: string) => void }) {
 
 function PaymentsTab({ flash }: { flash: (s: string) => void }) {
   const { t, i18n } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [rows, setRows] = useState<AdminPayoutRow[]>([]);
   const load = () => void fetchAdminPayouts("requested").then(setRows);
   useEffect(() => {
@@ -375,13 +490,13 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
     <View style={{ gap: 10 }}>
       {rows.length === 0 ? <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text> : null}
       {rows.map((p) => (
-        <Glass key={p.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
+        <SurfaceCard key={p.id}>
           <Text style={{ fontWeight: "800", color: colors.foreground }}>
             @{p.seller_handle || p.seller_name} · {formatMoney(p.amount, p.currency, i18n.language)}
           </Text>
-          <Text style={{ color: colors.mutedForeground }}>{p.method} · {p.status}</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{p.method} · {p.status}</Text>
           <View style={styles.rowBtns}>
-            <Mini
+            <ActionPill
               label={t("admin.markPaid")}
               onPress={async () => {
                 const r = await adminProcessPayout(p.id, "paid");
@@ -389,8 +504,9 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
                 load();
               }}
             />
-            <Mini
+            <ActionPill
               label={t("admin.reject")}
+              danger
               onPress={async () => {
                 const r = await adminProcessPayout(p.id, "rejected");
                 flash(r.ok ? t("admin.markedRejected") : r.error || "Erreur");
@@ -398,7 +514,7 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
               }}
             />
           </View>
-        </Glass>
+        </SurfaceCard>
       ))}
     </View>
   );
@@ -406,7 +522,7 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
 
 function LivesTab({ flash }: { flash: (s: string) => void }) {
   const { t } = useTranslation();
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   const [rows, setRows] = useState<AdminLiveRow[]>([]);
   useEffect(() => {
     void fetchAdminLives(null).then(setRows);
@@ -415,15 +531,16 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
     <View style={{ gap: 10 }}>
       {rows.length === 0 ? <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text> : null}
       {rows.map((l) => (
-        <Glass key={l.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} padded elevated={false}>
+        <SurfaceCard key={l.id}>
           <Text style={{ fontWeight: "800", color: colors.foreground }}>{l.title}</Text>
-          <Text style={{ color: colors.mutedForeground }}>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
             @{l.seller_handle} · {l.status} · {l.viewer_count} viewers
           </Text>
           {l.status === "live" ? (
             <View style={styles.rowBtns}>
-              <Mini
+              <ActionPill
                 label={t("admin.endLive", { defaultValue: "Couper le live" })}
+                danger
                 onPress={async () => {
                   await adminEndLive(l.id);
                   setRows((prev) => prev.map((x) => (x.id === l.id ? { ...x, status: "ended" } : x)));
@@ -432,16 +549,34 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
               />
             </View>
           ) : null}
-        </Glass>
+        </SurfaceCard>
       ))}
     </View>
   );
 }
 
-function Mini({ label, onPress }: { label: string; onPress: () => void }) {
+function ActionPill({
+  label,
+  onPress,
+  danger,
+}: {
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  const { colors } = useAppTheme();
   return (
-    <Press onPress={onPress} style={styles.mini}>
-      <Text style={{ color: GOLD, fontWeight: "800", fontSize: 12 }}>{label}</Text>
+    <Press
+      onPress={onPress}
+      style={[
+        styles.pill,
+        {
+          borderColor: danger ? "rgba(198,40,40,0.35)" : colors.border,
+          backgroundColor: danger ? "rgba(198,40,40,0.06)" : colors.muted,
+        },
+      ]}
+    >
+      <Text style={{ color: danger ? "#C0392B" : colors.foreground, fontWeight: "700", fontSize: 12 }}>{label}</Text>
     </Press>
   );
 }
@@ -461,13 +596,31 @@ const styles = StyleSheet.create({
   },
   tabOn: { backgroundColor: NAVY },
   body: { padding: 16, paddingBottom: 48, gap: 10 },
-  input: {
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingHorizontal: 12,
     height: 44,
-    fontWeight: "600",
   },
-  rowBtns: { flexDirection: "row", gap: 10, marginTop: 10 },
-  mini: { minHeight: 32, minWidth: 0, paddingHorizontal: 4 },
+  searchInput: { flex: 1, fontWeight: "600", fontSize: 14, padding: 0 },
+  userRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowBtns: { flexDirection: "row", gap: 8, marginTop: 10 },
+  pill: {
+    minHeight: 34,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
 });
