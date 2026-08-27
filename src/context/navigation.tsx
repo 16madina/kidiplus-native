@@ -18,6 +18,7 @@ export type Overlay =
   | { kind: "edit-profile" }
   | { kind: "certification" }
   | { kind: "delivery" }
+  | { kind: "delete-account" }
   | { kind: "broadcast-setup"; mode: "now" | "schedule" }
   | {
       kind: "broadcast-live";

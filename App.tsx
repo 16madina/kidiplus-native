@@ -8,6 +8,7 @@ import { LanguageProvider } from "./src/context/language";
 import { ThemeProvider } from "./src/context/theme";
 import { AuthProvider, useAuth } from "./src/context/auth";
 import { NavigationProvider } from "./src/context/navigation";
+import { PushProvider } from "./src/context/push";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthFlow } from "./src/screens/AuthFlow";
 import { AppShell } from "./src/AppShell";
@@ -43,7 +44,11 @@ function Root() {
     );
   }
 
-  return <AppShell />;
+  return (
+    <PushProvider>
+      <AppShell />
+    </PushProvider>
+  );
 }
 
 export default function App() {

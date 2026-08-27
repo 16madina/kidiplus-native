@@ -1687,6 +1687,20 @@
     "unblockConfirmCta": "Unblock",
     "cancel": "Cancel"
   },
+  "push": {
+    "prepromptTitle": "Never miss a live",
+    "prepromptBody": "Enable notifications for live reminders, bids, orders and messages.",
+    "enable": "Enable notifications",
+    "statusOn": "On",
+    "statusOff": "Off",
+    "statusDenied": "Denied",
+    "alreadyOn": "Notifications are already enabled.",
+    "deniedTitle": "Notifications denied",
+    "deniedBody": "Enable them in iPhone Settings → KiDi+ → Notifications.",
+    "openSettings": "Open Settings",
+    "enabledToast": "Notifications enabled",
+    "notEnabledToast": "Notifications not enabled"
+  },
   "account": {
     "delete": {
       "menuItem": "Delete my account",

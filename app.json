@@ -20,16 +20,18 @@
         "CFBundleDisplayName": "KiDi+",
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
-        "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives."
+        "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives.",
+        "UIBackgroundModes": ["audio", "voip", "remote-notification"]
       }
     },
-    "android": {
+      "android": {
       "package": "com.kidiplus.native",
       "adaptiveIcon": {
         "backgroundColor": "#10162B",
         "foregroundImage": "./assets/icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["POST_NOTIFICATIONS"]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -92,7 +94,16 @@
           "enableGooglePay": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#10162B",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ]
   }
 }

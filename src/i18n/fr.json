@@ -1688,6 +1688,20 @@
     "unblockConfirmCta": "Débloquer",
     "cancel": "Annuler"
   },
+  "push": {
+    "prepromptTitle": "Ne rate aucun live",
+    "prepromptBody": "Active les notifications pour les rappels de live, enchères, commandes et messages.",
+    "enable": "Activer les notifications",
+    "statusOn": "Activées",
+    "statusOff": "Désactivées",
+    "statusDenied": "Refusées",
+    "alreadyOn": "Les notifications sont déjà activées.",
+    "deniedTitle": "Notifications refusées",
+    "deniedBody": "Active-les dans Réglages iPhone → KiDi+ → Notifications.",
+    "openSettings": "Ouvrir Réglages",
+    "enabledToast": "Notifications activées",
+    "notEnabledToast": "Notifications non activées"
+  },
   "account": {
     "delete": {
       "menuItem": "Supprimer mon compte",
