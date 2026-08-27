@@ -465,6 +465,8 @@
       "products": "Produits",
       "addProduct": "Ajouter un produit",
       "start": "Lancer le live",
+      "filterBtn": "Filtre",
+      "seeMore": "Voir plus",
       "starting": "Démarrage…",
       "readyHelp": "Ajoute au moins un produit pour lancer ton live.",
       "deliveryPrompt": {
@@ -601,6 +603,20 @@
       "disclaimerTitle": "Avant de connecter Facebook",
       "disclaimerBody1": "KiDi+ diffuse vers une Page Facebook. La Page doit être autorisée à faire des lives (règles Meta : éligibilité Live, compte en règle, etc.).",
       "disclaimerBody2": "Si la Page n’est pas éligible, la connexion peut réussir mais la diffusion échouera. Ce n’est pas un bug KiDi+ — c’est une limite Meta sur ta Page."
+    },
+    "tiktok": {
+      "connectTitle": "TikTok",
+      "connectHint": "Diffuse l’interface KiDi+ sur TikTok (clé RTMP pendant le live)",
+      "howTo": "Comment faire",
+      "guideTitle": "Diffuser sur TikTok",
+      "guideIntro": "Contrairement à YouTube et Facebook, TikTok n’a pas de connexion en un clic. Tu colles une clé RTMP pendant le live.",
+      "guideStep1": "Sur ordinateur, ouvre TikTok LIVE Studio ou récupère Serveur + Clé via Streaming software.",
+      "guideStep2": "Lance d’abord ton live sur KiDi+ (caméra).",
+      "guideStep3": "En haut du live, appuie sur le bouton TT.",
+      "guideStep4": "Colle le Serveur RTMP et la Clé de stream récupérés sur TikTok, puis lance.",
+      "guideStep5": "Les viewers TikTok voient l’interface KiDi+. Les commentaires TikTok ne reviennent pas dans KiDi+.",
+      "guideGotIt": "Compris",
+      "studioSoon": "Le studio caméra arrive bientôt. En attendant, configure YouTube / Facebook / TikTok sur kidiplus.com (même compte)."
     },
     "social": {
       "disclaimerBody3": "Les viewers sur ces plateformes verront le flux vidéo ; les enchères cliquables restent sur KiDi+.",

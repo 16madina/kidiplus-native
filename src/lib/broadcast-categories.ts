@@ -16,7 +16,7 @@ export type BroadcastCategoryKey = (typeof BROADCAST_CATEGORY_KEYS)[number];
 export const BROADCAST_CATEGORY_FR: Record<BroadcastCategoryKey, string> = {
   Beauty: "Beauté",
   Fashion: "Mode",
-  Bags: "Sacs",
+  Bags: "Sacs & accessoires",
   Perfumes: "Parfums",
   Jewelry: "Bijoux",
   Watches: "Montres",

@@ -242,6 +242,7 @@ export async function createScheduledLiveInDb(input: {
     price: number;
     stock: number;
     shopProductId?: string;
+    timerSeconds?: number;
   }>;
 }): Promise<string> {
   const roomName = `kidi-${input.sellerId.slice(0, 8)}-${Date.now()}`;
@@ -276,7 +277,7 @@ export async function createScheduledLiveInDb(input: {
       start_price: p.price,
       price: p.price,
       stock: p.stock,
-      timer_seconds: p.mode === "auction" ? 30 : 0,
+      timer_seconds: p.mode === "auction" ? (p.timerSeconds ?? 45) : 0,
       status: "upcoming",
       position: i,
       ...(p.shopProductId ? { shop_product_id: p.shopProductId } : {}),

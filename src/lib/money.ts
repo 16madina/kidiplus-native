@@ -18,6 +18,15 @@ function intlLocale(currency: Currency, locale: string): string {
 }
 
 /** Format a major-unit amount (same as Superbase / kidiplus.com). */
+export function currencySymbol(currency: string | null | undefined): string {
+  const cur = normalizeCurrency(currency);
+  if (cur === "XOF") return "FCFA";
+  if (cur === "EUR") return "€";
+  if (cur === "GBP") return "£";
+  if (cur === "CAD") return "$ CA";
+  return "$";
+}
+
 export function formatMoney(
   amount: number,
   currency: string | null | undefined = "EUR",

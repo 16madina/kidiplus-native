@@ -465,6 +465,8 @@
       "products": "Products",
       "addProduct": "Add product",
       "start": "Go live",
+      "filterBtn": "Filter",
+      "seeMore": "See more",
       "starting": "Starting…",
       "readyHelp": "Add at least one product to go live.",
       "deliveryPrompt": {
@@ -601,6 +603,20 @@
       "disclaimerTitle": "Before connecting Facebook",
       "disclaimerBody1": "KiDi+ streams to a Facebook Page. The Page must be allowed to go live (Meta rules: Live eligibility, account in good standing, etc.).",
       "disclaimerBody2": "If the Page is not eligible, connection may succeed but streaming will fail. That is not a KiDi+ bug — it is a Meta limit on your Page."
+    },
+    "tiktok": {
+      "connectTitle": "TikTok",
+      "connectHint": "Push the KiDi+ interface to TikTok (RTMP key during the live)",
+      "howTo": "How to",
+      "guideTitle": "Go live on TikTok",
+      "guideIntro": "Unlike YouTube and Facebook, TikTok has no one-tap connect. You paste an RTMP key during the live.",
+      "guideStep1": "On a computer, open TikTok LIVE Studio or grab Server + Key via Streaming software.",
+      "guideStep2": "Start your live on KiDi+ first (camera).",
+      "guideStep3": "At the top of the live, tap the TT button.",
+      "guideStep4": "Paste the RTMP server and stream key from TikTok, then go live.",
+      "guideStep5": "TikTok viewers see the KiDi+ interface. TikTok comments do not come back into KiDi+.",
+      "guideGotIt": "Got it",
+      "studioSoon": "The camera studio is coming soon. For now, connect YouTube / Facebook / TikTok on kidiplus.com (same account)."
     },
     "social": {
       "disclaimerBody3": "Viewers on those platforms will see the video feed; clickable auctions stay on KiDi+.",
