@@ -3,6 +3,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { resolveStoredImage } from "./storage";
 import { uploadLiveProductImage } from "./lives";
+import { isSimBidderId } from "./prelaunch-live-sim";
 import type { LiveDraftProduct } from "./broadcast-products";
 
 /** Anti-snipe: a bid in the last N seconds resets the timer to N seconds. */
@@ -293,6 +294,7 @@ export function useHostLiveSession(args: {
   const [presentViewers, setPresentViewers] = useState<HostPresenceViewer[]>([]);
   const [sales, setSales] = useState({ revenue: 0, count: 0 });
   const [gifts, setGifts] = useState({ count: 0, sellerNet: 0 });
+  const [simViewers, setSimViewers] = useState<number | null>(null);
   const [featuredId, setFeaturedId] = useState<string | null>(null);
   const [lastEnd, setLastEnd] = useState<AuctionEndReveal | null>(null);
   const [startedAtMs, setStartedAtMs] = useState(Date.now());
@@ -699,6 +701,53 @@ export function useHostLiveSession(args: {
     [liveId],
   );
 
+  /** Pre-launch crowd: overlay viewer pill (host broadcasts, viewers apply). */
+  const broadcastSimViewers = useCallback(
+    (count: number) => {
+      const n = Math.max(1, Math.round(Number(count) || 1));
+      setSimViewers(n);
+      sendBroadcast("sim:viewers", { count: n });
+    },
+    [sendBroadcast],
+  );
+
+  /** Pre-launch crowd: visual-only bid (never written to live_bids). */
+  const broadcastSimBid = useCallback(
+    (evt: {
+      productId: string;
+      bidderId: string;
+      bidderName: string;
+      amount: number;
+      auctionRound: number;
+    }) => {
+      setLastBid((cur) => {
+        // Never mask a real bid with a fake one on the same product.
+        if (cur && cur.productId === evt.productId && !isSimBidderId(cur.bidderId) && cur.amount >= evt.amount) {
+          return cur;
+        }
+        return { ...evt, ts: Date.now() };
+      });
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === evt.productId ? { ...p, price: Math.max(Number(p.price) || 0, evt.amount) } : p,
+        ),
+      );
+      pushChat({ id: uid(), user: "", text: `🔨 ${evt.bidderName} · ${evt.amount}`, system: true });
+      sendBroadcast("sim:bid", evt);
+    },
+    [sendBroadcast, pushChat],
+  );
+
+  /** Pre-launch crowd: inject a fake chat line locally + to real viewers. */
+  const ingestSimChat = useCallback(
+    (evt: HostChatMsg & { color?: string; systemKind?: string }) => {
+      if (!evt?.id || !evt.text?.trim()) return;
+      pushChat(evt);
+      sendBroadcast("chat", evt as unknown as Record<string, unknown>);
+    },
+    [pushChat, sendBroadcast],
+  );
+
   return {
     products,
     featured,
@@ -720,5 +769,11 @@ export function useHostLiveSession(args: {
     toggleFixed,
     addDraft,
     lastEnd,
+    simViewers,
+    broadcastSimViewers,
+    broadcastSimBid,
+    ingestSimChat,
   };
 }
+
+export type HostLiveSession = ReturnType<typeof useHostLiveSession>;

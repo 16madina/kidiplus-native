@@ -43,6 +43,7 @@ import {
   type LiveProductRow,
 } from "../../lib/live-host";
 import { battleAccept, battleDecline, usePendingBattleInvite } from "../../lib/battles";
+import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { GOLD, NAVY } from "../../theme";
@@ -92,7 +93,11 @@ export function HostStudioHud({
   const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
 
-  const viewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
+  // Pre-launch crowd (admin → Simu) : fake viewers, comments and bids.
+  useHostPrelaunchSim(session, session.currency || user?.walletCurrency || "EUR");
+
+  const realViewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
+  const viewers = session.simViewers ?? realViewers;
   const featured = session.featured;
   const auctionOnFeatured = session.auction && featured && session.auction.productId === featured.id;
   const currency = session.currency || user?.walletCurrency || "EUR";

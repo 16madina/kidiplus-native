@@ -27,6 +27,32 @@ export function currencySymbol(currency: string | null | undefined): string {
   return "$";
 }
 
+/** Currency-aware rounding: XOF → integer, others → 2 decimals. */
+export function roundForCurrency(amount: number, currency: Currency): number {
+  if (isZeroDecimal(currency)) return Math.round(amount);
+  return Math.round(amount * 100) / 100;
+}
+
+type BidRules = { step: number; smallStep: number; threshold: number };
+
+export function bidRulesFor(currency: Currency): BidRules {
+  switch (currency) {
+    case "XOF": return { step: 500, smallStep: 250, threshold: 5000 };
+    case "CAD": return { step: 1, smallStep: 1, threshold: 0 };
+    case "EUR":
+    case "USD":
+    case "GBP":
+    default:    return { step: 1, smallStep: 0.5, threshold: 10 };
+  }
+}
+
+/** Next bid increment for a current price in the given currency. */
+export function nextBidAmount(currentPrice: number, currency: Currency): number {
+  const rules = bidRulesFor(currency);
+  const step = currentPrice < rules.threshold ? rules.smallStep : rules.step;
+  return roundForCurrency(currentPrice + step, currency);
+}
+
 export function formatMoney(
   amount: number,
   currency: string | null | undefined = "EUR",
