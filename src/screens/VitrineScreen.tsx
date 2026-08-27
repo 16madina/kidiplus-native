@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type ViewToken,
 } from "react-native";
@@ -25,10 +25,10 @@ import { useLivesFeed } from "../hooks/useLivesFeed";
 import { fetchVitrinePosts, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { isHttpUrl } from "../lib/storage";
 
-const { height, width } = Dimensions.get("window");
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
 export function VitrineScreen() {
+  const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { tab, setTab, openList, openOverlay } = useNav();
@@ -104,6 +104,7 @@ export function VitrineScreen() {
           <FlatList
             data={posts}
             keyExtractor={(p) => p.id}
+            style={{ flex: 1 }}
             pagingEnabled
             showsVerticalScrollIndicator={false}
             snapToInterval={height}
@@ -123,6 +124,8 @@ export function VitrineScreen() {
             renderItem={({ item }) => (
               <VitrinePostSlide
                 post={item}
+                width={width}
+                height={height}
                 active={tabVisible && cat === "forYou" && item.id === activeId}
                 onAuth={openAuth}
                 guest={guestMode}
@@ -174,12 +177,16 @@ export function VitrineScreen() {
 
 function VitrinePostSlide({
   post,
+  width,
+  height,
   active,
   guest,
   onAuth,
   onShop,
 }: {
   post: VitrineFeedPost;
+  width: number;
+  height: number;
   active: boolean;
   guest: boolean;
   onAuth: () => void;
