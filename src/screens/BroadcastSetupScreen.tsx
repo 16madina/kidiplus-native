@@ -30,6 +30,7 @@ import { Press } from "../components/Press";
 import { GlassIconButton } from "../components/Glass";
 import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
+import { SetupCamera, SETUP_FILTERS, type SetupFilterId } from "../components/broadcast/SetupCamera";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import {
@@ -42,13 +43,13 @@ import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
 import { createScheduledLiveInDb, uploadLiveCover } from "../lib/lives";
 import { formatMoney } from "../lib/money";
 import { GOLD, GOLD_GO_LIVE, NAVY } from "../theme";
+import type { CameraType } from "expo-camera";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 const GOLD_SOFT = "rgba(232,185,59,0.38)";
 const PINK = "#FE2C55";
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const;
 const WEB = "https://kidiplus.com";
-const FILTERS = ["Naturel", "Glow", "Warm", "Studio"] as const;
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -88,9 +89,9 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
   const [showShop, setShowShop] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showTiktok, setShowTiktok] = useState(false);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Naturel");
+  const [filter, setFilter] = useState<SetupFilterId>("naturel");
   const [rtmp, setRtmp] = useState(false);
-  const [facingFront, setFacingFront] = useState(true);
+  const [facing, setFacing] = useState<CameraType>("front");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -197,24 +198,36 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
 
   return (
     <View style={styles.root}>
-      <Image
-        source={coverPreview ? { uri: coverPreview } : require("../../assets/golive/golive-start-bg.jpg")}
-        style={FILL}
-        contentFit="cover"
-        blurRadius={18}
-      />
-      <LinearGradient colors={["rgba(5,6,12,0.35)", "rgba(5,6,12,0.82)"]} style={FILL} />
+      {rtmp ? (
+        <View style={FILL}>
+          <LinearGradient colors={["#0B1436", "#05060a"]} style={FILL} />
+          <View style={styles.rtmpPreview}>
+            <Text style={styles.rtmpTitle}>{t("broadcast.rtmp.previewTitle")}</Text>
+            <Text style={styles.rtmpBody}>{t("broadcast.rtmp.previewBody")}</Text>
+          </View>
+        </View>
+      ) : (
+        <SetupCamera facing={facing} filterId={filter} />
+      )}
+      {!showFilters ? <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" /> : null}
 
       <View style={[styles.top, { paddingTop: insets.top + 4 }]}>
-        <GlassIconButton tone="dark" onPress={closeOverlay}>
+        <GlassIconButton
+          tone="dark"
+          onPress={() => {
+            if (showFilters) setShowFilters(false);
+            else closeOverlay();
+          }}
+        >
           <X size={20} color="#fff" />
         </GlassIconButton>
         <Logo size={34} />
-        <GlassIconButton tone="dark" onPress={() => setFacingFront((v) => !v)}>
-          <RefreshCw size={18} color="#fff" style={{ transform: [{ scaleX: facingFront ? 1 : -1 }] }} />
+        <GlassIconButton tone="dark" onPress={() => setFacing((v) => (v === "front" ? "back" : "front"))}>
+          <RefreshCw size={18} color="#fff" />
         </GlassIconButton>
       </View>
 
+      {!showFilters ? (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 14) }]}>
           <View style={styles.drag} />
@@ -406,6 +419,29 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      ) : (
+        <View style={[styles.filterBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <LinearGradient colors={["transparent", "rgba(0,0,0,0.72)"]} style={FILL} pointerEvents="none" />
+          <Text style={styles.filterHint}>{t("broadcast.setup.filtersHint")}</Text>
+          <View style={styles.filterHead}>
+            <Text style={styles.filterTitle}>Filtres</Text>
+            <Press onPress={() => setShowFilters(false)} style={styles.filterDone}>
+              <Text style={styles.filterDoneTxt}>{t("broadcast.setup.filtersDone")}</Text>
+            </Press>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {SETUP_FILTERS.map((f) => {
+              const on = filter === f.id;
+              return (
+                <Press key={f.id} onPress={() => setFilter(f.id)} style={styles.filterPick}>
+                  <View style={[styles.filterSwatch, { backgroundColor: f.tint === "transparent" ? "#222" : f.tint }, on && styles.filterSwatchOn]} />
+                  <Text style={[styles.filterName, on && { color: GOLD }]}>{f.label}</Text>
+                </Press>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       <AddProductSheet
         open={showAdd}
@@ -418,16 +454,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
         onClose={() => setShowShop(false)}
         onConfirm={addProducts}
         userId={user?.id}
-      />
-      <FilterSheet
-        open={showFilters}
-        value={filter}
-        onClose={() => setShowFilters(false)}
-        onPick={(v) => {
-          setFilter(v);
-          setShowFilters(false);
-          flash("Les filtres caméra arrivent avec le studio live.");
-        }}
+        currency={currency}
       />
       <TiktokGuide open={showTiktok} onClose={() => setShowTiktok(false)} />
       <MockBanner text={toast} />
@@ -476,38 +503,6 @@ function Opt({
       <Text style={styles.optLbl}>{label}</Text>
       <Switch value={value} onValueChange={onValueChange} trackColor={{ false: "#333", true: GOLD }} thumbColor="#fff" />
     </View>
-  );
-}
-
-function FilterSheet({
-  open,
-  value,
-  onClose,
-  onPick,
-}: {
-  open: boolean;
-  value: string;
-  onClose: () => void;
-  onPick: (v: (typeof FILTERS)[number]) => void;
-}) {
-  return (
-    <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBack}>
-        <Press haptic="none" onPress={onClose} style={{ flex: 1 }} />
-        <View style={styles.lightSheet}>
-          <Text style={styles.lightTitle}>Filtres</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-            {FILTERS.map((f) => (
-              <Press key={f} onPress={() => onPick(f)} style={styles.filterPick}>
-                <View style={[styles.filterPickInner, value === f && { backgroundColor: NAVY }]}>
-                  <Text style={{ fontWeight: "800", color: value === f ? "#fff" : NAVY }}>{f}</Text>
-                </View>
-              </Press>
-            ))}
-          </View>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
@@ -741,16 +736,25 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   lightTitle: { fontSize: 20, fontWeight: "800", color: NAVY },
-  filterPick: { minHeight: 0, minWidth: 0 },
-  filterPickInner: {
-    height: 40,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E6E8EF",
-    alignItems: "center",
-    justifyContent: "center",
+  rtmpPreview: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  rtmpTitle: { color: "#fff", fontWeight: "800", fontSize: 17, textAlign: "center" },
+  rtmpBody: { marginTop: 8, color: "rgba(255,255,255,0.75)", fontSize: 13, textAlign: "center", lineHeight: 18 },
+  filterBar: {
+    marginTop: "auto",
+    paddingHorizontal: 12,
+    paddingTop: 48,
+    overflow: "hidden",
   },
+  filterHint: { color: "rgba(255,255,255,0.85)", textAlign: "center", fontWeight: "700", fontSize: 12, marginBottom: 10 },
+  filterHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4, marginBottom: 10 },
+  filterTitle: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  filterDone: { minHeight: 32, height: 32, borderRadius: 999, paddingHorizontal: 12, backgroundColor: GOLD },
+  filterDoneTxt: { color: "#0a0a12", fontWeight: "800", fontSize: 12 },
+  filterRow: { gap: 12, paddingHorizontal: 4, paddingBottom: 8 },
+  filterPick: { minHeight: 0, minWidth: 0, alignItems: "center" },
+  filterSwatch: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: "rgba(255,255,255,0.25)" },
+  filterSwatchOn: { borderColor: GOLD, borderWidth: 3 },
+  filterName: { marginTop: 6, color: "#fff", fontWeight: "700", fontSize: 11 },
   guideIntro: { marginTop: 8, color: "#6B7289", fontSize: 13, lineHeight: 18 },
   guideStep: { marginTop: 8, color: NAVY, fontSize: 14, lineHeight: 20 },
   tiktokGotIt: { marginTop: 16, height: 48, borderRadius: 999, backgroundColor: PINK },

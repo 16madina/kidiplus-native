@@ -6,33 +6,53 @@ import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Press } from "../Press";
 import { listMyShopProducts } from "../../lib/shop";
-import { newDraftId, type LiveDraftProduct, type LiveSaleKind } from "../../lib/broadcast-products";
+import {
+  AUCTION_TIMER_PRESETS,
+  newDraftId,
+  type LiveDraftProduct,
+  type LiveSaleKind,
+} from "../../lib/broadcast-products";
+import { currencySymbol } from "../../lib/money";
 import { GOLD, NAVY } from "../../theme";
 import { type ShopItem } from "../../mock/account";
+
+type ItemConfig = {
+  mode: LiveSaleKind;
+  amount: string;
+  timerSec: number;
+};
+
+function defaultAmount(item: ShopItem, currency: string) {
+  if (item.priceValue && item.priceValue > 0) return String(item.priceValue);
+  return currency === "XOF" ? "500" : "1";
+}
 
 export function ShopPickerSheet({
   open,
   onClose,
   onConfirm,
   userId,
+  currency,
 }: {
   open: boolean;
   onClose: () => void;
   onConfirm: (items: LiveDraftProduct[]) => void;
   userId?: string;
+  currency: string;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const symbol = currencySymbol(currency);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Record<string, LiveSaleKind>>({});
+  const [configs, setConfigs] = useState<Record<string, ItemConfig>>({});
 
   useEffect(() => {
     if (!open || !userId) return;
     let cancelled = false;
     setLoading(true);
-    setSelected({});
+    setConfigs({});
     setQuery("");
     void listMyShopProducts(userId).then((rows) => {
       if (cancelled) return;
@@ -50,31 +70,49 @@ export function ShopPickerSheet({
     return items.filter((p) => p.name.toLowerCase().includes(q));
   }, [items, query]);
 
-  const count = Object.keys(selected).length;
+  const count = Object.keys(configs).length;
 
-  const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[id]) delete next[id];
-      else next[id] = "auction";
-      return next;
+  const select = (item: ShopItem, mode?: LiveSaleKind) => {
+    setConfigs((prev) => {
+      const existing = prev[item.id];
+      if (existing && !mode) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [item.id]: {
+          mode: mode ?? existing?.mode ?? "auction",
+          amount: existing?.amount ?? defaultAmount(item, currency),
+          timerSec: existing?.timerSec ?? 45,
+        },
+      };
+    });
+  };
+
+  const patch = (id: string, part: Partial<ItemConfig>) => {
+    setConfigs((prev) => {
+      const cur = prev[id];
+      if (!cur) return prev;
+      return { ...prev, [id]: { ...cur, ...part } };
     });
   };
 
   const confirm = () => {
-    const drafts = Object.entries(selected).map(([id, mode]) => {
+    const drafts = Object.entries(configs).map(([id, c]) => {
       const item = items.find((p) => p.id === id);
-      const price = item?.priceValue ?? 0;
+      const amount = Math.max(1, Number(c.amount.replace(",", ".")) || 1);
       return {
         id: newDraftId(),
         name: item?.name ?? "Article",
         image: item?.image,
         imagePath: item?.imagePath ?? null,
         shopProductId: id,
-        mode,
-        startPrice: price || 1,
-        price: price || 1,
-        timerSec: 45,
+        mode: c.mode,
+        startPrice: amount,
+        price: amount,
+        timerSec: c.timerSec,
         stock: Math.max(1, item?.stock ?? 1),
       } satisfies LiveDraftProduct;
     });
@@ -109,11 +147,11 @@ export function ShopPickerSheet({
                 <Text style={styles.empty}>{t("shop.emptyPicker")}</Text>
               ) : (
                 filtered.map((item) => {
-                  const kind = selected[item.id];
-                  const on = Boolean(kind);
+                  const cfg = configs[item.id];
+                  const on = Boolean(cfg);
                   return (
                     <View key={item.id} style={[styles.card, on && styles.cardOn]}>
-                      <Press onPress={() => toggle(item.id)} style={styles.row}>
+                      <Press onPress={() => select(item)} style={styles.row}>
                         {item.image ? (
                           <Image source={{ uri: item.image }} style={styles.thumb} contentFit="cover" />
                         ) : (
@@ -129,22 +167,54 @@ export function ShopPickerSheet({
                           {on ? <Check size={14} color="#fff" /> : null}
                         </View>
                       </Press>
-                      {on ? (
-                        <View style={styles.kindRow}>
-                          <Press onPress={() => setSelected((p) => ({ ...p, [item.id]: "auction" }))} style={styles.kindBtn}>
-                            <View style={[styles.kindInner, kind === "auction" && styles.kindOn]}>
-                              <Text style={[styles.kindTxt, kind === "auction" && styles.kindTxtOn]}>
-                                {t("shop.auction")}
-                              </Text>
-                            </View>
-                          </Press>
-                          <Press onPress={() => setSelected((p) => ({ ...p, [item.id]: "fixed" }))} style={styles.kindBtn}>
-                            <View style={[styles.kindInner, kind === "fixed" && styles.kindOn]}>
-                              <Text style={[styles.kindTxt, kind === "fixed" && styles.kindTxtOn]}>
-                                {t("shop.fixed")}
-                              </Text>
-                            </View>
-                          </Press>
+                      {cfg ? (
+                        <View style={styles.sub}>
+                          <View style={styles.kindRow}>
+                            <Press onPress={() => select(item, "auction")} style={styles.kindBtn}>
+                              <View style={[styles.kindInner, cfg.mode === "auction" && styles.kindOn]}>
+                                <Text style={[styles.kindTxt, cfg.mode === "auction" && styles.kindTxtOn]}>
+                                  {t("shop.auction")}
+                                </Text>
+                              </View>
+                            </Press>
+                            <Press onPress={() => select(item, "fixed")} style={styles.kindBtn}>
+                              <View style={[styles.kindInner, cfg.mode === "fixed" && styles.kindOn]}>
+                                <Text style={[styles.kindTxt, cfg.mode === "fixed" && styles.kindTxtOn]}>
+                                  {t("shop.fixed")}
+                                </Text>
+                              </View>
+                            </Press>
+                          </View>
+                          <Text style={styles.subLbl}>
+                            {cfg.mode === "auction"
+                              ? `${t("shop.startPrice")} (${symbol})`
+                              : `${t("shop.price")} (${symbol})`}
+                          </Text>
+                          <TextInput
+                            value={cfg.amount}
+                            onChangeText={(amount) => patch(item.id, { amount: amount.replace(/[^0-9.,]/g, "") })}
+                            keyboardType="decimal-pad"
+                            style={styles.amount}
+                          />
+                          <Text style={styles.subLbl}>
+                            {cfg.mode === "auction" ? t("shop.durationSec") : t("productOptions.duration")}
+                          </Text>
+                          <View style={styles.timers}>
+                            {AUCTION_TIMER_PRESETS.map((p) => {
+                              const active = cfg.timerSec === p.sec;
+                              return (
+                                <Press
+                                  key={p.sec}
+                                  onPress={() => patch(item.id, { timerSec: p.sec })}
+                                  style={styles.timerBtn}
+                                >
+                                  <View style={[styles.timerInner, active && styles.timerOn]}>
+                                    <Text style={[styles.timerTxt, active && styles.timerTxtOn]}>{p.label}</Text>
+                                  </View>
+                                </Press>
+                              );
+                            })}
+                          </View>
                         </View>
                       ) : null}
                     </View>
@@ -213,7 +283,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkOn: { backgroundColor: GOLD, borderColor: GOLD },
-  kindRow: { flexDirection: "row", gap: 8, padding: 8, paddingTop: 0 },
+  sub: { paddingHorizontal: 10, paddingBottom: 12, gap: 6 },
+  kindRow: { flexDirection: "row", gap: 8 },
   kindBtn: { flex: 1, minHeight: 0, minWidth: 0, alignItems: "stretch" },
   kindInner: {
     height: 36,
@@ -225,6 +296,30 @@ const styles = StyleSheet.create({
   kindOn: { backgroundColor: NAVY },
   kindTxt: { fontWeight: "800", fontSize: 12, color: NAVY },
   kindTxtOn: { color: "#fff" },
+  subLbl: { fontSize: 11, fontWeight: "800", color: "#6B7289", textTransform: "uppercase", marginTop: 4 },
+  amount: {
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F2F3F7",
+    paddingHorizontal: 12,
+    color: NAVY,
+    fontSize: 16,
+    fontWeight: "700",
+    borderWidth: 1,
+    borderColor: "#E6E8EF",
+  },
+  timers: { flexDirection: "row", gap: 6 },
+  timerBtn: { flex: 1, minHeight: 0, minWidth: 0, alignItems: "stretch" },
+  timerInner: {
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F2F3F7",
+  },
+  timerOn: { backgroundColor: GOLD },
+  timerTxt: { fontWeight: "800", fontSize: 12, color: NAVY },
+  timerTxtOn: { color: NAVY },
   cta: { height: 50, borderRadius: 16, backgroundColor: NAVY, marginTop: 8 },
   ctaTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
 });

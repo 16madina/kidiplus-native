@@ -467,6 +467,10 @@
       "start": "Go live",
       "filterBtn": "Filter",
       "seeMore": "See more",
+      "filtersDone": "Looks good",
+      "filtersHint": "Look at your face — pick a filter, then continue",
+      "cameraDenied": "Allow the camera to preview yourself and filters.",
+      "cameraAllow": "Allow camera",
       "starting": "Starting…",
       "readyHelp": "Add at least one product to go live.",
       "deliveryPrompt": {

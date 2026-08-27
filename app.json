@@ -49,6 +49,14 @@
         {
           "photosPermission": "KiDi+ accède à tes photos pour la boutique, la bannière et la couverture des lives."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "KiDi+ utilise la caméra pour l’aperçu et les filtres avant de lancer un live.",
+          "microphonePermission": "KiDi+ utilise le micro pour tes lives.",
+          "recordAudioAndroid": false
+        }
       ]
     ]
   }

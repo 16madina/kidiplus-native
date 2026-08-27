@@ -2,6 +2,13 @@ import type { PickedImage } from "./pick-image";
 
 export type LiveSaleKind = "auction" | "fixed";
 
+export const AUCTION_TIMER_PRESETS = [
+  { sec: 45, label: "45 s" },
+  { sec: 60, label: "1 min" },
+  { sec: 120, label: "2 min" },
+  { sec: 180, label: "3 min" },
+] as const;
+
 export type LiveDraftProduct = {
   id: string;
   name: string;

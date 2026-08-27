@@ -10,12 +10,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Clock, Footprints, Gavel, ImagePlus, Tag, X } from "lucide-react-native";
+import { Footprints, Gavel, ImagePlus, Tag, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Press } from "../Press";
 import { pickImageFromLibrary, type PickedImage } from "../../lib/pick-image";
-import { newDraftId, type LiveDraftProduct, type LiveSaleKind } from "../../lib/broadcast-products";
+import { AUCTION_TIMER_PRESETS, newDraftId, type LiveDraftProduct, type LiveSaleKind } from "../../lib/broadcast-products";
 import { currencySymbol, normalizeCurrency } from "../../lib/money";
 import { GOLD, NAVY } from "../../theme";
 
@@ -168,19 +168,11 @@ export function AddProductSheet({
               </View>
 
               {mode === "auction" ? (
-                <View style={styles.two}>
-                  <NumField
-                    label={`${t("broadcast.setup.productSheet.startingPrice")} (${symbol})`}
-                    value={startPrice}
-                    onChangeText={setStartPrice}
-                  />
-                  <NumField
-                    label={t("productOptions.duration")}
-                    value={timerSec}
-                    onChangeText={setTimerSec}
-                    icon={<Clock size={16} color={GOLD} />}
-                  />
-                </View>
+                <NumField
+                  label={`${t("broadcast.setup.productSheet.startingPrice")} (${symbol})`}
+                  value={startPrice}
+                  onChangeText={setStartPrice}
+                />
               ) : (
                 <NumField
                   label={`${t("broadcast.setup.productSheet.price")} (${symbol})`}
@@ -188,6 +180,20 @@ export function AddProductSheet({
                   onChangeText={setPrice}
                 />
               )}
+
+              <Text style={styles.label}>{t("productOptions.duration")}</Text>
+              <View style={styles.modeRow}>
+                {AUCTION_TIMER_PRESETS.map((p) => {
+                  const on = timerSec === String(p.sec);
+                  return (
+                    <Press key={p.sec} onPress={() => setTimerSec(String(p.sec))} style={styles.modeBtn}>
+                      <View style={[styles.modeInner, on && styles.modeOn]}>
+                        <Text style={[styles.modeTxt, on && styles.modeTxtOn]}>{p.label}</Text>
+                      </View>
+                    </Press>
+                  );
+                })}
+              </View>
 
               <NumField label={t("productOptions.quantity")} value={stock} onChangeText={setStock} />
 

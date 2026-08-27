@@ -467,6 +467,10 @@
       "start": "Lancer le live",
       "filterBtn": "Filtre",
       "seeMore": "Voir plus",
+      "filtersDone": "C'est bon",
+      "filtersHint": "Regarde ton visage — choisis le filtre, puis continue",
+      "cameraDenied": "Autorise la caméra pour voir l’aperçu et les filtres.",
+      "cameraAllow": "Autoriser la caméra",
       "starting": "Démarrage…",
       "readyHelp": "Ajoute au moins un produit pour lancer ton live.",
       "deliveryPrompt": {
