@@ -82,7 +82,8 @@
           "microphonePermission": "KiDi+ utilise le micro pour tes lives."
         }
       ],
-      "./plugins/withLiveKitIos.js"
+      "./plugins/withLiveKitIos.js",
+      "./plugins/withStatusBarPlist.js"
     ]
   }
 }
