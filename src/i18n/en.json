@@ -87,6 +87,7 @@
     "fixed": "Fixed",
     "auction": "Auction",
     "added": "Item added",
+    "addSoon": "Adding items will be wired in a later step.",
     "catalogPrice": "Catalog price · sold in live (auction or fixed)",
     "configHint": "Pick auction or fixed price, quantity for this live, then Options for colors / sizes.",
     "stockAvailable": "Shop stock: {{n}}",
@@ -1145,6 +1146,7 @@
     "empty": "No orders yet.",
     "payBefore": "Pay before {{date}}",
     "payNow": "Pay now",
+    "paySoon": "Payment will be wired in a later step.",
     "expiredNoPay": "Payment unavailable — 24h deadline passed",
     "expiredHint": "Payment deadline passed (over 24 hours). You can no longer pay for this order.",
     "expiredAuctionHint": "Payment deadline passed (over 24 hours). You can no longer pay for this auction.",
@@ -1204,6 +1206,7 @@
       "success": "Top-up successful 🎉",
       "credited": "{{amount}} credited to your balance"
     },
+    "topupSoon": "Top-up will be wired next — read-only for now.",
     "tx": {
       "topup": "Top-up",
       "purchase": "Purchase",

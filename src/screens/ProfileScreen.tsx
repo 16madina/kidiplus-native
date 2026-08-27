@@ -29,6 +29,7 @@ import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { GOLD, GUEST_CREAM, NAVY, NAVY_600, NAVY_INSET } from "../theme";
+import { formatMoney } from "../lib/money";
 
 const guestBg = require("../../assets/guest/guest-profile-bg-v2.jpg");
 const guestIllu = require("../../assets/guest/guest-profile-illustration.png");
@@ -119,13 +120,13 @@ function Feat({
 
 function AuthedProfile() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut, becomeSeller } = useAuth();
   const { openOverlay } = useNav();
   const { dark, setDark, colors } = useAppTheme();
   if (!user) return null;
 
-  const money = (user.walletBalance / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  const money = formatMoney(user.walletBalance, user.walletCurrency, i18n.language);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: TAB_SAFE_PADDING + insets.bottom }}>

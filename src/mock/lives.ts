@@ -39,6 +39,8 @@ export type LiveStream = {
   liveId?: string;
   /** Seller user id (profiles.id) — or `fictitious:…` for review/demo streams. */
   sellerId?: string;
+  /** Public @handle when this stream is real. */
+  handle?: string;
   /** Live currency (defaults to EUR when unspecified). */
   currency?: "XOF" | "EUR" | "CAD" | "USD" | "GBP";
   /** Client-only review/demo stream (no LiveKit / no DB row). */

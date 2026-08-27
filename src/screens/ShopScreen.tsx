@@ -1,52 +1,63 @@
-import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Gavel, Plus, Tag } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
-import { Press } from "../components/Press";
+import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
+import { listMyShopProducts } from "../lib/shop";
 import { GOLD } from "../theme";
-import { MOCK_SHOP_ITEMS, type ShopItem } from "../mock/account";
+import { type ShopItem } from "../mock/account";
 
 export function ShopScreen() {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
-  const [items, setItems] = useState<ShopItem[]>(MOCK_SHOP_ITEMS);
+  const { user } = useAuth();
+  const [items, setItems] = useState<ShopItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  const add = () => {
-    const n = items.length + 1;
-    setItems((prev) => [
-      {
-        id: `new-${Date.now()}`,
-        name: `Nouvel article ${n}`,
-        price: "25 €",
-        stock: 1,
-        kind: "fixed",
-        image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&q=70",
-        active: true,
-      },
-      ...prev,
-    ]);
-    setToast(t("shop.added"));
-    setTimeout(() => setToast(null), 2000);
+  useEffect(() => {
+    let cancelled = false;
+    const id = user?.id;
+    if (!id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    void listMyShopProducts(id).then((rows) => {
+      if (!cancelled) {
+        setItems(rows);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const soon = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
   };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("shop.title")} />
       <ScrollView contentContainerStyle={styles.body}>
-        <GoldButton label={t("shop.add")} onPress={add} icon={<Plus size={18} color="#151022" />} />
-        {items.length === 0 ? (
+        <GoldButton label={t("shop.add")} onPress={() => soon(t("shop.addSoon"))} icon={<Plus size={18} color="#151022" />} />
+        {loading ? (
+          <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
+        ) : items.length === 0 ? (
           <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 24 }}>{t("shop.empty")}</Text>
         ) : (
           items.map((item) => (
             <Glass key={item.id} tone={dark ? "dark" : "light"} intensity={32} radius={18} elevated={false}>
               <View style={styles.card}>
-                <Image source={{ uri: item.image }} style={styles.img} contentFit="cover" />
+                {item.image ? <Image source={{ uri: item.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ fontWeight: "800", color: colors.foreground }}>{item.name}</Text>
                   <Text style={{ color: GOLD, fontWeight: "800" }}>{item.price}</Text>
@@ -60,14 +71,9 @@ export function ShopScreen() {
                     </View>
                   </View>
                 </View>
-                <Press
-                  onPress={() => setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, active: !x.active } : x)))}
-                  style={styles.toggle}
-                >
-                  <Text style={{ fontWeight: "700", fontSize: 12, color: item.active ? GOLD : colors.mutedForeground }}>
-                    {item.active ? t("shop.active") : t("shop.archived")}
-                  </Text>
-                </Press>
+                <Text style={{ fontWeight: "700", fontSize: 12, color: item.active ? GOLD : colors.mutedForeground }}>
+                  {item.active ? t("shop.active") : t("shop.archived")}
+                </Text>
               </View>
             </Glass>
           ))
@@ -93,5 +99,4 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   pillText: { fontSize: 11, fontWeight: "700", color: GOLD },
-  toggle: { minHeight: 32, minWidth: 0, paddingHorizontal: 4 },
 });

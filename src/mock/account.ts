@@ -65,7 +65,7 @@ export type MockOrder = {
   seller: string;
   price: string;
   image: string;
-  status: "awaitingPayment" | "paid" | "shipped" | "delivered";
+  status: "awaitingPayment" | "paid" | "shipped" | "delivered" | "failed" | "cancelled" | "refunded";
   when: string;
 };
 

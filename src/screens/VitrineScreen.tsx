@@ -11,9 +11,8 @@ import { LiveCard } from "../components/LiveCard";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, LIVE_RED } from "../theme";
-import { makeStreams } from "../mock/lives";
-import { mockStories, mockVitrinePosts, type VitrinePost } from "../mock/vitrine";
-import { sampleLivesForCategory } from "../mock/home-categories";
+import { useLivesFeed } from "../hooks/useLivesFeed";
+import { mockVitrinePosts, type VitrinePost } from "../mock/vitrine";
 
 const { height, width } = Dimensions.get("window");
 
@@ -22,10 +21,11 @@ export function VitrineScreen() {
   const { t } = useTranslation();
   const { setTab, openList } = useNav();
   const { guestMode, openAuth } = useAuth();
+  const { active, upcoming } = useLivesFeed();
   const [cat, setCat] = useState<"forYou" | "live" | "soon">("forYou");
   const [posts] = useState(mockVitrinePosts);
-  const lives = [...sampleLivesForCategory("Pour toi", 0)];
-  const soon = makeStreams(0, 16).filter((s) => s.scheduled);
+  const lives = active;
+  const soon = upcoming;
 
   return (
     <View style={styles.root}>
@@ -82,13 +82,17 @@ export function VitrineScreen() {
 
       {cat === "soon" ? (
         <View style={{ flex: 1, paddingTop: insets.top + 56, paddingHorizontal: 8 }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {soon.map((s, i) => (
-              <View key={s.id} style={{ width: "48.5%" }}>
-                <LiveCard stream={s} onPress={() => openList(soon, i)} />
-              </View>
-            ))}
-          </View>
+          {soon.length === 0 ? (
+            <Empty onExplore={() => setTab("search")} labelKey="vitrine.emptySoon" />
+          ) : (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {soon.map((s, i) => (
+                <View key={s.id} style={{ width: "48.5%" }}>
+                  <LiveCard stream={s} onPress={() => openList(soon, i)} />
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       ) : null}
     </View>
@@ -150,12 +154,12 @@ function Action({ icon, label, onPress }: { icon: React.ReactNode; label: string
   );
 }
 
-function Empty({ onExplore }: { onExplore: () => void }) {
+function Empty({ onExplore, labelKey = "vitrine.emptyLive" }: { onExplore: () => void; labelKey?: string }) {
   const { t } = useTranslation();
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
       <Compass size={28} color={GOLD} />
-      <Text style={{ color: "#fff" }}>{t("vitrine.emptyLive")}</Text>
+      <Text style={{ color: "#fff" }}>{t(labelKey)}</Text>
       <Press onPress={onExplore} style={{ backgroundColor: GOLD, borderRadius: 999, height: 40, paddingHorizontal: 18 }}>
         <Text style={{ fontWeight: "800" }}>{t("vitrine.explore")}</Text>
       </Press>

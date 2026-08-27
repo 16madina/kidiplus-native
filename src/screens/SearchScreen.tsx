@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Clock, Radio, Search as SearchIcon, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -10,9 +10,9 @@ import { Glass } from "../components/Glass";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
+import { useLivesFeed } from "../hooks/useLivesFeed";
+import { searchActiveShopProducts, type ShopSearchHit } from "../lib/shop";
 import { BROWSE_CATEGORIES, TRENDS, formatViewersFr } from "../mock/browse";
-import { makeStreams } from "../mock/lives";
-import { MOCK_PRODUCTS, MOCK_SELLERS } from "../mock/vitrine";
 import { GOLD, LIVE_RED } from "../theme";
 
 export function SearchScreen() {
@@ -20,26 +20,45 @@ export function SearchScreen() {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
   const { openList } = useNav();
+  const { active, loading: livesLoading } = useLivesFeed();
   const [raw, setRaw] = useState("");
   const [focused, setFocused] = useState(false);
   const [tab, setTab] = useState(0);
   const [sort, setSort] = useState<"recommended" | "popular" | "alpha">("recommended");
   const [sellerScope, setSellerScope] = useState<"all" | "live">("all");
   const [recent, setRecent] = useState(["jordan 4", "chanel", "iphone", "pokémon", "ysl"]);
+  const [products, setProducts] = useState<ShopSearchHit[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const query = raw.trim();
   const searching = query.length > 0;
 
-  const lives = useMemo(() => makeStreams(0, 36), []);
   const liveResults = useMemo(() => {
     const q = query.toLowerCase();
-    const hit = lives.filter(
+    return active.filter(
       (s) =>
         s.seller.toLowerCase().includes(q) ||
         s.title.toLowerCase().includes(q) ||
         s.category.toLowerCase() === q,
     );
-    return hit.length ? hit : lives.slice(0, 8);
-  }, [lives, query]);
+  }, [active, query]);
+
+  useEffect(() => {
+    if (!searching || tab !== 2) {
+      setProducts([]);
+      return;
+    }
+    let cancelled = false;
+    setProductsLoading(true);
+    void searchActiveShopProducts(query).then((rows) => {
+      if (!cancelled) {
+        setProducts(rows);
+        setProductsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, searching, tab]);
 
   const cats = useMemo(() => {
     const list = [...BROWSE_CATEGORIES];
@@ -48,15 +67,24 @@ export function SearchScreen() {
     return list;
   }, [sort]);
 
-  const sellers = MOCK_SELLERS.filter((s) => sellerScope === "all" || s.live).filter((s) =>
-    !searching || s.name.toLowerCase().includes(query.toLowerCase()) || s.handle.includes(query.toLowerCase()),
-  );
-  const products = MOCK_PRODUCTS.filter(
-    (p) =>
-      !searching ||
-      p.name.toLowerCase().includes(query.toLowerCase()) ||
-      p.seller.toLowerCase().includes(query.toLowerCase()),
-  );
+  const sellers = useMemo(() => {
+    const q = query.toLowerCase();
+    const seen = new Set<string>();
+    return active
+      .filter((s) => sellerScope === "all" || !s.scheduled)
+      .filter(
+        (s) =>
+          !searching ||
+          s.seller.toLowerCase().includes(q) ||
+          (s.sellerId ?? "").toLowerCase().includes(q),
+      )
+      .flatMap((s) => {
+        const id = s.sellerId || s.seller;
+        if (seen.has(id)) return [];
+        seen.add(id);
+        return [{ id, name: s.seller, handle: s.handle ?? "", avatar: s.avatar, live: !s.scheduled, viewers: s.viewers }];
+      });
+  }, [active, query, searching, sellerScope]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -122,13 +150,21 @@ export function SearchScreen() {
               ))}
             </View>
             {tab === 0 ? (
-              <View style={styles.grid}>
-                {liveResults.map((s) => (
-                  <View key={s.id} style={styles.cell}>
-                    <LiveCard stream={s} onPress={() => openList(liveResults, liveResults.indexOf(s))} />
-                  </View>
-                ))}
-              </View>
+              livesLoading ? (
+                <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
+              ) : liveResults.length === 0 ? (
+                <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32, paddingHorizontal: 24 }}>
+                  {t("search.emptyResults", { query })}
+                </Text>
+              ) : (
+                <View style={styles.grid}>
+                  {liveResults.map((s) => (
+                    <View key={s.id} style={styles.cell}>
+                      <LiveCard stream={s} onPress={() => openList(liveResults, liveResults.indexOf(s))} />
+                    </View>
+                  ))}
+                </View>
+              )
             ) : null}
             {tab === 1 ? (
               <View style={{ paddingHorizontal: 16, gap: 8 }}>
@@ -149,7 +185,12 @@ export function SearchScreen() {
                     </Press>
                   ))}
                 </View>
-                {sellers.map((s) => (
+                {sellers.length === 0 ? (
+                  <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 24 }}>
+                    {t("search.emptyResults", { query })}
+                  </Text>
+                ) : (
+                  sellers.map((s) => (
                   <View key={s.id} style={styles.seller}>
                     <Image source={{ uri: s.avatar }} style={styles.av} />
                     <View style={{ flex: 1 }}>
@@ -162,7 +203,10 @@ export function SearchScreen() {
                           </View>
                         ) : null}
                       </View>
-                      <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>@{s.handle} · {formatViewersFr(s.followers)}</Text>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                        {s.handle ? `@${s.handle}` : s.name}
+                        {s.viewers ? ` · ${formatViewersFr(s.viewers)}` : ""}
+                      </Text>
                     </View>
                     <Glass tone={dark ? "dark" : "light"} intensity={32} radius={999} elevated={false}>
                       <Press style={styles.follow}>
@@ -170,22 +214,31 @@ export function SearchScreen() {
                       </Press>
                     </Glass>
                   </View>
-                ))}
+                ))
+                )}
               </View>
             ) : null}
             {tab === 2 ? (
-              <View style={styles.grid}>
-                {products.map((p) => (
-                  <Glass key={p.id} tone={dark ? "dark" : "light"} intensity={28} radius={16} style={styles.cell} elevated={false}>
-                    <Image source={{ uri: p.image }} style={{ width: "100%", aspectRatio: 1 }} contentFit="cover" />
-                    <View style={{ padding: 8 }}>
-                      <Text numberOfLines={2} style={{ fontWeight: "700", color: colors.foreground }}>{p.name}</Text>
-                      <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{p.seller}</Text>
-                      <Text style={{ fontWeight: "800", color: GOLD, marginTop: 4 }}>{p.price}</Text>
-                    </View>
-                  </Glass>
-                ))}
-              </View>
+              productsLoading ? (
+                <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
+              ) : products.length === 0 ? (
+                <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32, paddingHorizontal: 24 }}>
+                  {t("search.emptyResults", { query })}
+                </Text>
+              ) : (
+                <View style={styles.grid}>
+                  {products.map((p) => (
+                    <Glass key={p.id} tone={dark ? "dark" : "light"} intensity={28} radius={16} style={styles.cell} elevated={false}>
+                      <Image source={{ uri: p.image }} style={{ width: "100%", aspectRatio: 1 }} contentFit="cover" />
+                      <View style={{ padding: 8 }}>
+                        <Text numberOfLines={2} style={{ fontWeight: "700", color: colors.foreground }}>{p.name}</Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{p.seller}</Text>
+                        <Text style={{ fontWeight: "800", color: GOLD, marginTop: 4 }}>{p.price}</Text>
+                      </View>
+                    </Glass>
+                  ))}
+                </View>
+              )
             ) : null}
           </View>
         ) : (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell, Check, Moon, Store, Sun } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -14,10 +14,9 @@ import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
-import { makeStreams } from "../mock/lives";
+import { useLivesFeed } from "../hooks/useLivesFeed";
 import {
   applyHomeCategory,
-  sampleLivesForCategory,
   sortLivesNewestFirst,
   type HomeCategory,
   type HomeFilter,
@@ -30,28 +29,22 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { colors, dark, setDark } = useAppTheme();
-  const { user, guestMode, openAuth } = useAuth();
+  const { user, openAuth } = useAuth();
   const { openList, openOverlay } = useNav();
+  const { active, upcoming, loading } = useLivesFeed();
   const [category, setCategory] = useState<HomeCategory>("Pour toi");
   const [filter, setFilter] = useState<HomeFilter>("Recommandés");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [liveOnly, setLiveOnly] = useState(false);
 
   const filtered = useMemo(() => {
-    const pool = makeStreams(0, 36);
-    const scoped = applyHomeCategory(pool, category);
-    const samples = sampleLivesForCategory(category, 0);
-    let list = sortLivesNewestFirst([...scoped, ...samples]);
+    const scoped = applyHomeCategory(active, category);
+    let list = sortLivesNewestFirst(scoped);
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
-    if (filter === "Nouveautés") list = [...list].reverse();
+    if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
     if (liveOnly) list = list.filter((s) => !s.scheduled);
     return list;
-  }, [category, filter, liveOnly]);
-
-  const upcoming = useMemo(
-    () => makeStreams(0, 24).filter((s) => s.scheduled).slice(0, 8),
-    [],
-  );
+  }, [active, category, filter, liveOnly]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -114,32 +107,41 @@ export function HomeScreen() {
         ) : null}
 
         <Text style={[styles.section, { color: colors.foreground }]}>{t("home.livesNearYou")}</Text>
-        <View style={styles.grid}>
-          <Press
-            onPress={() => {
-              if (filtered[0]) openList(filtered, 0);
-            }}
-            style={styles.demo}
-          >
-            <Image source={demoPoster} style={StyleSheet.absoluteFill} contentFit="cover" />
-            <View style={styles.demoBadge}>
-              <Glass tone="gold" intensity={36} radius={8} elevated={false}>
-                <Text style={styles.demoBadgeText}>{t("home.demo.badge")}</Text>
-              </Glass>
-            </View>
-            <View style={styles.demoBottom}>
-              <Glass tone="dark" intensity={36} radius={12} elevated={false} padded>
-                <Text style={styles.demoTitle}>{t("home.demo.title")}</Text>
-                <Text style={styles.demoSub}>{t("home.demo.subtitle")}</Text>
-              </Glass>
-            </View>
-          </Press>
-          {filtered.map((s) => (
-            <View key={s.id} style={styles.cell}>
-              <LiveCard stream={s} onPress={() => openList(filtered, filtered.indexOf(s))} />
-            </View>
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
+        ) : (
+          <View style={styles.grid}>
+            <Press
+              onPress={() => {
+                if (filtered[0]) openList(filtered, 0);
+              }}
+              style={styles.demo}
+            >
+              <Image source={demoPoster} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <View style={styles.demoBadge}>
+                <Glass tone="gold" intensity={36} radius={8} elevated={false}>
+                  <Text style={styles.demoBadgeText}>{t("home.demo.badge")}</Text>
+                </Glass>
+              </View>
+              <View style={styles.demoBottom}>
+                <Glass tone="dark" intensity={36} radius={12} elevated={false} padded>
+                  <Text style={styles.demoTitle}>{t("home.demo.title")}</Text>
+                  <Text style={styles.demoSub}>{t("home.demo.subtitle")}</Text>
+                </Glass>
+              </View>
+            </Press>
+            {filtered.map((s) => (
+              <View key={s.id} style={styles.cell}>
+                <LiveCard stream={s} onPress={() => openList(filtered, filtered.indexOf(s))} />
+              </View>
+            ))}
+          </View>
+        )}
+        {!loading && filtered.length === 0 ? (
+          <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 16, paddingHorizontal: 24 }}>
+            {t("home.empty")}
+          </Text>
+        ) : null}
       </ScrollView>
 
       <Modal visible={filterSheetOpen} animationType="slide" transparent onRequestClose={() => setFilterSheetOpen(false)}>

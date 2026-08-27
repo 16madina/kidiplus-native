@@ -87,6 +87,7 @@
     "fixed": "Prix fixe",
     "auction": "Enchère",
     "added": "Article ajouté",
+    "addSoon": "L'ajout d'articles sera branché à l'étape suivante.",
     "catalogPrice": "Prix catalogue · vendu en live (enchère ou prix fixe)",
     "configHint": "Choisis enchère ou prix fixe, la quantité pour ce live, puis Options pour couleurs / tailles.",
     "stockAvailable": "Stock boutique : {{n}}",
@@ -1145,6 +1146,7 @@
     "empty": "Aucune commande pour le moment.",
     "payBefore": "À payer avant {{date}}",
     "payNow": "Payer maintenant",
+    "paySoon": "Le paiement sera branché ensuite.",
     "expiredNoPay": "Paiement impossible — délai de 24 h dépassé",
     "expiredHint": "Délai de paiement dépassé (plus de 24 h). Tu ne peux plus payer cette commande.",
     "expiredAuctionHint": "Délai de paiement dépassé (plus de 24 h). Tu ne peux plus payer cette enchère.",
@@ -1204,6 +1206,7 @@
       "success": "Rechargement réussi 🎉",
       "credited": "{{amount}} crédités sur ton solde"
     },
+    "topupSoon": "Le rechargement sera branché ensuite — lecture seule pour l'instant.",
     "tx": {
       "topup": "Rechargement",
       "purchase": "Achat",

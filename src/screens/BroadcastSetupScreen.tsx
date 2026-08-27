@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Calendar, Radio, Sparkles, Video } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -8,18 +8,32 @@ import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
+import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
+import { listMyShopProducts } from "../lib/shop";
 import { GOLD, LIVE_RED, NAVY } from "../theme";
-import { MOCK_SHOP_ITEMS } from "../mock/account";
+import { type ShopItem } from "../mock/account";
 
 export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
   const { t } = useTranslation();
   const { closeOverlay } = useNav();
+  const { user } = useAuth();
   const now = mode === "now";
   const [title, setTitle] = useState(now ? "Live shopping — drop du soir" : "Live programmé");
-  const [picked, setPicked] = useState<string[]>([MOCK_SHOP_ITEMS[0]?.id ?? ""]);
+  const [items, setItems] = useState<ShopItem[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const [auctions, setAuctions] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = user?.id;
+    if (!id) return;
+    void listMyShopProducts(id).then((rows) => {
+      const active = rows.filter((r) => r.active);
+      setItems(active);
+      setPicked(active[0] ? [active[0].id] : []);
+    });
+  }, [user?.id]);
 
   const toggle = (id: string) => {
     setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -58,23 +72,29 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
         </Glass>
 
         <Text style={styles.label}>{t("schedule.form.productsTitle")}</Text>
-        {MOCK_SHOP_ITEMS.map((item) => {
-          const on = picked.includes(item.id);
-          return (
-            <Press key={item.id} onPress={() => toggle(item.id)} style={{ alignItems: "stretch" }}>
-              <Glass tone={on ? "gold" : "dark"} intensity={32} radius={16} elevated={false}>
-                <View style={styles.prod}>
-                  <Image source={{ uri: item.image }} style={styles.thumb} contentFit="cover" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#fff", fontWeight: "800" }}>{item.name}</Text>
-                    <Text style={{ color: GOLD, fontWeight: "700", marginTop: 2 }}>{item.price}</Text>
+        {items.length === 0 ? (
+          <Text style={{ color: "rgba(255,255,255,0.65)", textAlign: "center", marginVertical: 8 }}>
+            {t("shop.emptyPicker")}
+          </Text>
+        ) : (
+          items.map((item) => {
+            const on = picked.includes(item.id);
+            return (
+              <Press key={item.id} onPress={() => toggle(item.id)} style={{ alignItems: "stretch" }}>
+                <Glass tone={on ? "gold" : "dark"} intensity={32} radius={16} elevated={false}>
+                  <View style={styles.prod}>
+                    {item.image ? <Image source={{ uri: item.image }} style={styles.thumb} contentFit="cover" /> : <View style={styles.thumb} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontWeight: "800" }}>{item.name}</Text>
+                      <Text style={{ color: GOLD, fontWeight: "700", marginTop: 2 }}>{item.price}</Text>
+                    </View>
+                    <Text style={{ color: on ? GOLD : "rgba(255,255,255,0.5)", fontWeight: "800" }}>{on ? "✓" : "+"}</Text>
                   </View>
-                  <Text style={{ color: on ? GOLD : "rgba(255,255,255,0.5)", fontWeight: "800" }}>{on ? "✓" : "+"}</Text>
-                </View>
-              </Glass>
-            </Press>
-          );
-        })}
+                </Glass>
+              </Press>
+            );
+          })
+        )}
 
         <Press onPress={() => setAuctions((v) => !v)} style={{ alignItems: "stretch" }}>
           <Glass tone={auctions ? "gold" : "dark"} intensity={32} radius={16} elevated={false}>

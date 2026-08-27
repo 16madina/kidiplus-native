@@ -12,9 +12,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { User } from "@supabase/supabase-js";
 import i18n from "../i18n";
 import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
+import { fetchMyWallet } from "../lib/wallet";
+import { normalizeCurrency, type Currency } from "../lib/money";
 
 const GUEST_KEY = "kidiplus.guestMode";
-const MOCK_WALLET_CENTS = 24500;
 const RESET_REDIRECT = "https://kidiplus.com/reset-password";
 
 export type AuthUser = {
@@ -29,7 +30,9 @@ export type AuthUser = {
   followers: number;
   following: number;
   sales: number;
+  /** Major units, same as Superbase `wallets.balance`. */
   walletBalance: number;
+  walletCurrency: Currency;
 };
 
 type AuthView = "welcome" | "signin" | "signup" | "forgot";
@@ -94,7 +97,11 @@ export function mapAuthError(err: unknown): Error {
   return new Error(raw || t("auth.errors.generic"));
 }
 
-function toAuthUser(authUser: User, profile: ProfileRow | null, walletCents: number): AuthUser {
+function toAuthUser(
+  authUser: User,
+  profile: ProfileRow | null,
+  wallet: { balance: number; currency: Currency },
+): AuthUser {
   const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
   const displayName =
     profile?.display_name ||
@@ -114,7 +121,8 @@ function toAuthUser(authUser: User, profile: ProfileRow | null, walletCents: num
     followers: profile?.followers_count ?? 0,
     following: profile?.following_count ?? 0,
     sales: 0,
-    walletBalance: walletCents,
+    walletBalance: wallet.balance,
+    walletCurrency: wallet.currency,
   };
 }
 
@@ -139,24 +147,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authOverlay, setAuthOverlay] = useState(false);
   const wallets = useRef<Record<string, number>>({});
 
-  const walletFor = useCallback((id: string) => {
-    if (wallets.current[id] == null) wallets.current[id] = MOCK_WALLET_CENTS;
-    return wallets.current[id];
+  const hydrate = useCallback(async (authUser: User | null) => {
+    if (!authUser) {
+      setUser(null);
+      return;
+    }
+    const [profile, wallet] = await Promise.all([readProfile(authUser.id), fetchMyWallet(authUser.id)]);
+    const balance = wallet ? Number(wallet.balance) || 0 : wallets.current[authUser.id] ?? 0;
+    const currency = normalizeCurrency(wallet?.currency);
+    wallets.current[authUser.id] = balance;
+    setUser(toAuthUser(authUser, profile, { balance, currency }));
+    setGuestMode(false);
+    await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
   }, []);
-
-  const hydrate = useCallback(
-    async (authUser: User | null) => {
-      if (!authUser) {
-        setUser(null);
-        return;
-      }
-      const profile = await readProfile(authUser.id);
-      setUser(toAuthUser(authUser, profile, walletFor(authUser.id)));
-      setGuestMode(false);
-      await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
-    },
-    [walletFor],
-  );
 
   useEffect(() => {
     let done = false;
