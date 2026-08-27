@@ -28,8 +28,9 @@ import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
-import { GOLD, GUEST_CREAM, NAVY, NAVY_600, NAVY_INSET } from "../theme";
+import { GOLD, GUEST_CREAM, NAVY, NAVY_600, NAVY_INSET, initials } from "../theme";
 import { formatMoney } from "../lib/money";
+import { isHttpUrl } from "../lib/storage";
 
 const guestBg = require("../../assets/guest/guest-profile-bg-v2.jpg");
 const guestIllu = require("../../assets/guest/guest-profile-illustration.png");
@@ -139,7 +140,13 @@ function AuthedProfile() {
             <Text style={styles.heroIconLabel}>{t("profile.hero.activity")}</Text>
           </View>
           <View style={styles.avatarRing}>
-            <Image source={{ uri: user.avatarUrl ?? undefined }} style={styles.avatar} />
+            {isHttpUrl(user.avatarUrl) ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarInitials}>{initials(user.displayName)}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.heroIcon}>
             <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
@@ -295,6 +302,8 @@ const styles = StyleSheet.create({
   heroIconLabel: { color: "rgba(255,255,255,0.8)", fontSize: 10, marginTop: 2 },
   avatarRing: { width: 92, height: 92, borderRadius: 46, borderWidth: 3, borderColor: GOLD, padding: 3 },
   avatar: { flex: 1, borderRadius: 44, backgroundColor: NAVY_INSET },
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
+  avatarInitials: { color: "#fff", fontSize: 28, fontWeight: "900" },
   name: { marginTop: 10, color: "#fff", fontSize: 22, fontWeight: "900", textAlign: "center" },
   handle: { color: GOLD, textAlign: "center", fontWeight: "700" },
   email: { color: "rgba(255,255,255,0.6)", textAlign: "center", fontSize: 12, marginTop: 2 },

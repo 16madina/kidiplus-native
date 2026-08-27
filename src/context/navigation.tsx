@@ -7,7 +7,7 @@ export type Overlay =
   | { kind: "live"; stream: LiveStream; list: LiveStream[]; index: number }
   | { kind: "activity" }
   | { kind: "legal"; page: "terms" | "privacy" }
-  | { kind: "shop" }
+  | { kind: "shop"; sellerId?: string; sellerName?: string }
   | { kind: "wallet" }
   | { kind: "orders" }
   | { kind: "earnings" }

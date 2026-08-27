@@ -6,6 +6,7 @@ import { Press } from "./Press";
 import { Glass } from "./Glass";
 import { GOLD, NAVY } from "../theme";
 import { useAuth } from "../context/auth";
+import { isHttpUrl } from "../lib/storage";
 import {
   HOME_CATEGORIES,
   HOME_CATEGORY_LABEL_KEY,
@@ -47,7 +48,7 @@ export function CategoryTiles({
             ]}
           >
             {isPourToi ? (
-              user?.avatarUrl ? (
+              isHttpUrl(user?.avatarUrl) ? (
                 <Image source={{ uri: user.avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
               ) : (
                 <View style={styles.pourToi}>

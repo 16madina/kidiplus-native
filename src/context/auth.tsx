@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { User } from "@supabase/supabase-js";
 import i18n from "../i18n";
 import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
+import { resolveAvatarUrl } from "../lib/storage";
 import { fetchMyWallet } from "../lib/wallet";
 import { normalizeCurrency, type Currency } from "../lib/money";
 
@@ -97,17 +98,18 @@ export function mapAuthError(err: unknown): Error {
   return new Error(raw || t("auth.errors.generic"));
 }
 
-function toAuthUser(
+async function toAuthUser(
   authUser: User,
   profile: ProfileRow | null,
   wallet: { balance: number; currency: Currency },
-): AuthUser {
+): Promise<AuthUser> {
   const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
   const displayName =
     profile?.display_name ||
     (typeof meta.display_name === "string" ? meta.display_name : "") ||
     authUser.email?.split("@")[0] ||
     "KiDi";
+  const avatarUrl = (await resolveAvatarUrl(profile?.avatar_url)) || null;
   return {
     id: authUser.id,
     email: authUser.email ?? "",
@@ -117,7 +119,7 @@ function toAuthUser(
       profile?.country || (typeof meta.country === "string" ? meta.country : "") || "",
     phone: profile?.phone || (typeof meta.phone === "string" ? meta.phone : "") || "",
     isSeller: !!profile?.is_seller,
-    avatarUrl: profile?.avatar_url,
+    avatarUrl,
     followers: profile?.followers_count ?? 0,
     following: profile?.following_count ?? 0,
     sales: 0,
@@ -156,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const balance = wallet ? Number(wallet.balance) || 0 : wallets.current[authUser.id] ?? 0;
     const currency = normalizeCurrency(wallet?.currency);
     wallets.current[authUser.id] = balance;
-    setUser(toAuthUser(authUser, profile, { balance, currency }));
+    setUser(await toAuthUser(authUser, profile, { balance, currency }));
     setGuestMode(false);
     await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
   }, []);

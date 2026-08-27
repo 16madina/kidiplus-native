@@ -84,6 +84,17 @@ export async function listMyShopProducts(userId: string): Promise<ShopItem[]> {
   return Promise.all((data as ShopProductRow[]).map(toShopItem));
 }
 
+export async function listSellerActiveShopProducts(sellerId: string): Promise<ShopItem[]> {
+  const { data, error } = await supabase
+    .from("shop_products")
+    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active")
+    .eq("seller_id", sellerId)
+    .eq("active", true)
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return Promise.all((data as ShopProductRow[]).map(toShopItem));
+}
+
 export async function searchActiveShopProducts(query: string, limit = 40): Promise<ShopSearchHit[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];

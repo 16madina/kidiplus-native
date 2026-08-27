@@ -11,13 +11,31 @@ export const STORAGE_BUCKETS = [
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];
 
+/** Public buckets: `/object/public/` works. Private buckets must be signed. */
+const PUBLIC_BUCKETS = new Set<StorageBucket>(["vitrine-media"]);
+
+/** Media uploaded to an older Superbase project still point at this host. */
+const LEGACY_STORAGE_HOSTS = ["https://rpersnzjidxtlekbbdtp.supabase.co"];
+
 const signedCache = new Map<string, { url: string; expiresAt: number }>();
 const SIGN_TTL_SEC = 60 * 60 * 22;
+
+export function isHttpUrl(value: string | null | undefined): value is string {
+  return !!value && /^https?:\/\//i.test(value);
+}
+
+export function rewriteStorageHost(url: string): string {
+  let out = url;
+  for (const host of LEGACY_STORAGE_HOSTS) {
+    if (out.startsWith(host)) out = SUPABASE_URL + out.slice(host.length);
+  }
+  return out;
+}
 
 export function parseSupabaseStorageUrl(
   value: string,
 ): { bucket: StorageBucket; path: string } | null {
-  const trimmed = value.trim();
+  const trimmed = rewriteStorageHost(value.trim());
   if (!trimmed || !/^https?:\/\//i.test(trimmed)) return null;
   const match = trimmed.match(
     /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign)\/([^/]+)\/([^?]+)/i,
@@ -33,7 +51,15 @@ export function stripBucketPrefix(path: string, bucket: string): string {
   return path.replace(/^\/+/, "").replace(re, "");
 }
 
+function publicObjectUrl(bucket: StorageBucket, path: string): string {
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 async function signObject(bucket: StorageBucket, path: string): Promise<string | null> {
+  if (PUBLIC_BUCKETS.has(bucket)) {
+    return publicObjectUrl(bucket, path);
+  }
   const key = `${bucket}::${path}`;
   const cached = signedCache.get(key);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.url;
@@ -45,12 +71,13 @@ async function signObject(bucket: StorageBucket, path: string): Promise<string |
     });
     return data.signedUrl;
   }
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  return null;
 }
 
 /**
  * Resolve a stored image to a displayable URL.
  * Absolute non-Superbase http(s) URLs are returned as-is.
+ * Private buckets never fall back to `/object/public/` (that 400s).
  */
 export async function resolveStoredImage(
   bucket: StorageBucket,
@@ -64,7 +91,7 @@ export async function resolveStoredImage(
   let objectBucket: StorageBucket = bucket;
   if (/^https?:\/\//i.test(value)) {
     const parsed = parseSupabaseStorageUrl(value);
-    if (!parsed) return value;
+    if (!parsed) return rewriteStorageHost(value);
     objectBucket = parsed.bucket;
     objectPath = parsed.path;
   }

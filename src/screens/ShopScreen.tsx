@@ -24,6 +24,7 @@ import {
   createShopProduct,
   formatShopError,
   listMyShopProducts,
+  listSellerActiveShopProducts,
   reactivateShopProduct,
   updateShopProduct,
   uploadShopProductImage,
@@ -55,7 +56,13 @@ function emptyForm(): FormState {
   };
 }
 
-export function ShopScreen() {
+export function ShopScreen({
+  sellerId,
+  sellerName,
+}: {
+  sellerId?: string;
+  sellerName?: string;
+} = {}) {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
   const { user, becomeSeller } = useAuth();
@@ -64,15 +71,16 @@ export function ShopScreen() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const own = !sellerId || sellerId === user?.id;
 
   const reload = async () => {
-    const id = user?.id;
+    const id = own ? user?.id : sellerId;
     if (!id) {
       setItems([]);
       setLoading(false);
       return;
     }
-    const rows = await listMyShopProducts(id);
+    const rows = own ? await listMyShopProducts(id) : await listSellerActiveShopProducts(id);
     setItems(rows);
     setLoading(false);
   };
@@ -80,7 +88,7 @@ export function ShopScreen() {
   useEffect(() => {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, sellerId, own]);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -200,7 +208,7 @@ export function ShopScreen() {
     }
   };
 
-  if (form) {
+  if (form && own) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <OverlayHeader
@@ -257,17 +265,19 @@ export function ShopScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <OverlayHeader title={t("shop.title")} />
+      <OverlayHeader title={own ? t("shop.title") : sellerName || t("shop.pickTitleSeller")} />
       <ScrollView contentContainerStyle={styles.body}>
-        <GoldButton label={t("shop.add")} onPress={openNew} icon={<Plus size={18} color="#151022" />} />
+        {own ? <GoldButton label={t("shop.add")} onPress={openNew} icon={<Plus size={18} color="#151022" />} /> : null}
         {loading ? (
           <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
         ) : items.length === 0 ? (
-          <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 24 }}>{t("shop.empty")}</Text>
+          <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 24 }}>
+            {own ? t("shop.empty") : t("shop.emptyPickerSeller")}
+          </Text>
         ) : (
           items.map((item) => (
             <Glass key={item.id} tone={dark ? "dark" : "light"} intensity={32} radius={18} elevated={false}>
-              <Press onPress={() => openEdit(item)} style={{ alignItems: "stretch" }}>
+              <Press onPress={() => own && openEdit(item)} style={{ alignItems: "stretch" }}>
                 <View style={styles.card}>
                   {item.image ? <Image source={{ uri: item.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
                   <View style={{ flex: 1, gap: 4 }}>
@@ -285,14 +295,16 @@ export function ShopScreen() {
                       </View>
                     </View>
                   </View>
-                  <Press
-                    onPress={() => void toggleActive(item)}
-                    style={styles.toggle}
-                  >
-                    <Text style={{ fontWeight: "700", fontSize: 12, color: item.active ? GOLD : colors.mutedForeground }}>
-                      {item.active ? t("shop.active") : t("shop.archived")}
-                    </Text>
-                  </Press>
+                  {own ? (
+                    <Press
+                      onPress={() => void toggleActive(item)}
+                      style={styles.toggle}
+                    >
+                      <Text style={{ fontWeight: "700", fontSize: 12, color: item.active ? GOLD : colors.mutedForeground }}>
+                        {item.active ? t("shop.active") : t("shop.archived")}
+                      </Text>
+                    </Press>
+                  ) : null}
                 </View>
               </Press>
             </Glass>

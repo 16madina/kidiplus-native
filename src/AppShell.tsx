@@ -64,7 +64,9 @@ export function AppShell() {
         <WalletScreen />
       </PushScreen>
       <PushScreen open={overlay.kind === "shop"} onClose={closeOverlay}>
-        <ShopScreen />
+        {shown.kind === "shop" ? (
+          <ShopScreen sellerId={shown.sellerId} sellerName={shown.sellerName} />
+        ) : null}
       </PushScreen>
       <PushScreen open={overlay.kind === "orders"} onClose={closeOverlay}>
         <OrdersScreen />
