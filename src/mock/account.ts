@@ -27,6 +27,10 @@ export type ShopItem = {
   kind: "auction" | "fixed";
   image: string;
   active: boolean;
+  priceValue?: number;
+  currency?: string;
+  description?: string | null;
+  imagePath?: string | null;
 };
 
 export const MOCK_SHOP_ITEMS: ShopItem[] = [

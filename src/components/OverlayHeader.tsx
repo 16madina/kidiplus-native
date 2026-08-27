@@ -7,7 +7,17 @@ import { Glass } from "./Glass";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
 
-export function OverlayHeader({ title, onDark }: { title: string; onDark?: boolean }) {
+export function OverlayHeader({
+  title,
+  onDark,
+  onBack,
+  backLabel,
+}: {
+  title: string;
+  onDark?: boolean;
+  onBack?: () => void;
+  backLabel?: string;
+}) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { colors } = useAppTheme();
@@ -15,9 +25,9 @@ export function OverlayHeader({ title, onDark }: { title: string; onDark?: boole
   const fg = onDark ? "#fff" : colors.foreground;
   return (
     <View style={[styles.head, { paddingTop: insets.top }]}>
-      <Press onPress={closeOverlay} style={styles.back}>
+      <Press onPress={onBack ?? closeOverlay} style={styles.back}>
         <ChevronLeft size={24} color={fg} strokeWidth={2.2} />
-        <Text style={{ fontWeight: "700", color: fg }}>{t("common.close")}</Text>
+        <Text style={{ fontWeight: "700", color: fg }}>{backLabel ?? t("common.close")}</Text>
       </Press>
       <Text numberOfLines={1} style={[styles.title, { color: fg }]}>
         {title}

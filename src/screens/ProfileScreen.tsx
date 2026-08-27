@@ -179,7 +179,7 @@ function AuthedProfile() {
       </Section>
       <Section title={t("profile.sections.purchases")}>
         <Row icon={<ShoppingBag size={18} color={colors.foreground} />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
-        <Row icon={<MapPin size={18} color={colors.foreground} />} label="Mes adresses" onPress={() => openOverlay({ kind: "addresses" })} />
+        <Row icon={<MapPin size={18} color={colors.foreground} />} label={t("address.title")} onPress={() => openOverlay({ kind: "addresses" })} />
       </Section>
       <Section title={t("profile.sections.general")}>
         <Row icon={<Settings size={18} color={colors.foreground} />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />

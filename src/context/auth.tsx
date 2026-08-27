@@ -56,7 +56,7 @@ type Ctx = {
     phone: string;
   }) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
-  becomeSeller: () => void;
+  becomeSeller: () => Promise<void>;
   adjustWallet: (deltaCents: number) => void;
   sendReset: (email: string) => Promise<void>;
 };
@@ -278,12 +278,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
   }, []);
 
-  const becomeSeller = useCallback(() => {
+  const becomeSeller = useCallback(async () => {
     const id = user?.id;
     if (!id) return;
+    if (user?.isSeller) return;
     setUser((prev) => (prev ? { ...prev, isSeller: true } : prev));
-    void supabase.from("profiles").update({ is_seller: true }).eq("id", id);
-  }, [user?.id]);
+    const { error } = await supabase.from("profiles").update({ is_seller: true }).eq("id", id);
+    if (error) {
+      setUser((prev) => (prev ? { ...prev, isSeller: false } : prev));
+      throw new Error(error.message);
+    }
+  }, [user?.id, user?.isSeller]);
 
   const adjustWallet = useCallback((deltaCents: number) => {
     setUser((prev) => {
