@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Press } from "../components/Press";
 import { useAuth } from "./auth";
 import { useNav } from "./navigation";
+import { fetchLiveById } from "../lib/lives";
 import {
   getPushPermissionStatus,
   markPrepromptShown,
@@ -36,6 +37,8 @@ type Ctx = {
   requestWithPrePrompt: (reason: string) => Promise<boolean>;
   /** Register without pre-prompt (Settings toggle). */
   enable: () => Promise<boolean>;
+  /** Deep-link from a push / in-app notification payload. */
+  openFromPush: (payload: PushOpenPayload | null) => void;
 };
 
 const PushContext = createContext<Ctx | null>(null);
@@ -43,7 +46,7 @@ const PushContext = createContext<Ctx | null>(null);
 export function PushProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { openOverlay, setTab } = useNav();
+  const { openOverlay, openLive, setTab, setPendingVitrinePostId } = useNav();
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<PushStatus>("unknown");
   const [token, setToken] = useState<string | null>(null);
@@ -59,30 +62,68 @@ export function PushProvider({ children }: { children: ReactNode }) {
   const routePush = useCallback(
     (payload: PushOpenPayload | null) => {
       if (!payload) {
-        openOverlay({ kind: "activity" });
+        openOverlay({ kind: "activity", tab: "notifs" });
         return;
       }
       const kind = String(payload.kind ?? "notif");
       if (kind === "order") {
-        openOverlay({ kind: "orders" });
+        openOverlay({
+          kind: "orders",
+          orderId: typeof payload.order_id === "string" ? payload.order_id : undefined,
+        });
         return;
       }
       if (kind === "chat") {
-        openOverlay({ kind: "activity" });
+        openOverlay({
+          kind: "activity",
+          tab: "messages",
+          threadId: typeof payload.thread_id === "string" ? payload.thread_id : undefined,
+        });
         return;
       }
-      if (kind === "live" || kind === "resume_host_live") {
+      if (kind === "live") {
+        const liveId = typeof payload.live_id === "string" ? payload.live_id : null;
+        if (liveId) {
+          void fetchLiveById(liveId).then((stream) => {
+            if (stream) openLive(stream);
+            else setTab("live");
+          });
+          return;
+        }
         setTab("live");
-        openOverlay({ kind: "activity" });
         return;
       }
-      if (kind === "seller" || kind === "vitrine") {
-        setTab("home");
+      if (kind === "resume_host_live") {
+        setTab("live");
         return;
       }
-      openOverlay({ kind: "activity" });
+      if (kind === "seller") {
+        const sellerId = typeof payload.seller_id === "string" ? payload.seller_id : undefined;
+        openOverlay({
+          kind: "shop",
+          sellerId,
+          sellerName:
+            typeof payload.seller_handle === "string" ? payload.seller_handle : undefined,
+        });
+        return;
+      }
+      if (kind === "vitrine") {
+        setTab("vitrine");
+        if (typeof payload.post_id === "string" && payload.post_id) {
+          setPendingVitrinePostId(payload.post_id);
+        }
+        return;
+      }
+      openOverlay({ kind: "activity", tab: "notifs" });
     },
-    [openOverlay, setTab],
+    [openOverlay, openLive, setTab, setPendingVitrinePostId],
+  );
+
+  const openFromPush = useCallback(
+    (payload: PushOpenPayload | null) => {
+      routePush(payload);
+    },
+    [routePush],
   );
 
   const enable = useCallback(async () => {
@@ -172,8 +213,8 @@ export function PushProvider({ children }: { children: ReactNode }) {
   }, [routePush]);
 
   const value = useMemo<Ctx>(
-    () => ({ status, token, refresh, requestWithPrePrompt, enable }),
-    [status, token, refresh, requestWithPrePrompt, enable],
+    () => ({ status, token, refresh, requestWithPrePrompt, enable, openFromPush }),
+    [status, token, refresh, requestWithPrePrompt, enable, openFromPush],
   );
 
   const finishPrompt = async (accept: boolean) => {

@@ -1,3 +1,4 @@
+import type { PickedImage } from "./pick-image";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
 
@@ -194,4 +195,212 @@ export async function fetchVitrinePostsByUser(userId: string, limit = 40): Promi
   if (error || !data) return [];
   const mapped = await Promise.all((data as unknown as VitrineRow[]).map((row) => mapRow(row, new Set())));
   return mapped.filter((p): p is VitrineFeedPost => !!p);
+}
+
+export async function fetchVitrinePostById(postId: string): Promise<VitrineFeedPost | null> {
+  if (!postId) return null;
+  const withSeller = await supabase
+    .from("vitrine_posts")
+    .select(POST_SELECT)
+    .eq("id", postId)
+    .maybeSingle();
+  let row = (!withSeller.error && withSeller.data
+    ? (withSeller.data as unknown as VitrineRow)
+    : null);
+  if (!row) {
+    const plain = await supabase
+      .from("vitrine_posts")
+      .select(
+        "id, user_id, media_type, media_urls, poster_url, caption, product_id, live_id, like_count, comment_count, created_at, active",
+      )
+      .eq("id", postId)
+      .maybeSingle();
+    if (plain.error || !plain.data) return null;
+    row = plain.data as unknown as VitrineRow;
+    if (row.user_id) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name, handle, avatar_url")
+        .eq("id", row.user_id)
+        .maybeSingle();
+      row = { ...row, seller: (prof as SellerEmbed | null) ?? null };
+    }
+  }
+  const uid = (await supabase.auth.getUser()).data.user?.id ?? null;
+  const likedIds = new Set<string>();
+  if (uid) {
+    const { data: like } = await supabase
+      .from("vitrine_likes")
+      .select("post_id")
+      .eq("user_id", uid)
+      .eq("post_id", postId)
+      .maybeSingle();
+    if (like) likedIds.add(postId);
+  }
+  return mapRow(row, likedIds);
+}
+
+export async function toggleVitrineLike(
+  postId: string,
+  currentlyLiked: boolean,
+): Promise<{ ok: boolean; liked: boolean }> {
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return { ok: false, liked: currentlyLiked };
+  try {
+    if (currentlyLiked) {
+      const { error } = await supabase
+        .from("vitrine_likes")
+        .delete()
+        .eq("post_id", postId)
+        .eq("user_id", uid);
+      if (error) return { ok: false, liked: currentlyLiked };
+      return { ok: true, liked: false };
+    }
+    const { error } = await supabase.from("vitrine_likes").insert({ post_id: postId, user_id: uid });
+    if (error) return { ok: false, liked: currentlyLiked };
+    return { ok: true, liked: true };
+  } catch {
+    return { ok: false, liked: currentlyLiked };
+  }
+}
+
+export type VitrineComment = {
+  id: string;
+  postId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  parentId: string | null;
+  authorName: string;
+  authorAvatar: string | null;
+};
+
+export async function fetchVitrineComments(postId: string, limit = 40): Promise<VitrineComment[]> {
+  if (!postId) return [];
+  const { data, error } = await supabase
+    .from("vitrine_comments")
+    .select(
+      `
+      id, post_id, user_id, body, created_at, parent_id,
+      author:profiles!vitrine_comments_user_id_fkey(display_name, handle, avatar_url)
+      `,
+    )
+    .eq("post_id", postId)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error || !data) return [];
+  return Promise.all(
+    (data as Array<{
+      id: string;
+      post_id: string;
+      user_id: string;
+      body: string;
+      created_at: string;
+      parent_id: string | null;
+      author: SellerEmbed | SellerEmbed[] | null;
+    }>).map(async (r) => {
+      const author = Array.isArray(r.author) ? r.author[0] : r.author;
+      return {
+        id: r.id,
+        postId: r.post_id,
+        userId: r.user_id,
+        body: r.body,
+        createdAt: r.created_at,
+        parentId: r.parent_id ?? null,
+        authorName: author?.display_name?.trim() || author?.handle || "User",
+        authorAvatar: (await resolveAvatarUrl(author?.avatar_url ?? null)) || null,
+      };
+    }),
+  );
+}
+
+export async function addVitrineComment(
+  postId: string,
+  body: string,
+  parentId?: string | null,
+): Promise<{ ok: true; comment: VitrineComment } | { ok: false; error: string }> {
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return { ok: false, error: "unauthorized" };
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "empty" };
+  const { data, error } = await supabase
+    .from("vitrine_comments")
+    .insert({
+      post_id: postId,
+      user_id: uid,
+      body: trimmed,
+      parent_id: parentId ?? null,
+    })
+    .select("id, post_id, user_id, body, created_at, parent_id")
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: error?.message ?? "failed" };
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("display_name, handle, avatar_url")
+    .eq("id", uid)
+    .maybeSingle();
+  const author = prof as SellerEmbed | null;
+  return {
+    ok: true,
+    comment: {
+      id: data.id as string,
+      postId: data.post_id as string,
+      userId: data.user_id as string,
+      body: data.body as string,
+      createdAt: data.created_at as string,
+      parentId: (data.parent_id as string | null) ?? null,
+      authorName: author?.display_name?.trim() || author?.handle || "User",
+      authorAvatar: (await resolveAvatarUrl(author?.avatar_url ?? null)) || null,
+    },
+  };
+}
+
+/** Upload image/video blob into the public vitrine-media bucket. Returns public URL. */
+export async function uploadVitrineMedia(picked: PickedImage): Promise<string | null> {
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return null;
+  const rand =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${uid}/${rand}.${picked.ext || "jpg"}`;
+  const { error } = await supabase.storage.from("vitrine-media").upload(path, picked.blob, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: picked.contentType || undefined,
+  });
+  if (error) return null;
+  const { data } = supabase.storage.from("vitrine-media").getPublicUrl(path);
+  return data.publicUrl || null;
+}
+
+export async function createVitrinePost(input: {
+  mediaUrls: string[];
+  mediaType: VitrineMediaType;
+  caption?: string;
+  productId?: string | null;
+  liveId?: string | null;
+  posterUrl?: string | null;
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return { ok: false, error: "unauthorized" };
+  if (input.mediaUrls.length === 0 && !input.liveId) {
+    return { ok: false, error: "no_media" };
+  }
+  const { data, error } = await supabase
+    .from("vitrine_posts")
+    .insert({
+      user_id: uid,
+      media_type: input.mediaType,
+      media_urls: input.mediaUrls,
+      poster_url: input.posterUrl ?? null,
+      caption: input.caption?.trim() || null,
+      product_id: input.productId ?? null,
+      live_id: input.liveId ?? null,
+      active: true,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: error?.message ?? "failed" };
+  return { ok: true, id: data.id as string };
 }

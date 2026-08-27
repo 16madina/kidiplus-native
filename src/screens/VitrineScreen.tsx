@@ -18,11 +18,19 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { LiveCard } from "../components/LiveCard";
+import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
+import { VitrineCommentsSheet } from "../components/vitrine/VitrineCommentsSheet";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, LIVE_RED, initials } from "../theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
-import { fetchVitrinePosts, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
+import {
+  fetchVitrinePostById,
+  fetchVitrinePosts,
+  looksLikeVideo,
+  toggleVitrineLike,
+  type VitrineFeedPost,
+} from "../lib/vitrine";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
 import { sampleLivesForCategory } from "../mock/home-categories";
@@ -33,7 +41,14 @@ export function VitrineScreen() {
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { tab, setTab, openList, openOverlay } = useNav();
+  const {
+    tab,
+    setTab,
+    openList,
+    openOverlay,
+    pendingVitrinePostId,
+    setPendingVitrinePostId,
+  } = useNav();
   const { guestMode, openAuth } = useAuth();
   const { active, upcoming } = useLivesFeed();
   const [cat, setCat] = useState<"forYou" | "live" | "soon">("forYou");
@@ -41,6 +56,9 @@ export function VitrineScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const listRef = useRef<FlatList<VitrineFeedPost>>(null);
   const lives = active;
   const soon = upcoming;
   const liveCards = useMemo(() => {
@@ -64,6 +82,40 @@ export function VitrineScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!pendingVitrinePostId || !tabVisible) return;
+    let cancelled = false;
+    void (async () => {
+      setCat("forYou");
+      let idx = posts.findIndex((p) => p.id === pendingVitrinePostId);
+      if (idx < 0) {
+        const targeted = await fetchVitrinePostById(pendingVitrinePostId);
+        if (cancelled) return;
+        if (targeted) {
+          setPosts((prev) => {
+            if (prev.some((p) => p.id === targeted.id)) return prev;
+            return [targeted, ...prev];
+          });
+          idx = 0;
+        }
+      }
+      if (idx >= 0) {
+        setActiveId(pendingVitrinePostId);
+        requestAnimationFrame(() => {
+          try {
+            listRef.current?.scrollToIndex({ index: Math.max(0, idx), animated: true });
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+      setPendingVitrinePostId(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingVitrinePostId, tabVisible, posts, setPendingVitrinePostId]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems.find((v) => v.isViewable)?.item as VitrineFeedPost | undefined;
@@ -92,7 +144,13 @@ export function VitrineScreen() {
             ))}
           </View>
         </Glass>
-        <GlassIconButton tone="gold" onPress={() => (guestMode ? openAuth() : undefined)}>
+        <GlassIconButton
+          tone="gold"
+          onPress={() => {
+            if (guestMode) return openAuth();
+            setCreateOpen(true);
+          }}
+        >
           <Plus size={22} color="#fff" />
         </GlassIconButton>
       </LinearGradient>
@@ -108,6 +166,7 @@ export function VitrineScreen() {
           </View>
         ) : (
           <FlatList
+            ref={listRef}
             data={posts}
             keyExtractor={(p) => p.id}
             style={{ flex: 1 }}
@@ -125,6 +184,11 @@ export function VitrineScreen() {
             onMomentumScrollBegin={unlockVitrineSound}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                listRef.current?.scrollToIndex({ index: info.index, animated: true });
+              }, 120);
+            }}
             refreshControl={
               <RefreshControl refreshing={refreshing} tintColor={GOLD} onRefresh={() => {
                 setRefreshing(true);
@@ -143,6 +207,15 @@ export function VitrineScreen() {
                   if (guestMode) return openAuth();
                   if (!item.userId) return;
                   openOverlay({ kind: "shop", sellerId: item.userId, sellerName: item.sellerName });
+                }}
+                onComments={() => {
+                  if (guestMode) return openAuth();
+                  setCommentsPostId(item.id);
+                }}
+                onLikeChange={(liked, likes) => {
+                  setPosts((prev) =>
+                    prev.map((p) => (p.id === item.id ? { ...p, likedByMe: liked, likes } : p)),
+                  );
                 }}
               />
             )}
@@ -181,6 +254,24 @@ export function VitrineScreen() {
           )}
         </View>
       ) : null}
+
+      <CreateVitrinePostSheet
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void load(true)}
+      />
+      {commentsPostId ? (
+        <VitrineCommentsSheet
+          postId={commentsPostId}
+          open={!!commentsPostId}
+          onClose={() => setCommentsPostId(null)}
+          onCountChange={(n) => {
+            setPosts((prev) =>
+              prev.map((p) => (p.id === commentsPostId ? { ...p, comments: n } : p)),
+            );
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -193,6 +284,8 @@ function VitrinePostSlide({
   guest,
   onAuth,
   onShop,
+  onComments,
+  onLikeChange,
 }: {
   post: VitrineFeedPost;
   width: number;
@@ -201,12 +294,43 @@ function VitrinePostSlide({
   guest: boolean;
   onAuth: () => void;
   onShop: () => void;
+  onComments: () => void;
+  onLikeChange: (liked: boolean, likes: number) => void;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(post.likedByMe);
   const [likes, setLikes] = useState(post.likes);
+  const [comments, setComments] = useState(post.comments);
   const [muted, toggleMuted] = useVitrineSound();
+  const busyLike = useRef(false);
+
+  useEffect(() => {
+    setLiked(post.likedByMe);
+    setLikes(post.likes);
+    setComments(post.comments);
+  }, [post.id, post.likedByMe, post.likes, post.comments]);
+
+  const onLike = async () => {
+    if (guest) return onAuth();
+    if (busyLike.current) return;
+    busyLike.current = true;
+    const prevLiked = liked;
+    const prevLikes = likes;
+    const nextLiked = !prevLiked;
+    const nextLikes = prevLikes + (prevLiked ? -1 : 1);
+    setLiked(nextLiked);
+    setLikes(nextLikes);
+    onLikeChange(nextLiked, nextLikes);
+    const res = await toggleVitrineLike(post.id, prevLiked);
+    busyLike.current = false;
+    if (!res.ok) {
+      setLiked(prevLiked);
+      setLikes(prevLikes);
+      onLikeChange(prevLiked, prevLikes);
+    }
+  };
+
   return (
     <View style={{ width, height, backgroundColor: "#000" }} onTouchStart={unlockVitrineSound}>
       <VitrineMedia post={post} active={active} />
@@ -223,13 +347,13 @@ function VitrinePostSlide({
         <Action
           icon={<Heart size={26} color={liked ? LIVE_RED : "#fff"} fill={liked ? LIVE_RED : "none"} />}
           label={String(likes)}
-          onPress={() => {
-            if (guest) return onAuth();
-            setLiked((v) => !v);
-            setLikes((n) => n + (liked ? -1 : 1));
-          }}
+          onPress={() => void onLike()}
         />
-        <Action icon={<MessageCircle size={26} color="#fff" />} label={String(post.comments)} onPress={() => guest && onAuth()} />
+        <Action
+          icon={<MessageCircle size={26} color="#fff" />}
+          label={String(comments)}
+          onPress={onComments}
+        />
         <Action icon={<Share2 size={26} color="#fff" />} label={t("vitrine.share")} />
         <Action icon={<Store size={26} color="#fff" />} label={t("vitrine.shop")} onPress={onShop} />
       </View>

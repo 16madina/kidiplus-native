@@ -8,9 +8,11 @@ import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
 import { Glass } from "../components/Glass";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
+import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
+import { followUser, unfollowUser } from "../lib/follows";
 import { searchActiveShopProducts, type ShopSearchHit } from "../lib/shop";
 import { BROWSE_CATEGORIES, TRENDS, formatViewersFr } from "../mock/browse";
 import { GOLD, LIVE_RED } from "../theme";
@@ -20,6 +22,7 @@ export function SearchScreen() {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
   const { openList } = useNav();
+  const { user, guestMode, openAuth } = useAuth();
   const { active, loading: livesLoading } = useLivesFeed();
   const [raw, setRaw] = useState("");
   const [focused, setFocused] = useState(false);
@@ -29,8 +32,25 @@ export function SearchScreen() {
   const [recent, setRecent] = useState(["jordan 4", "chanel", "iphone", "pokémon", "ysl"]);
   const [products, setProducts] = useState<ShopSearchHit[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
   const query = raw.trim();
   const searching = query.length > 0;
+
+  const toggleFollow = async (sellerId: string) => {
+    if (guestMode || !user) {
+      openAuth();
+      return;
+    }
+    if (!sellerId || sellerId === user.id) return;
+    const prev = !!followingMap[sellerId];
+    setFollowingMap((m) => ({ ...m, [sellerId]: !prev }));
+    try {
+      if (prev) await unfollowUser(sellerId);
+      else await followUser(sellerId);
+    } catch {
+      setFollowingMap((m) => ({ ...m, [sellerId]: prev }));
+    }
+  };
 
   const liveResults = useMemo(() => {
     const q = query.toLowerCase();
@@ -209,8 +229,15 @@ export function SearchScreen() {
                       </Text>
                     </View>
                     <Glass tone={dark ? "dark" : "light"} intensity={32} radius={999} elevated={false}>
-                      <Press style={styles.follow}>
-                        <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("follow.follow")}</Text>
+                      <Press
+                        style={styles.follow}
+                        onPress={() => void toggleFollow(s.id)}
+                      >
+                        <Text style={{ fontWeight: "700", color: colors.foreground }}>
+                          {followingMap[s.id]
+                            ? t("follow.following", { defaultValue: "Abonné" })
+                            : t("follow.follow")}
+                        </Text>
                       </Press>
                     </Glass>
                   </View>

@@ -1,15 +1,17 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { LiveStream } from "../mock/lives";
+import type { DmChatTarget } from "../lib/dm";
 
 export type TabKey = "home" | "search" | "live" | "vitrine" | "profile";
 export type Overlay =
   | { kind: "none" }
   | { kind: "live"; stream: LiveStream; list: LiveStream[]; index: number }
-  | { kind: "activity" }
+  | { kind: "activity"; tab?: "notifs" | "messages"; threadId?: string }
+  | { kind: "dm-chat"; target: DmChatTarget }
   | { kind: "legal"; page: "terms" | "privacy" }
   | { kind: "shop"; sellerId?: string; sellerName?: string }
   | { kind: "wallet" }
-  | { kind: "orders" }
+  | { kind: "orders"; orderId?: string }
   | { kind: "earnings" }
   | { kind: "settings" }
   | { kind: "help" }
@@ -39,6 +41,8 @@ type Ctx = {
   openList: (list: LiveStream[], index: number) => void;
   openOverlay: (o: Exclude<Overlay, { kind: "none" }>) => void;
   closeOverlay: () => void;
+  pendingVitrinePostId: string | null;
+  setPendingVitrinePostId: (id: string | null) => void;
 };
 
 const NavContext = createContext<Ctx | null>(null);
@@ -46,6 +50,7 @@ const NavContext = createContext<Ctx | null>(null);
 export function NavigationProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<TabKey>("home");
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
+  const [pendingVitrinePostId, setPendingVitrinePostId] = useState<string | null>(null);
 
   const openLive = useCallback((stream: LiveStream, list?: LiveStream[], index?: number) => {
     setOverlay({
@@ -69,8 +74,26 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const closeOverlay = useCallback(() => setOverlay({ kind: "none" }), []);
 
   const value = useMemo<Ctx>(
-    () => ({ tab, setTab, overlay, openLive, openList, openOverlay, closeOverlay }),
-    [tab, overlay, openLive, openList, openOverlay, closeOverlay],
+    () => ({
+      tab,
+      setTab,
+      overlay,
+      openLive,
+      openList,
+      openOverlay,
+      closeOverlay,
+      pendingVitrinePostId,
+      setPendingVitrinePostId,
+    }),
+    [
+      tab,
+      overlay,
+      openLive,
+      openList,
+      openOverlay,
+      closeOverlay,
+      pendingVitrinePostId,
+    ],
   );
 
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>;

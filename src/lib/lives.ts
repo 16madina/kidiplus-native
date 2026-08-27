@@ -384,3 +384,16 @@ export function isReplayPlayable(row: SellerLiveEntry): boolean {
   if (!row.replay_expires_at) return true;
   return Date.parse(row.replay_expires_at) > Date.now();
 }
+
+/** Fetch a single live stream by id (used for push deep-links). */
+export async function fetchLiveById(id: string): Promise<LiveStream | null> {
+  if (!id) return null;
+  const bare = id.startsWith("db-") ? id.slice(3) : id;
+  const { data, error } = await supabase
+    .from("lives")
+    .select(LIVE_SELECT)
+    .eq("id", bare)
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToStream(data as unknown as LiveRow, false);
+}

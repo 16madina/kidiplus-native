@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Archive, Clapperboard, ImagePlus, Pencil, Plus, Radio, ShoppingBag, Tag, Users, Video } from "lucide-react-native";
+import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Tag, Users, Video } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -36,6 +36,7 @@ import {
 import { countSellerLives, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
 import { countVitrinePostsByUser, fetchVitrinePostsByUser, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { fetchSellerPublic, uploadBanner, type SellerPublic } from "../lib/seller";
+import { useFollow } from "../lib/follows";
 import { GOLD, NAVY, initials } from "../theme";
 import { isHttpUrl } from "../lib/storage";
 import { type ShopItem } from "../mock/account";
@@ -75,7 +76,7 @@ export function ShopScreen({
 } = {}) {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
-  const { user, becomeSeller } = useAuth();
+  const { user, becomeSeller, guestMode, openAuth } = useAuth();
   const { openOverlay } = useNav();
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,8 @@ export function ShopScreen({
   const [toast, setToast] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const own = !sellerId || sellerId === user?.id;
+  const followTargetId = !own && sellerId ? sellerId : null;
+  const follow = useFollow(followTargetId);
   const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine">("boutique");
   const [seller, setSeller] = useState<SellerPublic | null>(null);
   const [lives, setLives] = useState<SellerLiveEntry[]>([]);
@@ -381,7 +384,42 @@ export function ShopScreen({
               <Text style={styles.addBtnTxt}>Lancer un live</Text>
             </Press>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.actions}>
+            <Press
+              onPress={() => {
+                if (guestMode || !user) return openAuth();
+                void follow.toggle();
+              }}
+              style={[styles.addBtn, follow.following && { backgroundColor: NAVY }]}
+            >
+              <Users size={16} color="#fff" />
+              <Text style={styles.addBtnTxt}>
+                {follow.following
+                  ? t("follow.following", { defaultValue: "Abonné" })
+                  : t("follow.follow", { defaultValue: "Suivre" })}
+              </Text>
+            </Press>
+            <Press
+              onPress={() => {
+                if (guestMode || !user) return openAuth();
+                if (!sellerId) return;
+                openOverlay({
+                  kind: "dm-chat",
+                  target: {
+                    otherId: sellerId,
+                    otherName: displayName,
+                    otherAvatarUrl: avatar,
+                  },
+                });
+              }}
+              style={styles.liveBtn}
+            >
+              <MessageCircle size={15} color="#fff" />
+              <Text style={styles.addBtnTxt}>{t("profile.hero.message", { defaultValue: "Message" })}</Text>
+            </Press>
+          </View>
+        )}
 
         <View style={styles.tabStrip}>
           {(

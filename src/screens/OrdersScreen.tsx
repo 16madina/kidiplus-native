@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
@@ -39,7 +39,7 @@ const STATUS_COLOR: Record<MockOrder["status"], string> = {
   refunded: "#8B5CF6",
 };
 
-export function OrdersScreen() {
+export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const { user } = useAuth();
@@ -50,6 +50,7 @@ export function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState<OrderView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const openedOrderRef = useRef<string | null>(null);
   const list = tab === "purchases" ? purchases : sales;
 
   const flash = (msg: string) => {
@@ -78,6 +79,19 @@ export function OrdersScreen() {
     setLoading(true);
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!orderId || loading) return;
+    if (openedOrderRef.current === orderId) return;
+    const fromPurchases = purchases.find((o) => o.id === orderId);
+    const fromSales = sales.find((o) => o.id === orderId);
+    const hit = fromPurchases ?? fromSales;
+    if (!hit) return;
+    openedOrderRef.current = orderId;
+    if (fromSales && !fromPurchases) setTab("sales");
+    else setTab("purchases");
+    if (hit.status === "awaitingPayment") setPaying(hit);
+  }, [orderId, loading, purchases, sales]);
 
   const doShip = (o: OrderView) => {
     if (busyId) return;

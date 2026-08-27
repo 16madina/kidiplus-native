@@ -29,6 +29,7 @@ import { DeliverySettingsScreen } from "./screens/DeliverySettingsScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { DeleteAccountScreen } from "./screens/DeleteAccountScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
+import { DmChatScreen } from "./screens/DmChatScreen";
 import { GOLD, NAVY } from "./theme";
 
 const BroadcastLiveScreen = lazy(async () => {
@@ -94,6 +95,11 @@ export function AppShell() {
       <PushScreen open={overlay.kind === "activity"} onClose={closeOverlay}>
         <ActivityScreen />
       </PushScreen>
+      <PushScreen open={overlay.kind === "dm-chat"} onClose={closeOverlay} zIndex={82}>
+        {shown.kind === "dm-chat" ? (
+          <DmChatScreen target={shown.target} onClose={closeOverlay} />
+        ) : null}
+      </PushScreen>
       <PushScreen open={overlay.kind === "legal"} onClose={closeOverlay}>
         {shown.kind === "legal" ? <LegalScreen page={shown.page} onClose={closeOverlay} /> : null}
       </PushScreen>
@@ -106,7 +112,7 @@ export function AppShell() {
         ) : null}
       </PushScreen>
       <PushScreen open={overlay.kind === "orders"} onClose={closeOverlay}>
-        <OrdersScreen />
+        <OrdersScreen orderId={shown.kind === "orders" ? shown.orderId : undefined} />
       </PushScreen>
       <PushScreen open={overlay.kind === "earnings"} onClose={closeOverlay}>
         <EarningsScreen />

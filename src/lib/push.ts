@@ -190,6 +190,10 @@ export type PushOpenPayload = {
   seller_id?: string;
   thread_id?: string;
   post_id?: string;
+  comment_id?: string;
+  parent_comment_id?: string;
+  /** "1" / "true" → open the post comments sheet after jumping to the post. */
+  open_comments?: string;
   [key: string]: unknown;
 };
 
@@ -204,6 +208,69 @@ export function normalizePushData(raw: unknown): PushOpenPayload | null {
     out.kind = String(out["notification.kind"]);
   }
   return out;
+}
+
+/**
+ * Map a DB notification row (via `notifications.kind` + `data`) to a deep-link
+ * payload the client router understands.
+ */
+export function payloadFromNotificationRow(row: {
+  kind: string;
+  order_id: string | null;
+  data: Record<string, unknown> | null;
+}): PushOpenPayload {
+  const data = (row.data ?? {}) as Record<string, unknown>;
+  const rawKind = String(data.kind ?? "").trim();
+  let kind = rawKind;
+  if (!kind) {
+    if (/^order_|^dispute_/.test(row.kind)) kind = "order";
+    else if (row.kind === "live_started") kind = "live";
+    else if (row.kind === "moderator_promoted") kind = "live";
+    else if (row.kind === "live_host_absent") kind = "resume_host_live";
+    else if (row.kind === "new_follower") kind = "seller";
+    else if (
+      row.kind === "vitrine_like" ||
+      row.kind === "vitrine_comment" ||
+      row.kind === "vitrine_comment_reply" ||
+      row.kind === "vitrine_comment_like"
+    )
+      kind = "vitrine";
+    else if (/^chat_/.test(row.kind)) kind = "chat";
+    else kind = "notif";
+  }
+  const battleLiveId =
+    (typeof data.live_id === "string" && data.live_id.trim()) ||
+    (typeof data.from_live_id === "string" && data.from_live_id.trim()) ||
+    "";
+  if (row.kind === "battle" || kind === "battle" || kind.startsWith("battle_")) {
+    kind = battleLiveId ? "live" : "notif";
+  }
+  const commentId =
+    typeof data.comment_id === "string" && data.comment_id.trim()
+      ? data.comment_id.trim()
+      : undefined;
+  const openComments =
+    row.kind === "vitrine_comment" ||
+    row.kind === "vitrine_comment_reply" ||
+    row.kind === "vitrine_comment_like" ||
+    !!commentId
+      ? "1"
+      : undefined;
+  return {
+    kind,
+    order_id: row.order_id ?? (data.order_id as string | undefined),
+    live_id: (typeof data.live_id === "string" && data.live_id) || battleLiveId || undefined,
+    seller_handle: data.seller_handle as string | undefined,
+    seller_id: data.seller_id as string | undefined,
+    thread_id: data.thread_id as string | undefined,
+    post_id: data.post_id as string | undefined,
+    comment_id: commentId,
+    parent_comment_id:
+      typeof data.parent_comment_id === "string" && data.parent_comment_id.trim()
+        ? data.parent_comment_id.trim()
+        : undefined,
+    open_comments: openComments,
+  };
 }
 
 export function payloadFromNotificationData(data: unknown): PushOpenPayload | null {

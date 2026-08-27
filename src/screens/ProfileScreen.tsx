@@ -155,7 +155,7 @@ function AuthedProfile() {
       <LinearGradient colors={[NAVY, NAVY_600]} style={[styles.hero, { paddingTop: insets.top + 8 }]}>
         <View style={styles.heroTop}>
           <View style={styles.heroIcon}>
-            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
+            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity", tab: "notifs" })}>
               <Bell size={18} color="#fff" />
             </GlassIconButton>
             <Text style={styles.heroIconLabel}>{t("profile.hero.activity")}</Text>
@@ -172,7 +172,7 @@ function AuthedProfile() {
             </View>
           </Press>
           <View style={styles.heroIcon}>
-            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
+            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity", tab: "messages" })}>
               <MessageCircle size={18} color="#fff" />
             </GlassIconButton>
             <Text style={styles.heroIconLabel}>{t("profile.hero.message")}</Text>
