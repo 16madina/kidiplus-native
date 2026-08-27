@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "KiDi+",
+    "slug": "kidiplus-native",
+    "scheme": "kidiplus",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10162B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kidiplus.native",
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": true
+      }
+    },
+    "android": {
+      "package": "com.kidiplus.native",
+      "adaptiveIcon": {
+        "backgroundColor": "#10162B",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "backgroundColor": "#10162B"
+    },
+    "plugins": [
+      "expo-video",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#10162B",
+          "image": "./assets/splash.png",
+          "imageWidth": 200
+        }
+      ],
+      "expo-image",
+      "expo-asset"
+    ]
+  }
+}
