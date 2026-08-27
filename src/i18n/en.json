@@ -1919,6 +1919,12 @@
     "menu": "My referral codes & earnings",
     "myCode": "My code",
     "inactive": "Inactive",
+    "admin": {
+      "requestsTitle": "Code requests",
+      "codesTitle": "Influencer codes",
+      "activate": "Activate",
+      "deactivate": "Deactivate"
+    },
     "signups": "Signups",
     "ordersCredited": "Orders",
     "totals": "Earnings",

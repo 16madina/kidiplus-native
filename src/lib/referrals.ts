@@ -156,6 +156,86 @@ export async function submitPromoCodeRequest(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Admin — promo codes & code requests (same RPCs as kidiplus.com)
+// ---------------------------------------------------------------------------
+
+export type AdminPromoCodeRow = {
+  id: string;
+  code: string;
+  owner_id: string | null;
+  owner_handle: string | null;
+  owner_name: string | null;
+  reward_quota: number;
+  active: boolean;
+  created_at: string;
+  signups: number;
+  orders_credited: number;
+  totals: Record<string, number>;
+};
+
+export async function fetchAdminPromoCodes(): Promise<AdminPromoCodeRow[]> {
+  try {
+    const data = await rpc("admin_list_promo_codes", {});
+    return ((data as { rows?: AdminPromoCodeRow[] } | null)?.rows ?? []) as AdminPromoCodeRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function adminSetPromoActive(id: string, active: boolean): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await rpc("admin_set_promo_code_active", { _id: id, _active: active });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "unknown" };
+  }
+}
+
+export type AdminPromoCodeRequestRow = {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  message: string | null;
+  admin_note: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  user_id: string;
+  user_handle: string | null;
+  user_name: string | null;
+  created_promo_code_id: string | null;
+};
+
+export async function fetchAdminPromoCodeRequests(
+  status: "pending" | "approved" | "rejected" | null = "pending",
+): Promise<AdminPromoCodeRequestRow[]> {
+  try {
+    const data = await rpc("admin_list_promo_code_requests", { _status: status });
+    return ((data as { rows?: AdminPromoCodeRequestRow[] } | null)?.rows ?? []) as AdminPromoCodeRequestRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function adminReviewPromoCodeRequest(
+  id: string,
+  action: "approve" | "reject",
+  opts: { code?: string; reward_quota?: number; note?: string } = {},
+): Promise<{ ok: true; code?: string } | { ok: false; error: string }> {
+  try {
+    const data = await rpc("admin_review_promo_code_request", {
+      _id: id,
+      _action: action,
+      _code: opts.code ?? null,
+      _reward_quota: opts.reward_quota ?? 14,
+      _note: opts.note ?? null,
+    });
+    const r = (data ?? {}) as { ok?: boolean; error?: string; code?: string };
+    return r.ok ? { ok: true, ...(r.code ? { code: r.code } : {}) } : { ok: false, error: r.error ?? "unknown" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "unknown" };
+  }
+}
+
 export function buildShareMessage(code: string, lang: string): string {
   const url = `https://kidiplus.com/join/${encodeURIComponent(code)}`;
   if (lang.startsWith("en")) return `Join me on KiDi+ 🎁 Use my code ${code} at signup: ${url}`;

@@ -1919,6 +1919,12 @@
     "menu": "Mes codes & gains de parrainage",
     "myCode": "Mon code",
     "inactive": "Inactif",
+    "admin": {
+      "requestsTitle": "Demandes de code",
+      "codesTitle": "Codes influenceurs",
+      "activate": "Activer",
+      "deactivate": "Désactiver"
+    },
     "signups": "Inscrits",
     "ordersCredited": "Commandes",
     "totals": "Gains",

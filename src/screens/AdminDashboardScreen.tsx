@@ -58,6 +58,15 @@ import {
   type PendingVerification,
   type ReportRow,
 } from "../lib/admin";
+import {
+  adminReviewPromoCodeRequest,
+  adminSetPromoActive,
+  fetchAdminPromoCodeRequests,
+  fetchAdminPromoCodes,
+  formatTotals,
+  type AdminPromoCodeRequestRow,
+  type AdminPromoCodeRow,
+} from "../lib/referrals";
 
 type Tab =
   | "overview"
@@ -137,7 +146,8 @@ export function AdminDashboardScreen() {
         {tab === "payments" ? <PaymentsTab flash={flash} /> : null}
         {tab === "lives" ? <LivesTab flash={flash} /> : null}
         {tab === "sim" ? <AdminPrelaunchSimPanel flash={flash} /> : null}
-        {tab === "push" || tab === "referral" || tab === "media" ? (
+        {tab === "referral" ? <ReferralAdminTab flash={flash} /> : null}
+        {tab === "push" || tab === "media" ? (
           <SurfaceCard>
             <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("admin.webOnly")}</Text>
           </SurfaceCard>
@@ -551,6 +561,119 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
           ) : null}
         </SurfaceCard>
       ))}
+    </View>
+  );
+}
+
+function ReferralAdminTab({ flash }: { flash: (s: string) => void }) {
+  const { t, i18n } = useTranslation();
+  const { colors } = useAppTheme();
+  const [requests, setRequests] = useState<AdminPromoCodeRequestRow[]>([]);
+  const [codes, setCodes] = useState<AdminPromoCodeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const [reqs, list] = await Promise.all([fetchAdminPromoCodeRequests("pending"), fetchAdminPromoCodes()]);
+    setRequests(reqs);
+    setCodes(list);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const review = (r: AdminPromoCodeRequestRow, action: "approve" | "reject") => {
+    const title =
+      action === "approve"
+        ? t("admin.approve", { defaultValue: "Approuver" })
+        : t("admin.reject");
+    Alert.alert(title, `@${r.user_handle || r.user_name || "?"}`, [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: title,
+        style: action === "reject" ? "destructive" : "default",
+        onPress: () => {
+          void adminReviewPromoCodeRequest(r.id, action).then((res) => {
+            if (!res.ok) {
+              flash(res.error);
+              return;
+            }
+            flash(action === "approve" && res.code ? `✓ ${res.code}` : "OK");
+            void load();
+          });
+        },
+      },
+    ]);
+  };
+
+  if (loading) return <ActivityIndicator color={GOLD} />;
+
+  return (
+    <View style={{ gap: 12 }}>
+      <SectionTitle text={t("referral.admin.requestsTitle", { defaultValue: "Demandes de code" })} />
+      {requests.length === 0 ? (
+        <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text>
+      ) : (
+        requests.map((r) => (
+          <SurfaceCard key={r.id}>
+            <Text style={{ fontWeight: "800", color: colors.foreground }}>
+              {r.user_name || "—"} @{r.user_handle || "?"}
+            </Text>
+            {r.message ? (
+              <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>{r.message}</Text>
+            ) : null}
+            <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 4 }}>
+              {new Date(r.created_at).toLocaleDateString(i18n.language)}
+            </Text>
+            <View style={styles.rowBtns}>
+              <ActionPill label={t("admin.approve", { defaultValue: "Approuver" })} onPress={() => review(r, "approve")} />
+              <ActionPill label={t("admin.reject")} danger onPress={() => review(r, "reject")} />
+            </View>
+          </SurfaceCard>
+        ))
+      )}
+      <SectionTitle text={t("referral.admin.codesTitle", { defaultValue: "Codes influenceurs" })} />
+      {codes.length === 0 ? (
+        <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text>
+      ) : (
+        codes.map((c) => (
+          <SurfaceCard key={c.id}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ flex: 1, fontWeight: "800", color: colors.foreground }}>{c.code}</Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "800",
+                  color: c.active ? "#1B7A3A" : colors.mutedForeground,
+                }}
+              >
+                {c.active ? "ACTIF" : t("referral.inactive", { defaultValue: "Inactif" }).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+              {c.owner_handle ? `@${c.owner_handle}` : "—"} · {c.signups} {t("referral.signups").toLowerCase()} ·{" "}
+              {c.orders_credited} {t("referral.ordersCredited").toLowerCase()} · {formatTotals(c.totals, i18n.language)}
+            </Text>
+            <View style={styles.rowBtns}>
+              <ActionPill
+                label={
+                  c.active
+                    ? t("referral.admin.deactivate", { defaultValue: "Désactiver" })
+                    : t("referral.admin.activate", { defaultValue: "Activer" })
+                }
+                danger={c.active}
+                onPress={() => {
+                  void adminSetPromoActive(c.id, !c.active).then((res) => {
+                    flash(res.ok ? "OK" : res.error ?? "Erreur");
+                    void load();
+                  });
+                }}
+              />
+            </View>
+          </SurfaceCard>
+        ))
+      )}
     </View>
   );
 }
