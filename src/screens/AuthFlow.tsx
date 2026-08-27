@@ -1,4 +1,5 @@
 import { StyleSheet, View } from "react-native";
+import { PushScreen } from "../components/PushScreen";
 import { useAuth } from "../context/auth";
 import { WELCOME_BG } from "../theme";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -6,18 +7,24 @@ import { SignInScreen } from "./SignInScreen";
 import { SignUpScreen, ForgotPasswordScreen } from "./SignUpScreen";
 
 export function AuthFlow({ overlay }: { overlay?: boolean }) {
-  const { view, closeAuth } = useAuth();
+  const { view, setView } = useAuth();
   return (
-    <View style={[styles.root, overlay && styles.overlay]}>
-      {view === "welcome" ? <WelcomeScreen /> : null}
-      {view === "signin" ? <SignInScreen /> : null}
-      {view === "signup" ? <SignUpScreen /> : null}
-      {view === "forgot" ? <ForgotPasswordScreen /> : null}
+    <View style={[styles.root, overlay && styles.fill]}>
+      <WelcomeScreen />
+      <PushScreen open={view === "signin" || view === "forgot"} onClose={() => setView("welcome")} zIndex={2}>
+        <SignInScreen />
+      </PushScreen>
+      <PushScreen open={view === "signup"} onClose={() => setView("welcome")} zIndex={2}>
+        <SignUpScreen />
+      </PushScreen>
+      <PushScreen open={view === "forgot"} onClose={() => setView("signin")} zIndex={3}>
+        <ForgotPasswordScreen />
+      </PushScreen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: WELCOME_BG },
-  overlay: { ...{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }, zIndex: 90 },
+  fill: { flex: 1 },
 });

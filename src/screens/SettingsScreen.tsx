@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
 import { Glass } from "../components/Glass";
 import { OverlayHeader } from "../components/OverlayHeader";
+import { PushScreen } from "../components/PushScreen";
 import { Press } from "../components/Press";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -18,8 +19,6 @@ export function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { closeOverlay } = useNav();
   const [legal, setLegal] = useState<null | "terms" | "privacy">(null);
-
-  if (legal) return <LegalScreen page={legal} onClose={() => setLegal(null)} />;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -77,6 +76,9 @@ export function SettingsScreen() {
           </Press>
         </Glass>
       </ScrollView>
+      <PushScreen open={!!legal} onClose={() => setLegal(null)} zIndex={20}>
+        {legal ? <LegalScreen page={legal} onClose={() => setLegal(null)} /> : null}
+      </PushScreen>
     </View>
   );
 }

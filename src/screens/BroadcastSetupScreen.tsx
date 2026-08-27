@@ -12,10 +12,10 @@ import { useNav } from "../context/navigation";
 import { GOLD, LIVE_RED, NAVY } from "../theme";
 import { MOCK_SHOP_ITEMS } from "../mock/account";
 
-export function BroadcastSetupScreen() {
+export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
   const { t } = useTranslation();
-  const { overlay, closeOverlay } = useNav();
-  const now = overlay.kind === "broadcast-setup" && overlay.mode === "now";
+  const { closeOverlay } = useNav();
+  const now = mode === "now";
   const [title, setTitle] = useState(now ? "Live shopping — drop du soir" : "Live programmé");
   const [picked, setPicked] = useState<string[]>([MOCK_SHOP_ITEMS[0]?.id ?? ""]);
   const [auctions, setAuctions] = useState(true);

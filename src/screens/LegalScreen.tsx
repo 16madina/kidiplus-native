@@ -43,7 +43,7 @@ export function LegalScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 12, paddingVertical: 8 },
+  header: { paddingHorizontal: 12, paddingVertical: 8, zIndex: 50 },
   back: { flexDirection: "row", alignItems: "center" },
   body: { padding: 24, paddingBottom: 48 },
   title: { fontSize: 24, fontWeight: "800", marginBottom: 16, color: NAVY },

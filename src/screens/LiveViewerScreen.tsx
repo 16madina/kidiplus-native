@@ -6,14 +6,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { useNav } from "../context/navigation";
-import { GOLD, LIVE_RED, NAVY } from "../theme";
-import { formatViewers } from "../theme";
+import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
+import type { LiveStream } from "../mock/lives";
 
-export function LiveViewerScreen() {
+export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
   const insets = useSafeAreaInsets();
-  const { overlay, closeOverlay } = useNav();
-  if (overlay.kind !== "live") return null;
-  const s = overlay.stream;
+  const { closeOverlay } = useNav();
+  const s = stream;
   return (
     <View style={styles.root}>
       <Image source={{ uri: s.thumbnail }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -68,8 +67,8 @@ export function LiveViewerScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { ...{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }, backgroundColor: "#000", zIndex: 80 },
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12 },
+  root: { flex: 1, backgroundColor: "#000" },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 50 },
   seller: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6 },
   av: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: GOLD },
   name: { color: "#fff", fontWeight: "800" },

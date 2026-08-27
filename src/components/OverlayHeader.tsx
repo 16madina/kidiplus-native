@@ -40,7 +40,7 @@ export function MockBanner({ text }: { text: string | null }) {
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 8 },
+  head: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 8, zIndex: 50 },
   back: { flexDirection: "row", alignItems: "center", minWidth: 0, paddingRight: 8 },
   title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700" },
   toast: { position: "absolute", left: 20, right: 20, zIndex: 20 },

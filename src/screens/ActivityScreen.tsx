@@ -51,7 +51,7 @@ export function ActivityScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  head: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8 },
+  head: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, zIndex: 50 },
   back: { flexDirection: "row", alignItems: "center", minWidth: 0, paddingRight: 8 },
   title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700" },
   card: { flexDirection: "row", gap: 12, padding: 14 },

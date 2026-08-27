@@ -10,6 +10,7 @@ import { Press } from "../components/Press";
 import { X } from "lucide-react-native";
 import { GOLD_WELCOME, WELCOME_BG } from "../theme";
 import { useAuth } from "../context/auth";
+import { PushScreen } from "../components/PushScreen";
 import { LegalScreen } from "./LegalScreen";
 
 const BGS = [
@@ -37,10 +38,6 @@ export function WelcomeScreen() {
     }
     fn();
   };
-
-  if (legal) {
-    return <LegalScreen page={legal} onClose={() => setLegal(null)} />;
-  }
 
   return (
     <View style={styles.root}>
@@ -113,6 +110,9 @@ export function WelcomeScreen() {
           </Glass>
         </View>
       ) : null}
+      <PushScreen open={!!legal} onClose={() => setLegal(null)} zIndex={20}>
+        {legal ? <LegalScreen page={legal} onClose={() => setLegal(null)} /> : null}
+      </PushScreen>
     </View>
   );
 }

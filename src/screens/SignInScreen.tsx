@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
+    zIndex: 50,
   },
   back: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingRight: 8 },
   backText: { fontSize: 15, fontWeight: "700" },
