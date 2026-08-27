@@ -141,3 +141,154 @@ export async function fetchUpcomingScheduledLives(limit = 20): Promise<LiveStrea
   if (error || !data) return [];
   return Promise.all((data as unknown as LiveRow[]).map((row) => rowToStream(row, true)));
 }
+
+export async function countSellerLives(sellerId: string): Promise<number> {
+  const { count } = await supabase.from("lives").select("id", { count: "exact", head: true }).eq("seller_id", sellerId);
+  return count ?? 0;
+}
+
+export type SellerLiveEntry = {
+  id: string;
+  title: string;
+  status: string;
+  cover_url: string | null;
+  started_at: string | null;
+  scheduled_at: string | null;
+  ended_at: string | null;
+  viewer_count: number | null;
+  replay_url: string | null;
+  replay_status: string | null;
+  replay_expires_at: string | null;
+};
+
+export async function fetchSellerLives(sellerId: string, limit = 40): Promise<SellerLiveEntry[]> {
+  const { data } = await supabase
+    .from("lives")
+    .select(
+      "id, title, status, cover_url, started_at, scheduled_at, ended_at, viewer_count, replay_url, replay_status, replay_expires_at",
+    )
+    .eq("seller_id", sellerId)
+    .order("ended_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  const rows = (data as SellerLiveEntry[] | null) ?? [];
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      cover_url: (await resolveStoredImage("live-covers", r.cover_url)) ?? r.cover_url,
+    })),
+  );
+}
+
+export type ScheduledLiveRow = {
+  id: string;
+  seller_id: string;
+  title: string;
+  category: string | null;
+  cover_url: string | null;
+  scheduled_at: string | null;
+  status: string;
+};
+
+export async function fetchMyScheduledLives(sellerId: string): Promise<ScheduledLiveRow[]> {
+  const { data } = await supabase
+    .from("lives")
+    .select("id, seller_id, title, category, cover_url, scheduled_at, status")
+    .eq("seller_id", sellerId)
+    .eq("status", "scheduled")
+    .order("scheduled_at", { ascending: true });
+  const rows = (data as ScheduledLiveRow[] | null) ?? [];
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      cover_url: (await resolveStoredImage("live-covers", r.cover_url)) ?? r.cover_url,
+    })),
+  );
+}
+
+export async function cancelScheduledLiveInDb(liveId: string): Promise<void> {
+  const { error } = await supabase.from("lives").delete().eq("id", liveId).eq("status", "scheduled");
+  if (error) throw error;
+}
+
+export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext: string; contentType: string }): Promise<string> {
+  const rand = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${userId}/${rand}.${picked.ext}`;
+  const { error } = await supabase.storage.from("live-covers").upload(path, picked.blob, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: picked.contentType || undefined,
+  });
+  if (error) throw error;
+  return path;
+}
+
+export async function createScheduledLiveInDb(input: {
+  sellerId: string;
+  title: string;
+  category: string;
+  coverPath: string | null;
+  scheduledAt: string;
+  description?: string | null;
+  estimatedDurationMin?: number;
+  allowBids?: boolean;
+  allowBuyNow?: boolean;
+  notifyFollowers?: boolean;
+  allowGifts?: boolean;
+  currency?: string;
+  products: Array<{
+    name: string;
+    imagePath: string | null;
+    mode: "auction" | "fixed";
+    price: number;
+    stock: number;
+    shopProductId?: string;
+  }>;
+}): Promise<string> {
+  const roomName = `kidi-${input.sellerId.slice(0, 8)}-${Date.now()}`;
+  const { data: live, error } = await supabase
+    .from("lives")
+    .insert({
+      seller_id: input.sellerId,
+      title: input.title,
+      category: input.category,
+      cover_url: input.coverPath,
+      room_name: roomName,
+      status: "scheduled",
+      scheduled_at: input.scheduledAt,
+      broadcast_mode: "camera",
+      ...(input.currency ? { currency: input.currency } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.estimatedDurationMin !== undefined ? { estimated_duration_min: input.estimatedDurationMin } : {}),
+      ...(typeof input.allowBids === "boolean" ? { allow_bids: input.allowBids } : {}),
+      ...(typeof input.allowBuyNow === "boolean" ? { allow_buy_now: input.allowBuyNow } : {}),
+      ...(typeof input.notifyFollowers === "boolean" ? { notify_followers: input.notifyFollowers } : {}),
+      ...(typeof input.allowGifts === "boolean" ? { allow_gifts: input.allowGifts } : {}),
+    })
+    .select("id")
+    .single();
+  if (error || !live) throw error ?? new Error("schedule failed");
+  if (input.products.length > 0) {
+    const rows = input.products.map((p, i) => ({
+      live_id: live.id,
+      name: p.name,
+      image_url: p.imagePath,
+      mode: p.mode,
+      start_price: p.price,
+      price: p.price,
+      stock: p.stock,
+      timer_seconds: p.mode === "auction" ? 30 : 0,
+      status: "upcoming",
+      position: i,
+      ...(p.shopProductId ? { shop_product_id: p.shopProductId } : {}),
+    }));
+    const { error: pErr } = await supabase.from("live_products").insert(rows);
+    if (pErr) throw pErr;
+  }
+  return live.id as string;
+}
+
+export function isReplayPlayable(row: SellerLiveEntry): boolean {
+  if (row.replay_status !== "ready" || !row.replay_url) return false;
+  if (!row.replay_expires_at) return true;
+  return Date.parse(row.replay_expires_at) > Date.now();
+}

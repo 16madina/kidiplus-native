@@ -66,11 +66,11 @@ export function VitrineScreen() {
   }, [load]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const first = viewableItems[0]?.item as VitrineFeedPost | undefined;
+    const first = viewableItems.find((v) => v.isViewable)?.item as VitrineFeedPost | undefined;
     if (first?.id) setActiveId(first.id);
   }).current;
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70, minimumViewTime: 80 }).current;
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 45, minimumViewTime: 40 }).current;
 
   return (
     <View style={styles.root}>
@@ -115,12 +115,15 @@ export function VitrineScreen() {
             showsVerticalScrollIndicator={false}
             snapToInterval={height}
             decelerationRate="fast"
-            windowSize={3}
-            maxToRenderPerBatch={2}
+            extraData={activeId}
+            windowSize={2}
+            maxToRenderPerBatch={1}
             initialNumToRender={1}
+            removeClippedSubviews
             getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
             onScrollBeginDrag={unlockVitrineSound}
             onMomentumScrollBegin={unlockVitrineSound}
+            onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             refreshControl={
               <RefreshControl refreshing={refreshing} tintColor={GOLD} onRefresh={() => {
@@ -253,7 +256,13 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
   const first = post.mediaUrls[0];
   if (!first) return <View style={[FILL, { backgroundColor: "#111" }]} />;
   const video = looksLikeVideo(first, post.mediaType);
-  if (video) return <VitrineVideo uri={first} poster={post.posterUrl} active={active} />;
+  if (video) {
+    if (!active) {
+      if (post.posterUrl) return <Image source={{ uri: post.posterUrl }} style={FILL} contentFit="cover" />;
+      return <View style={[FILL, { backgroundColor: "#111" }]} />;
+    }
+    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} />;
+  }
   return <Image source={{ uri: first }} style={FILL} contentFit="cover" />;
 }
 
@@ -269,14 +278,37 @@ function VitrineVideo({
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
+    p.audioMixingMode = "doNotMix";
   });
   const [muted] = useVitrineSound();
 
   useEffect(() => {
-    player.muted = muted;
-    if (active) player.play();
-    else player.pause();
+    try {
+      if (!active) {
+        player.muted = true;
+        player.volume = 0;
+        player.pause();
+        return;
+      }
+      player.volume = muted ? 0 : 1;
+      player.muted = muted;
+      void player.play();
+    } catch {
+      /* player already released */
+    }
   }, [active, muted, player]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        player.muted = true;
+        player.volume = 0;
+        player.pause();
+      } catch {
+        /* unmount */
+      }
+    };
+  }, [player]);
 
   return (
     <View style={FILL}>

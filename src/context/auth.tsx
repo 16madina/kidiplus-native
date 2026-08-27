@@ -29,6 +29,8 @@ export type AuthUser = {
   isSeller: boolean;
   isAdmin: boolean;
   avatarUrl?: string | null;
+  bannerUrl?: string | null;
+  bio?: string | null;
   followers: number;
   following: number;
   sales: number;
@@ -122,6 +124,8 @@ async function toAuthUser(
     isSeller: !!profile?.is_seller,
     isAdmin: !!profile?.is_admin,
     avatarUrl,
+    bannerUrl: (await resolveAvatarUrl(profile?.banner_url)) || null,
+    bio: profile?.bio ?? null,
     followers: profile?.followers_count ?? 0,
     following: profile?.following_count ?? 0,
     sales: 0,

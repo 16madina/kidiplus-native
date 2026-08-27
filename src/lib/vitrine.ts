@@ -169,3 +169,29 @@ export async function fetchVitrinePosts(limit = 30): Promise<VitrineFeedPost[]> 
   const mapped = await Promise.all(data.map((row) => mapRow(row, likedIds)));
   return mapped.filter((p): p is VitrineFeedPost => !!p);
 }
+
+export async function countVitrinePostsByUser(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const { count } = await supabase
+    .from("vitrine_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("active", true);
+  return count ?? 0;
+}
+
+export async function fetchVitrinePostsByUser(userId: string, limit = 40): Promise<VitrineFeedPost[]> {
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from("vitrine_posts")
+    .select(
+      "id, user_id, media_type, media_urls, poster_url, caption, product_id, live_id, like_count, comment_count, created_at, active",
+    )
+    .eq("user_id", userId)
+    .eq("active", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  const mapped = await Promise.all((data as unknown as VitrineRow[]).map((row) => mapRow(row, new Set())));
+  return mapped.filter((p): p is VitrineFeedPost => !!p);
+}

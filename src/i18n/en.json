@@ -477,7 +477,9 @@
       },
       "errors": {
         "coverRequired": "Add a cover photo (you don't have a profile picture)",
-        "coverRequiredHint": "Cover photo required (no profile picture)"
+        "coverRequiredHint": "Cover photo required (no profile picture)",
+        "titleTooShort": "The title must be at least 3 characters",
+        "titleRequired": "Add a title to your live before continuing"
       },
       "productSheet": {
         "title": "Add product",

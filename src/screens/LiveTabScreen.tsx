@@ -1,4 +1,5 @@
-import { ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowRight, Calendar as CalendarIcon, Gavel, LogIn, Radio, Sparkles, Store, TrendingUp, UserPlus, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -11,6 +12,7 @@ import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, GOLD_GO_LIVE, GOLD_GUEST, GUEST_CREAM, NAVY } from "../theme";
+import { cancelScheduledLiveInDb, fetchMyScheduledLives, type ScheduledLiveRow } from "../lib/lives";
 
 const guestHero = require("../../assets/guest/guest-live-hero.jpg");
 const liveLogo = require("../../assets/brand/kidi-live-logo-v3.png");
@@ -137,7 +139,39 @@ function Feat({ icon, label }: { icon: React.ReactNode; label: string }) {
 function GoLiveEntry() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { openOverlay, setTab } = useNav();
+  const { user } = useAuth();
+  const { openOverlay, setTab, overlay } = useNav();
+  const [scheduled, setScheduled] = useState<ScheduledLiveRow[]>([]);
+
+  const loadScheduled = useCallback(async () => {
+    if (!user?.id) return;
+    setScheduled(await fetchMyScheduledLives(user.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (overlay.kind === "none") void loadScheduled();
+  }, [overlay.kind, loadScheduled]);
+
+  const cancelLive = (row: ScheduledLiveRow) => {
+    Alert.alert(t("golive.entry.confirmCancelTitle"), t("golive.entry.confirmCancelBody"), [
+      { text: t("common.cancel", { defaultValue: "Non" }), style: "cancel" },
+      {
+        text: t("common.confirm", { defaultValue: "Annuler le live" }),
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            try {
+              await cancelScheduledLiveInDb(row.id);
+              await loadScheduled();
+            } catch {
+              /* ignore */
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.goRoot}>
       <View style={[styles.goTop, { paddingTop: insets.top + 2 }]}>
@@ -179,17 +213,53 @@ function GoLiveEntry() {
           <Text style={{ fontWeight: "800", color: NAVY }}>Publier une photo ou une vidéo</Text>
         </Press>
         <Text style={[styles.publishTitle, { marginTop: 8 }]}>{t("golive.entry.myScheduled")}</Text>
-        <Glass tone="gold" intensity={36} radius={22} style={{ marginHorizontal: 16 }}>
-          <View style={styles.emptySched}>
-            <GlassIcon tone="gold" size={44}>
-              <CalendarIcon size={22} color={GOLD_GO_LIVE} />
-            </GlassIcon>
-            <Text style={{ flex: 1, color: "#fff", fontWeight: "700", fontSize: 13.5 }}>{t("golive.entry.emptyScheduled")}</Text>
-            <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.planBtn}>
-              <Text style={{ color: GOLD_GO_LIVE, fontWeight: "800", fontSize: 12 }}>Programmer</Text>
-            </Press>
+        {scheduled.length === 0 ? (
+          <Glass tone="gold" intensity={36} radius={22} style={{ marginHorizontal: 16 }}>
+            <View style={styles.emptySched}>
+              <GlassIcon tone="gold" size={44}>
+                <CalendarIcon size={22} color={GOLD_GO_LIVE} />
+              </GlassIcon>
+              <Text style={{ flex: 1, color: "#fff", fontWeight: "700", fontSize: 13.5 }}>{t("golive.entry.emptyScheduled")}</Text>
+              <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.planBtn}>
+                <Text style={{ color: GOLD_GO_LIVE, fontWeight: "800", fontSize: 12 }}>Programmer</Text>
+              </Press>
+            </View>
+          </Glass>
+        ) : (
+          <View style={{ paddingHorizontal: 16, gap: 10 }}>
+            {scheduled.map((row) => {
+              const when = row.scheduled_at
+                ? new Date(row.scheduled_at).toLocaleString("fr-FR", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "";
+              return (
+                <Glass key={row.id} tone="dark" intensity={36} radius={18} elevated={false}>
+                  <View style={styles.schedRow}>
+                    {row.cover_url ? (
+                      <Image source={{ uri: row.cover_url }} style={styles.schedCover} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.schedCover, { backgroundColor: "#1C2440" }]} />
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#fff", fontWeight: "800" }} numberOfLines={1}>
+                        {row.title}
+                      </Text>
+                      <Text style={{ color: GOLD_GO_LIVE, marginTop: 2, fontSize: 12, fontWeight: "700" }}>{when}</Text>
+                    </View>
+                    <Press onPress={() => cancelLive(row)} style={styles.cancelBtn}>
+                      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 11 }}>Annuler</Text>
+                    </Press>
+                  </View>
+                </Glass>
+              );
+            })}
           </View>
-        </Glass>
+        )}
       </ScrollView>
     </View>
   );
@@ -289,5 +359,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: GOLD_GO_LIVE,
+  },
+  schedRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10 },
+  schedCover: { width: 52, height: 52, borderRadius: 12, backgroundColor: "#1C2440" },
+  cancelBtn: {
+    minHeight: 32,
+    height: 32,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(229,57,63,0.85)",
   },
 });

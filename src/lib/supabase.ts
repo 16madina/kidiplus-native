@@ -42,6 +42,8 @@ export type ProfileRow = {
   display_name: string | null;
   handle: string | null;
   avatar_url: string | null;
+  banner_url: string | null;
+  bio: string | null;
   is_seller: boolean | null;
   country: string | null;
   phone: string | null;
