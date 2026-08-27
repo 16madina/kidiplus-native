@@ -278,7 +278,7 @@ export function HostStudioHud({
         </View>
       ) : null}
 
-      <View pointerEvents="box-none" style={[styles.rail, { top: insets.top + 188 }]}>
+      <View pointerEvents="box-none" style={[styles.rail, { top: insets.top + 244 }]}>
         <RailBtn onPress={onToggleMic} off={!micOn}>
           {micOn ? <Mic size={19} color="#fff" strokeWidth={1.9} /> : <MicOff size={19} color="#fff" strokeWidth={1.9} />}
         </RailBtn>
