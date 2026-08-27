@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { supabase } from "./supabase";
 
 export type PushStatus = "unknown" | "granted" | "denied" | "prompt" | "unavailable";
@@ -12,8 +13,16 @@ type NotificationsModule = typeof import("expo-notifications");
 let cached: NotificationsModule | null | undefined;
 let handlerReady = false;
 
+/**
+ * Gate on the native module before requiring JS — try/catch alone still
+ * redboxes when ExpoPushTokenManager is missing from the binary.
+ */
 function loadNotifications(): NotificationsModule | null {
   if (cached !== undefined) return cached;
+  if (!requireOptionalNativeModule("ExpoPushTokenManager")) {
+    cached = null;
+    return null;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     cached = require("expo-notifications") as NotificationsModule;

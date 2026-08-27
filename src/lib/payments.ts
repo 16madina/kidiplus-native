@@ -1,6 +1,7 @@
 // Buyer payments — same Supabase RPCs + kidiplus.com HTTP APIs as the web app.
 
 import { AppState, Linking } from "react-native";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { supabase } from "./supabase";
 import { normalizeCurrency, type Currency } from "./money";
 import { PAYPAL_REDIRECT_SCHEME, parsePaypalDoneUrl } from "./pay-errors";
@@ -11,8 +12,17 @@ type WebBrowserModule = typeof import("expo-web-browser");
 
 let webBrowserCached: WebBrowserModule | null | undefined;
 
+/**
+ * Never `require("expo-web-browser")` unless the native binary has ExpoWebBrowser.
+ * A plain try/catch around require still redboxes: Metro treats the missing
+ * native module as fatal during module evaluation.
+ */
 function loadWebBrowser(): WebBrowserModule | null {
   if (webBrowserCached !== undefined) return webBrowserCached;
+  if (!requireOptionalNativeModule("ExpoWebBrowser")) {
+    webBrowserCached = null;
+    return null;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     webBrowserCached = require("expo-web-browser") as WebBrowserModule;
