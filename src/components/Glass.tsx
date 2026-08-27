@@ -69,6 +69,7 @@ export function Glass({
           intensity={intensity}
           tint={TINT[tone]}
           experimentalBlurMethod="dimezisBlurView"
+          pointerEvents="none"
           style={styles.fill}
         />
         <View pointerEvents="none" style={[styles.fill, { backgroundColor: FILL[tone] }]} />
@@ -93,7 +94,7 @@ export function Glass({
             ]}
           />
         )}
-        <View style={[padded && styles.pad, contentStyle]}>{children}</View>
+        <View style={[styles.content, padded && styles.pad, contentStyle]}>{children}</View>
       </View>
     </View>
   );
@@ -160,6 +161,7 @@ function platformShadow(tone: GlassTone): ViewStyle {
 const styles = StyleSheet.create({
   clip: { flexGrow: 0 },
   fill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  content: { position: "relative", zIndex: 1 },
   shine: {
     position: "absolute",
     left: 0,

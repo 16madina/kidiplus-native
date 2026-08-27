@@ -73,7 +73,7 @@ export function BottomTabBar({
             {RIGHT.map(renderTab)}
           </View>
         </Glass>
-        <View style={[styles.liveWrap, { pointerEvents: "box-none" }]}>
+        <View style={styles.liveWrap}>
           <Press accessibilityLabel={t("tabs.live")} onPress={() => onChange("live")} style={styles.liveBtn} haptic="light">
             <View style={styles.liveGlow} />
             <Image source={liveBadge} style={styles.liveImg} resizeMode="contain" />
@@ -103,6 +103,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 50,
+    elevation: 50,
   },
   fade: {
     position: "absolute",
@@ -136,9 +137,10 @@ const styles = StyleSheet.create({
   dotSpacer: { width: 4, height: 4, marginTop: 2 },
   liveWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
     top: -20,
+    left: "50%",
+    width: 88,
+    marginLeft: -44,
     alignItems: "center",
   },
   liveBtn: {
