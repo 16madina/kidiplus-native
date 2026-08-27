@@ -138,7 +138,7 @@ export function HomeScreen() {
           </View>
         )}
         {!loading && filtered.length === 0 ? (
-          <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 16, paddingHorizontal: 24 }}>
+          <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 16, marginBottom: 32, paddingHorizontal: 24 }}>
             {t("home.empty")}
           </Text>
         ) : null}

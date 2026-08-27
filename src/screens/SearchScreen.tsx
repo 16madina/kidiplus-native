@@ -222,7 +222,7 @@ export function SearchScreen() {
               productsLoading ? (
                 <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
               ) : products.length === 0 ? (
-                <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32, paddingHorizontal: 24 }}>
+                <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32, paddingHorizontal: 24, paddingBottom: 24 }}>
                   {t("search.emptyResults", { query })}
                 </Text>
               ) : (
