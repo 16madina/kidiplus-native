@@ -1,8 +1,6 @@
 import { bootLiveKit } from "../lib/livekit-boot";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mic, MicOff, PhoneOff, Radio, Users } from "lucide-react-native";
 import {
   AudioSession,
   LiveKitRoom,
@@ -12,13 +10,13 @@ import {
   useParticipants,
   useTracks,
 } from "@livekit/react-native";
-import { Track } from "livekit-client";
+import { LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
-import { Glass, GlassIconButton } from "../components/Glass";
+import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { useNav } from "../context/navigation";
 import { fetchLiveKitSession } from "../lib/livekit";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
-import { GOLD, LIVE_RED } from "../theme";
+import { GOLD } from "../theme";
 import type { CameraType } from "expo-camera";
 
 bootLiveKit();
@@ -113,7 +111,12 @@ export function BroadcastLiveScreen({
         }}
       >
         <PublishLocalMedia facing={facing} />
-        <HostStage liveId={liveId} title={title} facing={facing} />
+        <HostStage
+          liveId={liveId}
+          identity={identity}
+          displayName={displayName}
+          facing={facing}
+        />
       </LiveKitRoom>
     </View>
   );
@@ -131,20 +134,23 @@ function PublishLocalMedia({ facing }: { facing: CameraType }) {
 
 function HostStage({
   liveId,
-  title,
-  facing,
+  identity,
+  displayName,
+  facing: initialFacing,
 }: {
   liveId: string;
-  title: string;
+  identity: string;
+  displayName: string;
   facing: CameraType;
 }) {
-  const insets = useSafeAreaInsets();
   const { closeOverlay } = useNav();
-  const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
+  const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
   const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
   const people = useParticipants();
   const [busy, setBusy] = useState(false);
+  const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const [flipBusy, setFlipBusy] = useState(false);
 
   useEffect(() => {
     const tick = () => void touchLiveHostInDb(liveId);
@@ -170,64 +176,72 @@ function HostStage({
     ]);
   };
 
+  const flip = async () => {
+    if (flipBusy || !isCameraEnabled) return;
+    setFlipBusy(true);
+    const next: CameraType = facing === "back" ? "front" : "back";
+    const facingMode = next === "back" ? "environment" : "user";
+    try {
+      const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+      const track = pub?.track;
+      if (track && track instanceof LocalVideoTrack) {
+        await track.restartTrack({ facingMode });
+      } else {
+        await localParticipant.setCameraEnabled(false);
+        await localParticipant.setCameraEnabled(true, { facingMode });
+      }
+      setFacing(next);
+    } catch {
+      /* keep current facing */
+    } finally {
+      setFlipBusy(false);
+    }
+  };
+
   return (
     <View style={styles.root}>
-      {cameraTrack && isTrackReference(cameraTrack) ? (
+      {cameraTrack && isTrackReference(cameraTrack) && isCameraEnabled ? (
         <VideoTrack trackRef={cameraTrack} style={FILL} objectFit="cover" mirror={facing !== "back"} />
       ) : (
         <View style={[FILL, styles.center]}>
-          <ActivityIndicator color={GOLD} />
-          <Text style={styles.wait}>Ouverture de la caméra…</Text>
+          {isCameraEnabled ? (
+            <>
+              <ActivityIndicator color={GOLD} />
+              <Text style={styles.wait}>Ouverture de la caméra…</Text>
+            </>
+          ) : (
+            <Text style={styles.wait}>Caméra coupée</Text>
+          )}
         </View>
       )}
-      <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <Glass tone="dark" intensity={42} radius={999} padded={false}>
-          <View style={styles.livePill}>
-            <View style={styles.dot} />
-            <Text style={styles.liveTxt}>EN DIRECT</Text>
-            <Users size={12} color="#fff" />
-            <Text style={styles.count}>{Math.max(0, people.length - 1)}</Text>
-          </View>
-        </Glass>
-        <View style={{ flex: 1 }} />
-        <GlassIconButton tone="dark" onPress={finish}>
-          <PhoneOff size={18} color="#fff" />
-        </GlassIconButton>
-      </View>
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]}>
-        <Text numberOfLines={2} style={styles.title}>
-          {title}
-        </Text>
-        <View style={styles.tools}>
-          <Press
-            onPress={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
-            style={styles.tool}
-          >
-            {isMicrophoneEnabled ? <Mic size={18} color="#fff" /> : <MicOff size={18} color="#fff" />}
-          </Press>
-          <Press onPress={finish} style={[styles.tool, styles.end]}>
-            <Radio size={16} color="#fff" />
-            <Text style={styles.endTxt}>Terminer</Text>
-          </Press>
-        </View>
-      </View>
+      <HostStudioHud
+        liveId={liveId}
+        identity={identity}
+        displayName={displayName}
+        viewerFallback={Math.max(0, people.length - 1)}
+        micOn={isMicrophoneEnabled}
+        camOn={isCameraEnabled}
+        onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+        onToggleCam={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
+        onFlip={() => void flip()}
+        onEnd={finish}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#05060a" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#05060a", gap: 12, padding: 24 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#05060a",
+    gap: 12,
+    padding: 24,
+  },
   wait: { color: "rgba(255,255,255,0.8)", fontWeight: "700" },
   err: { color: "#fff", textAlign: "center", fontWeight: "700", lineHeight: 22 },
-  top: { position: "absolute", left: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 4 },
-  livePill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: LIVE_RED },
-  liveTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  count: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  bottom: { position: "absolute", left: 12, right: 12, bottom: 0, gap: 12 },
-  title: { color: "#fff", fontWeight: "800", fontSize: 18 },
-  tools: { flexDirection: "row", alignItems: "center", gap: 10 },
   tool: {
     height: 48,
     minHeight: 48,
@@ -239,6 +253,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  end: { backgroundColor: LIVE_RED, flex: 1 },
   endTxt: { color: "#fff", fontWeight: "800" },
 });

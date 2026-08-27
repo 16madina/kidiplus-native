@@ -204,7 +204,8 @@
     "and": "and",
     "notifications": "Notifications",
     "settings": "Settings",
-    "help": "Help"
+    "help": "Help",
+    "error": "Something went wrong"
   },
   "units": {
     "viewers_one": "{{count}} viewer",
@@ -423,7 +424,18 @@
     "hostTokenFailedBody": "Couldn't get a video token. Check your connection and try again.",
     "hostConnectServerFailedTitle": "Video server unreachable",
     "hostConnectServerFailedBody": "The video server isn't responding. Check your connection and try again.",
-    "tapForSound": "Tap for sound"
+    "tapForSound": "Tap for sound",
+    "endLiveShort": "End",
+    "startAuctionAgain": "Replay",
+    "salesShort": "Sales",
+    "articlesShort": "Items",
+    "auctionAlreadyRunning": "An auction is already running. Finish it first.",
+    "startAuctionFailed": "Couldn't start the auction",
+    "finalizeFailed": "Couldn't close the auction. Try again.",
+    "restreamSoon": "{{platform}} restream is set up on kidiplus.com",
+    "filtersSoon": "Filters are coming soon on the app",
+    "battleSoon": "Défi Plus is coming soon on the app",
+    "moderatorsSoon": "Moderators are on kidiplus.com for now"
   },
   "broadcast": {
     "becomeSellerTitle": "Become a seller",

@@ -1,0 +1,746 @@
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
+import {
+  Eye,
+  Mic,
+  MicOff,
+  Package,
+  Plus,
+  Radio,
+  RefreshCw,
+  Send,
+  Shield,
+  Sparkles,
+  Swords,
+  Video,
+  VideoOff,
+  X,
+} from "lucide-react-native";
+import { Press } from "../Press";
+import { AddProductSheet } from "./AddProductSheet";
+import { ShopPickerSheet } from "./ShopPickerSheet";
+import { useAuth } from "../../context/auth";
+import {
+  fmtDuration,
+  useHostLiveSession,
+  type LiveProductRow,
+} from "../../lib/live-host";
+import { formatMoney } from "../../lib/money";
+import type { LiveDraftProduct } from "../../lib/broadcast-products";
+import { GOLD, NAVY } from "../../theme";
+
+const RAIL_BG = "rgba(10,12,20,0.55)";
+const RAIL_BORDER = "rgba(255,255,255,0.16)";
+const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+export function HostStudioHud({
+  liveId,
+  identity,
+  displayName,
+  viewerFallback,
+  micOn,
+  camOn,
+  onToggleMic,
+  onToggleCam,
+  onFlip,
+  onEnd,
+}: {
+  liveId: string;
+  identity: string;
+  displayName: string;
+  viewerFallback: number;
+  micOn: boolean;
+  camOn: boolean;
+  onToggleMic: () => void;
+  onToggleCam: () => void;
+  onFlip: () => void;
+  onEnd: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const session = useHostLiveSession({ liveId, identity, displayName });
+  const [draft, setDraft] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [productsOpen, setProductsOpen] = useState(false);
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const viewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
+  const featured = session.featured;
+  const auctionOnFeatured = session.auction && featured && session.auction.productId === featured.id;
+  const currency = session.currency || user?.walletCurrency || "EUR";
+  const fmt = (n: number) => formatMoney(n, currency, i18n.language);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    if (session.suddenDeathTick === 0) return;
+    setFlash(true);
+    const id = setTimeout(() => setFlash(false), 2600);
+    return () => clearTimeout(id);
+  }, [session.suddenDeathTick]);
+
+  const soon = (msg: string) => setToast(msg);
+
+  const runFeaturedAction = async (p: LiveProductRow) => {
+    if (busyId) return;
+    setBusyId(p.id);
+    try {
+      const err =
+        p.mode === "auction" ? await session.startAuction(p) : await session.toggleFixed(p);
+      if (err === "auction_already_running") {
+        setToast(t("live.auctionAlreadyRunning", "Une enchère est déjà en cours. Termine-la d'abord."));
+      } else if (err) {
+        setToast(
+          p.mode === "auction"
+            ? t("live.startAuctionFailed", "Impossible de démarrer l'enchère")
+            : t("common.error", "Une erreur est survenue"),
+        );
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const addProducts = async (items: LiveDraftProduct[]) => {
+    if (!user?.id) return;
+    for (const item of items) {
+      const res = await session.addDraft(item, user.id);
+      if (!res.ok) {
+        setToast(res.error ?? t("common.error", "Une erreur est survenue"));
+        return;
+      }
+    }
+    setToast(t("live.productAdded", "Produit ajouté"));
+  };
+
+  const featuredCta = (p: LiveProductRow) => {
+    if (p.mode === "auction") {
+      return p.status === "sold" || p.status === "unsold"
+        ? `${t("live.startAuctionAgain", "Rejouer")} ▸`
+        : `${t("live.startAuction")} ▸`;
+    }
+    return t("live.listForSale");
+  };
+
+  return (
+    <View pointerEvents="box-none" style={styles.root}>
+      <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.topLeft}>
+          <View style={styles.livePill}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveTime}>{fmtDuration(session.durationSec)}</Text>
+          </View>
+          <Press
+            onPress={() => setViewersOpen(true)}
+            style={styles.viewersPill}
+            accessibilityLabel={t("live.viewersSheetTitle")}
+          >
+            <Eye size={12} color="#fff" />
+            <Text style={styles.viewersTxt}>{viewers}</Text>
+          </Press>
+        </View>
+        <View style={styles.topRight}>
+          <Press
+            onPress={() => setProductsOpen(true)}
+            style={styles.circleBtn}
+            accessibilityLabel={t("live.openProducts")}
+          >
+            <Package size={16} color="#fff" />
+            {session.products.length > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeTxt}>{session.products.length}</Text>
+              </View>
+            ) : null}
+          </Press>
+          <Press onPress={onEnd} style={styles.endBtn} accessibilityLabel={t("live.endLive")}>
+            <X size={14} color="#fff" />
+            <Text style={styles.endTxt}>{t("live.endLiveShort", "Terminer")}</Text>
+          </Press>
+        </View>
+      </View>
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.statsWrap, { top: insets.top + 52 }]}
+      >
+        <View style={styles.statsBar}>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>{t("live.salesShort", "Ventes")}</Text>
+            <Text style={styles.statValue}>{fmt(session.sales.revenue)}</Text>
+          </View>
+          <View style={styles.statDiv} />
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>{t("live.articlesShort", "Articles")}</Text>
+            <Text style={styles.statValue}>{session.sales.count}</Text>
+          </View>
+          <View style={styles.statDiv} />
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>{t("gifts.short")}</Text>
+            <Text style={[styles.statValue, session.gifts.count > 0 && { color: GOLD }]}>
+              {fmt(session.gifts.sellerNet)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.socialRow}>
+          {(["YT", "FB", "TT"] as const).map((p) => (
+            <Press
+              key={p}
+              onPress={() =>
+                soon(t("live.restreamSoon", "Le restream {{platform}} se configure sur kidiplus.com", { platform: p }))
+              }
+              style={styles.socialPill}
+            >
+              <Radio size={11} color={NAVY} />
+              <Text style={styles.socialTxt}>{p}</Text>
+            </Press>
+          ))}
+        </View>
+      </View>
+
+      {featured ? (
+        <View style={[styles.featured, { top: insets.top + 96 }]}>
+          <Press
+            onPress={() => {
+              session.setFeaturedId(featured.id);
+              setProductsOpen(true);
+            }}
+            style={styles.featuredTap}
+          >
+            <View style={styles.featuredImgWrap}>
+              {featured.image_url ? (
+                <Image source={{ uri: featured.image_url }} style={styles.featuredImg} contentFit="cover" />
+              ) : (
+                <View style={[styles.featuredImg, styles.featuredPh]} />
+              )}
+              <View style={styles.featuredTag}>
+                <Text style={styles.featuredTagTxt}>{t("live.featured").toUpperCase()}</Text>
+              </View>
+            </View>
+            <Text numberOfLines={1} style={styles.featuredName}>
+              {featured.name}
+            </Text>
+          </Press>
+          {auctionOnFeatured ? (
+            <>
+              <Text style={styles.featuredMeta}>{t("live.currentBid")}</Text>
+              <View style={styles.featuredPriceRow}>
+                <Text style={styles.featuredPrice}>{fmt(featured.price)}</Text>
+                <Text style={[styles.featuredTimer, session.timeLeft <= 10 && { color: "#ff6b6b" }]}>
+                  {String(session.timeLeft).padStart(2, "0")}s
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text numberOfLines={1} style={styles.featuredIdle}>
+                {featured.mode === "auction"
+                  ? `${fmt(featured.start_price)} · ${featured.timer_seconds}s`
+                  : `${fmt(featured.price)} · stock ${Math.max(0, featured.stock)}`}
+              </Text>
+              <Press
+                onPress={() => void runFeaturedAction(featured)}
+                style={styles.featuredCta}
+                disabled={busyId === featured.id}
+              >
+                <Text style={styles.featuredCtaTxt}>{featuredCta(featured)}</Text>
+              </Press>
+            </>
+          )}
+        </View>
+      ) : null}
+
+      <View pointerEvents="box-none" style={[styles.rail, { bottom: insets.bottom + 72 }]}>
+        <RailBtn onPress={onToggleMic} off={!micOn}>
+          {micOn ? <Mic size={19} color="#fff" strokeWidth={1.9} /> : <MicOff size={19} color="#fff" strokeWidth={1.9} />}
+        </RailBtn>
+        <RailBtn onPress={onToggleCam} off={!camOn}>
+          {camOn ? <Video size={19} color="#fff" strokeWidth={1.9} /> : <VideoOff size={19} color="#fff" strokeWidth={1.9} />}
+        </RailBtn>
+        <RailBtn onPress={onFlip}>
+          <RefreshCw size={19} color="#fff" strokeWidth={1.9} />
+        </RailBtn>
+        <RailBtn onPress={() => soon(t("live.filtersSoon", "Les filtres arrivent bientôt sur l’app"))}>
+          <Sparkles size={19} color="#fff" strokeWidth={1.9} />
+        </RailBtn>
+        <RailBtn onPress={() => soon(t("live.battleSoon", "Le Défi Plus arrive bientôt sur l’app"))}>
+          <Swords size={19} color="#fff" strokeWidth={1.9} />
+        </RailBtn>
+        <RailBtn onPress={() => soon(t("live.moderatorsSoon", "Les modérateurs sont pour l’instant sur kidiplus.com"))}>
+          <Shield size={19} color="#fff" strokeWidth={1.9} />
+        </RailBtn>
+        <Press onPress={() => setAddOpen(true)} style={styles.plusBtn}>
+          <Plus size={22} color={NAVY} strokeWidth={2.6} />
+        </Press>
+      </View>
+
+      {flash ? (
+        <View pointerEvents="none" style={[styles.sdFlash, { top: insets.top + 118 }]}>
+          <Text style={styles.sdTxt}>{t("auction.suddenDeath.flash")}</Text>
+        </View>
+      ) : null}
+
+      {toast ? (
+        <View pointerEvents="none" style={[styles.toast, { top: insets.top + 118 }]}>
+          <Text style={styles.toastTxt}>{toast}</Text>
+        </View>
+      ) : null}
+
+      <KeyboardAvoidingView
+        pointerEvents="box-none"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.bottomWrap}
+      >
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + 10 }]}>
+          <View pointerEvents="none" style={styles.chatFeed}>
+            {session.chat.slice(-5).map((m) => (
+              <View key={m.id} style={styles.chatBubble}>
+                {m.system ? (
+                  <Text style={styles.chatSys}>{m.text}</Text>
+                ) : (
+                  <Text style={styles.chatLine}>
+                    <Text style={styles.chatUser}>{m.user}</Text>
+                    <Text style={styles.chatText}>  {m.text}</Text>
+                  </Text>
+                )}
+              </View>
+            ))}
+          </View>
+          <View style={styles.composer}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={t("live.chatPlaceholder")}
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              style={styles.input}
+              returnKeyType="send"
+              onSubmitEditing={() => {
+                session.sendChat(draft);
+                setDraft("");
+              }}
+            />
+            <Press
+              onPress={() => {
+                session.sendChat(draft);
+                setDraft("");
+              }}
+              style={styles.sendBtn}
+              accessibilityLabel={t("live.sendMessage")}
+            >
+              <Send size={17} color="#fff" />
+            </Press>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
+      <Modal visible={productsOpen} animationType="slide" transparent onRequestClose={() => setProductsOpen(false)}>
+        <View style={styles.sheetRoot}>
+          <Press haptic="none" onPress={() => setProductsOpen(false)} style={styles.sheetDim} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>{t("live.products")}</Text>
+              <Press onPress={() => setProductsOpen(false)} style={styles.sheetClose}>
+                <X size={18} color={NAVY} />
+              </Press>
+            </View>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {session.products.length === 0 ? (
+                <Text style={styles.empty}>{t("broadcast.setup.readyHelp")}</Text>
+              ) : (
+                session.products.map((p) => (
+                  <Press
+                    key={p.id}
+                    onPress={() => session.setFeaturedId(p.id)}
+                    style={[styles.prodRow, featured?.id === p.id && styles.prodRowOn]}
+                  >
+                    {p.image_url ? (
+                      <Image source={{ uri: p.image_url }} style={styles.prodImg} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.prodImg, styles.featuredPh]} />
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.prodName}>{p.name}</Text>
+                      <Text style={styles.prodMeta}>
+                        {p.mode === "auction"
+                          ? `${fmt(p.start_price)} · ${p.timer_seconds}s · ${p.status}`
+                          : `${fmt(p.price)} · stock ${p.stock} · ${p.status}`}
+                      </Text>
+                    </View>
+                    <Press
+                      onPress={() => void runFeaturedAction(p)}
+                      style={styles.prodCta}
+                      disabled={busyId === p.id || (session.auction != null && session.auction.productId !== p.id && p.mode === "auction")}
+                    >
+                      <Text style={styles.prodCtaTxt}>{p.mode === "auction" ? t("live.startNext") : t("live.listForSale")}</Text>
+                    </Press>
+                  </Press>
+                ))
+              )}
+            </ScrollView>
+            <Press onPress={() => { setProductsOpen(false); setAddOpen(true); }} style={styles.addRow}>
+              <Plus size={16} color={NAVY} />
+              <Text style={styles.addRowTxt}>{t("live.addProduct")}</Text>
+            </Press>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={viewersOpen} animationType="slide" transparent onRequestClose={() => setViewersOpen(false)}>
+        <View style={styles.sheetRoot}>
+          <Press haptic="none" onPress={() => setViewersOpen(false)} style={styles.sheetDim} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>{t("live.viewersSheetTitle")}</Text>
+              <Press onPress={() => setViewersOpen(false)} style={styles.sheetClose}>
+                <X size={18} color={NAVY} />
+              </Press>
+            </View>
+            {session.presentViewers.length === 0 ? (
+              <Text style={styles.empty}>{t("live.viewersEmpty")}</Text>
+            ) : (
+              session.presentViewers.map((v) => (
+                <Text key={v.identity} style={styles.viewerName}>
+                  {v.name}
+                </Text>
+              ))
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <AddProductSheet
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={(p) => {
+          void addProducts([p]);
+        }}
+        onPickFromShop={() => {
+          setAddOpen(false);
+          setShopOpen(true);
+        }}
+        currency={currency}
+      />
+      <ShopPickerSheet
+        open={shopOpen}
+        onClose={() => setShopOpen(false)}
+        onConfirm={(items) => {
+          void addProducts(items);
+        }}
+        userId={user?.id}
+        currency={currency}
+      />
+    </View>
+  );
+}
+
+function RailBtn({
+  children,
+  onPress,
+  off,
+}: {
+  children: ReactNode;
+  onPress: () => void;
+  off?: boolean;
+}) {
+  return (
+    <Press onPress={onPress} style={[styles.railBtn, off && styles.railOff]}>
+      {children}
+    </Press>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { ...FILL, zIndex: 8 },
+  top: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
+  topLeft: { flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 110 },
+  topRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  livePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(220,30,40,0.95)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    minHeight: 28,
+    minWidth: 0,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
+  liveTime: { color: "#fff", fontWeight: "800", fontSize: 11, fontVariant: ["tabular-nums"] },
+  viewersPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    minHeight: 28,
+    minWidth: 0,
+  },
+  viewersTxt: { color: "#fff", fontWeight: "700", fontSize: 11, fontVariant: ["tabular-nums"] },
+  circleBtn: {
+    width: 36,
+    height: 36,
+    minWidth: 36,
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  badge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: GOLD,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeTxt: { color: NAVY, fontSize: 9, fontWeight: "800" },
+  endBtn: {
+    height: 36,
+    minHeight: 36,
+    minWidth: 0,
+    borderRadius: 999,
+    backgroundColor: "rgba(220,30,40,0.95)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    gap: 4,
+  },
+  endTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  statsWrap: {
+    position: "absolute",
+    left: 12,
+    right: 124,
+    zIndex: 9,
+    gap: 6,
+  },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  stat: { flex: 1 },
+  statLabel: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "700", textTransform: "uppercase" },
+  statValue: { color: "#fff", fontSize: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  statDiv: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.2)", marginHorizontal: 8 },
+  socialRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  socialPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GOLD,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minHeight: 22,
+    minWidth: 0,
+  },
+  socialTxt: { color: NAVY, fontSize: 10, fontWeight: "900" },
+  featured: {
+    position: "absolute",
+    right: 8,
+    width: 108,
+    zIndex: 11,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 16,
+    padding: 6,
+  },
+  featuredTap: { minHeight: 0, minWidth: 0, alignItems: "stretch" },
+  featuredImgWrap: { borderRadius: 8, overflow: "hidden", marginBottom: 4 },
+  featuredImg: { height: 56, width: "100%", backgroundColor: "#222" },
+  featuredPh: { backgroundColor: "rgba(255,255,255,0.12)" },
+  featuredTag: {
+    position: "absolute",
+    left: 4,
+    top: 4,
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  featuredTagTxt: { color: NAVY, fontSize: 8.5, fontWeight: "800", letterSpacing: 0.3 },
+  featuredName: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
+  featuredMeta: { color: "rgba(255,255,255,0.6)", fontSize: 8.5, fontWeight: "700", textTransform: "uppercase", marginTop: 2 },
+  featuredPriceRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  featuredPrice: { color: "#fff", fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  featuredTimer: { color: "#fff", fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  featuredIdle: { color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 },
+  featuredCta: {
+    marginTop: 4,
+    height: 28,
+    minHeight: 28,
+    minWidth: 0,
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
+  featuredCtaTxt: { color: NAVY, fontSize: 10, fontWeight: "800" },
+  rail: {
+    position: "absolute",
+    right: 10,
+    zIndex: 12,
+    alignItems: "center",
+    gap: 10,
+  },
+  railBtn: {
+    width: 44,
+    height: 44,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: RAIL_BG,
+    borderWidth: 1,
+    borderColor: RAIL_BORDER,
+  },
+  railOff: { backgroundColor: "rgba(216,44,52,0.82)" },
+  plusBtn: {
+    width: 44,
+    height: 44,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: GOLD,
+    marginTop: 4,
+  },
+  sdFlash: {
+    position: "absolute",
+    alignSelf: "center",
+    left: 24,
+    right: 24,
+    zIndex: 40,
+    borderRadius: 999,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    backgroundColor: GOLD,
+    alignItems: "center",
+  },
+  sdTxt: { color: NAVY, fontWeight: "900", fontSize: 16, textAlign: "center" },
+  toast: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    zIndex: 39,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    alignItems: "center",
+  },
+  toastTxt: { color: "#fff", fontWeight: "700", fontSize: 13, textAlign: "center" },
+  bottomWrap: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 13 },
+  bottom: { paddingLeft: 12, paddingRight: 64, gap: 8 },
+  chatFeed: { gap: 4, alignItems: "flex-start" },
+  chatBubble: {
+    maxWidth: "88%",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  chatSys: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" },
+  chatLine: { color: "#fff", fontSize: 13 },
+  chatUser: { color: GOLD, fontWeight: "800" },
+  chatText: { color: "#fff" },
+  composer: { flexDirection: "row", alignItems: "center", gap: 8 },
+  input: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    color: "#fff",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    fontSize: 14,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  sheetRoot: { flex: 1, justifyContent: "flex-end" },
+  sheetDim: { ...FILL, backgroundColor: "rgba(0,0,0,0.45)", minHeight: 0, minWidth: 0 },
+  sheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    maxHeight: "78%",
+  },
+  sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  sheetTitle: { color: NAVY, fontSize: 18, fontWeight: "800" },
+  sheetClose: { width: 36, height: 36, minWidth: 36, minHeight: 36 },
+  empty: { color: "#6B7289", fontSize: 13, paddingVertical: 12 },
+  prodRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    minHeight: 0,
+    minWidth: 0,
+  },
+  prodRowOn: { backgroundColor: "rgba(232,185,59,0.12)", borderRadius: 12, paddingHorizontal: 6 },
+  prodImg: { width: 48, height: 48, borderRadius: 10, backgroundColor: "#eee" },
+  prodName: { color: NAVY, fontWeight: "800", fontSize: 14 },
+  prodMeta: { color: "#6B7289", fontSize: 11, marginTop: 2 },
+  prodCta: {
+    minHeight: 32,
+    minWidth: 0,
+    height: 32,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+  },
+  prodCtaTxt: { color: NAVY, fontWeight: "800", fontSize: 11 },
+  addRow: {
+    marginTop: 8,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+    flexDirection: "row",
+    gap: 6,
+  },
+  addRowTxt: { color: NAVY, fontWeight: "800" },
+  viewerName: { color: NAVY, fontSize: 15, fontWeight: "600", paddingVertical: 8 },
+});

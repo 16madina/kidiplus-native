@@ -204,7 +204,8 @@
     "and": "et",
     "notifications": "Notifications",
     "settings": "Paramètres",
-    "help": "Aide"
+    "help": "Aide",
+    "error": "Une erreur est survenue"
   },
   "units": {
     "viewers_one": "{{count}} spectateur",
@@ -423,7 +424,18 @@
     "hostTokenFailedBody": "Impossible d'obtenir un jeton vidéo. Vérifie ta connexion et réessaie.",
     "hostConnectServerFailedTitle": "Serveur vidéo injoignable",
     "hostConnectServerFailedBody": "Le serveur vidéo ne répond pas. Vérifie ta connexion et réessaie.",
-    "tapForSound": "Activer le son"
+    "tapForSound": "Activer le son",
+    "endLiveShort": "Terminer",
+    "startAuctionAgain": "Rejouer",
+    "salesShort": "Ventes",
+    "articlesShort": "Articles",
+    "auctionAlreadyRunning": "Une enchère est déjà en cours. Termine-la d'abord.",
+    "startAuctionFailed": "Impossible de démarrer l'enchère",
+    "finalizeFailed": "Impossible de clôturer l'enchère. Réessaie.",
+    "restreamSoon": "Le restream {{platform}} se configure sur kidiplus.com",
+    "filtersSoon": "Les filtres arrivent bientôt sur l’app",
+    "battleSoon": "Le Défi Plus arrive bientôt sur l’app",
+    "moderatorsSoon": "Les modérateurs sont pour l’instant sur kidiplus.com"
   },
   "broadcast": {
     "becomeSellerTitle": "Deviens vendeur",
