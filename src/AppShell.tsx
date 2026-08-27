@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { lazy, Suspense, useRef } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabBar } from "./components/BottomTabBar";
 import { PushScreen } from "./components/PushScreen";
@@ -24,20 +24,51 @@ import { AddressesScreen } from "./screens/AddressesScreen";
 import { HelpScreen } from "./screens/HelpScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
-import { NAVY } from "./theme";
+import { GOLD, NAVY } from "./theme";
+
+const BroadcastLiveScreen = lazy(async () => {
+  try {
+    const mod = await import("./screens/BroadcastLiveScreen");
+    return { default: mod.BroadcastLiveScreen };
+  } catch {
+    return { default: LiveKitBuildRequired };
+  }
+});
+
+function LiveKitBuildRequired() {
+  return (
+    <View style={styles.livekitFallback}>
+      <Text style={styles.livekitFallbackTxt}>
+        Les lives vidéo demandent un build natif (pas Expo Go). Sur ton Mac : npm install && npx expo
+        run:ios --device
+      </Text>
+    </View>
+  );
+}
+
+function BroadcastLiveFallback() {
+  return (
+    <View style={styles.livekitFallback}>
+      <ActivityIndicator color={GOLD} />
+    </View>
+  );
+}
 
 export function AppShell() {
   const { tab, setTab, overlay, closeOverlay } = useNav();
   const { authOverlay, closeAuth } = useAuth();
   const { dark, colors } = useAppTheme();
-  const hideTabs = tab === "vitrine" || overlay.kind === "live";
+  const hideTabs =
+    tab === "vitrine" || overlay.kind === "live" || overlay.kind === "broadcast-live";
   const last = useRef<Overlay>(overlay);
   if (overlay.kind !== "none") last.current = overlay;
   const shown = last.current;
+  const statusLight =
+    tab === "vitrine" || overlay.kind === "live" || overlay.kind === "broadcast-live" || dark;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <StatusBar style={tab === "vitrine" || overlay.kind === "live" || dark ? "light" : "dark"} />
+      <StatusBar style={statusLight ? "light" : "dark"} />
       <View style={[styles.pane, tab === "home" ? styles.shown : styles.hidden]}>
         <HomeScreen />
       </View>
@@ -87,6 +118,25 @@ export function AppShell() {
       <PushScreen open={overlay.kind === "broadcast-setup"} onClose={closeOverlay}>
         {shown.kind === "broadcast-setup" ? <BroadcastSetupScreen mode={shown.mode} /> : null}
       </PushScreen>
+      <PushScreen
+        open={overlay.kind === "broadcast-live"}
+        onClose={closeOverlay}
+        zIndex={85}
+        swipeBackEnabled={false}
+      >
+        {shown.kind === "broadcast-live" ? (
+          <Suspense fallback={<BroadcastLiveFallback />}>
+            <BroadcastLiveScreen
+              liveId={shown.liveId}
+              roomName={shown.roomName}
+              title={shown.title}
+              identity={shown.identity}
+              displayName={shown.displayName}
+              facing={shown.facing}
+            />
+          </Suspense>
+        ) : null}
+      </PushScreen>
       <PushScreen open={overlay.kind === "admin"} onClose={closeOverlay}>
         <AdminDashboardScreen />
       </PushScreen>
@@ -105,4 +155,17 @@ const styles = StyleSheet.create({
   pane: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   shown: { zIndex: 2, opacity: 1 },
   hidden: { zIndex: 0, opacity: 0, pointerEvents: "none" },
+  livekitFallback: {
+    flex: 1,
+    backgroundColor: "#05060a",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  livekitFallbackTxt: {
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "700",
+    lineHeight: 22,
+  },
 });

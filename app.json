@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.kidiplus.native",
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true
+        "UIViewControllerBasedStatusBarAppearance": true,
+        "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
+        "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives."
       }
     },
     "android": {
@@ -53,9 +55,17 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "KiDi+ utilise la caméra pour l’aperçu et les filtres avant de lancer un live.",
+          "cameraPermission": "KiDi+ utilise la caméra pour tes lives.",
           "microphonePermission": "KiDi+ utilise le micro pour tes lives.",
-          "recordAudioAndroid": false
+          "recordAudioAndroid": true
+        }
+      ],
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "KiDi+ utilise la caméra pour tes lives.",
+          "microphonePermission": "KiDi+ utilise le micro pour tes lives."
         }
       ]
     ]

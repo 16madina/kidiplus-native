@@ -15,6 +15,15 @@ export type Overlay =
   | { kind: "help" }
   | { kind: "addresses" }
   | { kind: "broadcast-setup"; mode: "now" | "schedule" }
+  | {
+      kind: "broadcast-live";
+      liveId: string;
+      roomName: string;
+      title: string;
+      identity: string;
+      displayName: string;
+      facing: "front" | "back";
+    }
   | { kind: "admin" };
 
 type Ctx = {

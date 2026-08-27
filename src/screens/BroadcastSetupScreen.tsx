@@ -38,6 +38,8 @@ import {
 } from "../lib/broadcast-categories";
 import { type LiveDraftProduct } from "../lib/broadcast-products";
 import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
+import { makeRoomName } from "../lib/livekit";
+import { createLiveInDb, uploadLiveCover, uploadLiveProductImage } from "../lib/lives";
 import { formatMoney } from "../lib/money";
 import { GOLD, GOLD_GO_LIVE, NAVY } from "../theme";
 import type { CameraType } from "expo-camera";
@@ -55,7 +57,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
 function GoLiveSetup() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { closeOverlay } = useNav();
+  const { closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
   const currency = user?.walletCurrency ?? "EUR";
 
@@ -114,7 +116,53 @@ function GoLiveSetup() {
       flash(t("broadcast.setup.readyHelp"));
       return;
     }
-    flash("Le studio caméra arrive bientôt. Programme un live, ou lance-le sur kidiplus.com.");
+    setBusy(true);
+    try {
+      const roomName = makeRoomName(user.id);
+      const coverPath = cover
+        ? await uploadLiveCover(user.id, cover)
+        : user.avatarUrl?.trim() || null;
+      const liveProducts = [];
+      for (const p of products) {
+        let imagePath = p.imagePath ?? null;
+        if (!imagePath && p.picked) {
+          imagePath = await uploadLiveProductImage(user.id, p.picked);
+        }
+        liveProducts.push({
+          name: p.name,
+          imagePath,
+          mode: p.mode,
+          price: p.mode === "auction" ? p.startPrice : p.price,
+          stock: p.stock,
+          shopProductId: p.shopProductId,
+          timerSeconds: p.timerSec,
+        });
+      }
+      const liveId = await createLiveInDb({
+        sellerId: user.id,
+        title: title.trim(),
+        category,
+        coverPath,
+        roomName,
+        currency,
+        products: liveProducts,
+      });
+      // Laisse expo-camera relâcher le capteur avant que LiveKit le prenne.
+      await new Promise((r) => setTimeout(r, 280));
+      openOverlay({
+        kind: "broadcast-live",
+        liveId,
+        roomName,
+        title: title.trim(),
+        identity: user.id,
+        displayName: user.displayName?.trim() || "Vendeur",
+        facing,
+      });
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Impossible de lancer le live.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const primaryCats = useMemo(() => BROADCAST_CATEGORY_KEYS.slice(0, 4), []);

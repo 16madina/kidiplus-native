@@ -1,22 +1,68 @@
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { lazy, Suspense, useMemo } from "react";
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gavel, Heart, Send, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
+import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
+import { guestLiveKitIdentity } from "../lib/livekit";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
 import type { LiveStream } from "../mock/lives";
+
+const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+const LiveKitRemoteVideo = lazy(async () => {
+  try {
+    const mod = await import("../components/live/LiveKitRemoteVideo");
+    return { default: mod.LiveKitRemoteVideo };
+  } catch {
+    return {
+      default: function LiveKitUnavailable() {
+        return <View style={FILL} />;
+      },
+    };
+  }
+});
 
 export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
   const insets = useSafeAreaInsets();
   const { closeOverlay } = useNav();
+  const { user } = useAuth();
   const s = stream;
+  const liveVideo = Boolean(s.roomName && !s.fictitious);
+  const identity = useMemo(
+    () => user?.id ?? guestLiveKitIdentity(),
+    [user?.id],
+  );
+  const displayName = user?.displayName?.trim() || "Invité";
+
   return (
     <View style={styles.root}>
-      <Image source={{ uri: s.thumbnail }} style={StyleSheet.absoluteFill} contentFit="cover" />
-      <LinearGradient colors={["rgba(0,0,0,0.45)", "transparent", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFill} />
+      {liveVideo && s.roomName ? (
+        <Suspense
+          fallback={
+            <View style={[FILL, styles.videoWait]}>
+              <ActivityIndicator color="#fff" />
+            </View>
+          }
+        >
+          <LiveKitRemoteVideo
+            roomName={s.roomName}
+            identity={identity}
+            displayName={displayName}
+          />
+        </Suspense>
+      ) : (
+        <Image source={{ uri: s.thumbnail }} style={FILL} contentFit="cover" />
+      )}
+      <LinearGradient
+        colors={["rgba(0,0,0,0.45)", "transparent", "rgba(0,0,0,0.75)"]}
+        style={FILL}
+        pointerEvents="none"
+      />
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <Glass tone="dark" intensity={42} radius={999}>
           <View style={styles.seller}>
@@ -68,6 +114,7 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  videoWait: { alignItems: "center", justifyContent: "center", backgroundColor: "#111" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 50 },
   seller: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6 },
   av: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: GOLD },

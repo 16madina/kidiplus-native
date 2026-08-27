@@ -222,6 +222,95 @@ export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext:
   return path;
 }
 
+export async function uploadLiveProductImage(
+  userId: string,
+  picked: { blob: Blob; ext: string; contentType: string },
+): Promise<string> {
+  const rand = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${userId}/${rand}.${picked.ext}`;
+  const { error } = await supabase.storage.from("live-products").upload(path, picked.blob, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: picked.contentType || undefined,
+  });
+  if (error) throw error;
+  return path;
+}
+
+export async function createLiveInDb(input: {
+  sellerId: string;
+  title: string;
+  category: string;
+  coverPath: string | null;
+  roomName: string;
+  currency?: string;
+  products: Array<{
+    name: string;
+    imagePath: string | null;
+    mode: "auction" | "fixed";
+    price: number;
+    stock: number;
+    shopProductId?: string;
+    timerSeconds?: number;
+  }>;
+}): Promise<string> {
+  const { data: live, error } = await supabase
+    .from("lives")
+    .insert({
+      seller_id: input.sellerId,
+      title: input.title,
+      category: input.category,
+      cover_url: input.coverPath,
+      room_name: input.roomName,
+      status: "live",
+      started_at: new Date().toISOString(),
+      host_last_seen_at: new Date().toISOString(),
+      broadcast_mode: "camera",
+      ...(input.currency ? { currency: input.currency } : {}),
+    })
+    .select("id")
+    .single();
+  if (error || !live) throw error ?? new Error("Impossible de créer le live");
+  if (input.products.length > 0) {
+    const rows = input.products.map((p, i) => ({
+      live_id: live.id,
+      name: p.name,
+      image_url: p.imagePath,
+      mode: p.mode,
+      start_price: p.price,
+      price: p.price,
+      stock: p.stock,
+      timer_seconds: p.timerSeconds ?? 45,
+      status: "upcoming",
+      position: i,
+      ...(p.shopProductId ? { shop_product_id: p.shopProductId } : {}),
+    }));
+    const { error: pErr } = await supabase.from("live_products").insert(rows);
+    if (pErr) throw pErr;
+  }
+  return live.id as string;
+}
+
+export async function endLiveInDb(liveId: string): Promise<void> {
+  const endedAt = new Date().toISOString();
+  await supabase
+    .from("lives")
+    .update({ status: "ended", ended_at: endedAt, ingress_id: null })
+    .eq("id", liveId)
+    .eq("status", "live");
+}
+
+export async function touchLiveHostInDb(liveId: string): Promise<void> {
+  const { error } = await supabase.rpc("touch_live_host", { _live_id: liveId });
+  if (error) {
+    await supabase
+      .from("lives")
+      .update({ host_last_seen_at: new Date().toISOString() })
+      .eq("id", liveId)
+      .eq("status", "live");
+  }
+}
+
 export async function createScheduledLiveInDb(input: {
   sellerId: string;
   title: string;
