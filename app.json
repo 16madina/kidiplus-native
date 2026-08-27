@@ -84,7 +84,8 @@
         }
       ],
       "./plugins/withLiveKitIos.js",
-      "./plugins/withStatusBarPlist.js"
+      "./plugins/withStatusBarPlist.js",
+      "@stripe/stripe-react-native"
     ]
   }
 }

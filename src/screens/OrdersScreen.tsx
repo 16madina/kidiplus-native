@@ -1,13 +1,21 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
+import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
-import { fetchMyPurchases, fetchMySales } from "../lib/orders";
+import {
+  confirmOrderDelivered,
+  disputeOrder,
+  fetchMyPurchases,
+  fetchMySales,
+  markOrderShipped,
+  type OrderView,
+} from "../lib/orders";
 import { GOLD, NAVY } from "../theme";
 import { type MockOrder } from "../mock/account";
 
@@ -37,13 +45,19 @@ export function OrdersScreen() {
   const { user } = useAuth();
   const [tab, setTab] = useState<"purchases" | "sales">("purchases");
   const [toast, setToast] = useState<string | null>(null);
-  const [purchases, setPurchases] = useState<MockOrder[]>([]);
-  const [sales, setSales] = useState<MockOrder[]>([]);
+  const [purchases, setPurchases] = useState<OrderView[]>([]);
+  const [sales, setSales] = useState<OrderView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState<OrderView | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const list = tab === "purchases" ? purchases : sales;
 
-  useEffect(() => {
-    let cancelled = false;
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2600);
+  };
+
+  const reload = useCallback(async () => {
     const id = user?.id;
     if (!id) {
       setPurchases([]);
@@ -51,24 +65,71 @@ export function OrdersScreen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    void Promise.all([fetchMyPurchases(id), user.isSeller ? fetchMySales(id) : Promise.resolve([])]).then(
-      ([buy, sell]) => {
-        if (cancelled) return;
-        setPurchases(buy);
-        setSales(sell);
-        setLoading(false);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
+    const [buy, sell] = await Promise.all([
+      fetchMyPurchases(id),
+      user.isSeller ? fetchMySales(id) : Promise.resolve([]),
+    ]);
+    setPurchases(buy);
+    setSales(sell);
+    setLoading(false);
   }, [user?.id, user?.isSeller]);
+
+  useEffect(() => {
+    setLoading(true);
+    void reload();
+  }, [reload]);
+
+  const doShip = (o: OrderView) => {
+    if (busyId) return;
+    setBusyId(o.id);
+    void markOrderShipped(o.id).then((res) => {
+      setBusyId(null);
+      flash(res.ok ? t("orders.shipped") : res.error ?? t("errors.generic", { defaultValue: "Erreur" }));
+      if (res.ok) void reload();
+    });
+  };
+
+  const doConfirm = (o: OrderView) => {
+    if (busyId) return;
+    Alert.alert(t("orders.confirmDelivery"), o.name, [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("common.confirm"),
+        onPress: () => {
+          setBusyId(o.id);
+          void confirmOrderDelivered(o.id).then((res) => {
+            setBusyId(null);
+            flash(res.ok ? t("orders.delivered") : res.error ?? t("errors.generic", { defaultValue: "Erreur" }));
+            if (res.ok) void reload();
+          });
+        },
+      },
+    ]);
+  };
+
+  const doDispute = (o: OrderView) => {
+    if (busyId) return;
+    Alert.alert(t("orders.disputeTitle"), t("orders.disputeBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("orders.disputeSubmit"),
+        style: "destructive",
+        onPress: () => {
+          setBusyId(o.id);
+          void disputeOrder(o.id, "other").then((res) => {
+            setBusyId(null);
+            flash(res.ok ? t("orders.disputeOpened") : res.error ?? t("errors.generic", { defaultValue: "Erreur" }));
+            if (res.ok) void reload();
+          });
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("myOrders.title")} />
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
         {(["purchases", "sales"] as const).map((k) => (
           <Press key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && { borderBottomColor: GOLD }]}>
             <Text style={{ fontWeight: tab === k ? "800" : "600", color: tab === k ? colors.foreground : colors.mutedForeground }}>
@@ -88,37 +149,72 @@ export function OrdersScreen() {
         ) : list.length === 0 ? (
           <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32 }}>{t("orders.empty")}</Text>
         ) : (
-          list.map((o) => (
-            <SurfaceCard key={o.id} padded={false}>
-              <View style={styles.card}>
-                {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={{ fontWeight: "800", color: colors.foreground }}>{o.name}</Text>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{o.seller}</Text>
-                  <Text style={{ color: GOLD, fontWeight: "800", marginTop: 2 }}>{o.price}</Text>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>{o.when}</Text>
+          list.map((o) => {
+            const busy = busyId === o.id;
+            const isBuyer = tab === "purchases";
+            return (
+              <SurfaceCard key={o.id} padded={false}>
+                <View style={styles.card}>
+                  {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={{ fontWeight: "800", color: colors.foreground }}>{o.name}</Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{o.seller}</Text>
+                    <Text style={{ color: GOLD, fontWeight: "800", marginTop: 2 }}>{o.price}</Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>{o.when}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: `${STATUS_COLOR[o.status]}22` }]}>
+                    <Text style={{ color: STATUS_COLOR[o.status], fontWeight: "800", fontSize: 10 }}>
+                      {statusLabel(o.status, t)}
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.badge, { backgroundColor: `${STATUS_COLOR[o.status]}22` }]}>
-                  <Text style={{ color: STATUS_COLOR[o.status], fontWeight: "800", fontSize: 10 }}>
-                    {statusLabel(o.status, t)}
-                  </Text>
-                </View>
-              </View>
-              {o.status === "awaitingPayment" && tab === "purchases" ? (
-                <Press
-                  onPress={() => {
-                    setToast(t("orders.paySoon"));
-                    setTimeout(() => setToast(null), 2200);
-                  }}
-                  style={styles.pay}
-                >
-                  <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.payNow")}</Text>
-                </Press>
-              ) : null}
-            </SurfaceCard>
-          ))
+
+                {isBuyer && o.status === "awaitingPayment" ? (
+                  <Press onPress={() => setPaying(o)} style={styles.cta}>
+                    <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.payNow")}</Text>
+                  </Press>
+                ) : null}
+
+                {!isBuyer && o.rawStatus === "paid" && o.fulfillment === "awaiting" ? (
+                  <Press onPress={() => doShip(o)} disabled={busy} style={styles.cta}>
+                    {busy ? <ActivityIndicator color={NAVY} /> : (
+                      <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.shipCta")}</Text>
+                    )}
+                  </Press>
+                ) : null}
+
+                {isBuyer && o.rawStatus === "paid" && (o.fulfillment === "shipped" || o.fulfillment === "awaiting") ? (
+                  <View style={styles.actions}>
+                    {o.fulfillment === "shipped" ? (
+                      <Press onPress={() => doConfirm(o)} disabled={busy} style={[styles.cta, { flex: 1, marginHorizontal: 0 }]}>
+                        {busy ? <ActivityIndicator color={NAVY} /> : (
+                          <Text style={{ fontWeight: "800", color: NAVY, fontSize: 13 }}>{t("orders.confirmDelivery")}</Text>
+                        )}
+                      </Press>
+                    ) : null}
+                    <Press
+                      onPress={() => doDispute(o)}
+                      disabled={busy}
+                      style={[styles.ghost, { borderColor: colors.border, flex: 1 }]}
+                    >
+                      <Text style={{ fontWeight: "700", color: "#C0392B", fontSize: 13 }}>{t("orders.reportProblem")}</Text>
+                    </Press>
+                  </View>
+                ) : null}
+              </SurfaceCard>
+            );
+          })
         )}
       </ScrollView>
+      <PaymentSheet
+        order={paying}
+        onClose={() => setPaying(null)}
+        onPaid={(msg) => {
+          setPaying(null);
+          flash(msg);
+          void reload();
+        }}
+      />
       <MockBanner text={toast} />
     </View>
   );
@@ -126,17 +222,24 @@ export function OrdersScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E6E8EF" },
+  tabs: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, height: 44, borderBottomWidth: 2, borderBottomColor: "transparent" },
   body: { padding: 16, paddingBottom: 48, gap: 10 },
   card: { flexDirection: "row", gap: 12, padding: 12, alignItems: "flex-start" },
   img: { width: 64, height: 64, borderRadius: 12, backgroundColor: "#E8EAF1" },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" },
-  pay: {
+  cta: {
     marginHorizontal: 12,
     marginBottom: 12,
     height: 40,
     borderRadius: 12,
     backgroundColor: GOLD,
+  },
+  actions: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
+  ghost: {
+    height: 40,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
   },
 });

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
 import { SurfaceCard } from "../components/SurfaceCard";
+import { TopUpSheet } from "../components/wallet/TopUpSheet";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { useAuth } from "../context/auth";
@@ -31,12 +32,13 @@ export function WalletScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const [tx, setTx] = useState<WalletTxView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const balance = user?.walletBalance ?? 0;
   const currency = normalizeCurrency(user?.walletCurrency);
   const presets = topUpPresets(currency);
 
-  useEffect(() => {
-    let cancelled = false;
+  const reloadTx = () => {
     const id = user?.id;
     if (!id) {
       setTx([]);
@@ -44,19 +46,19 @@ export function WalletScreen() {
       return;
     }
     void fetchMyWalletTransactions(id).then((rows) => {
-      if (!cancelled) {
-        setTx(rows);
-        setLoading(false);
-      }
+      setTx(rows);
+      setLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+  };
+
+  useEffect(() => {
+    reloadTx();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const soon = () => {
-    setToast(t("wallet.topupSoon"));
-    setTimeout(() => setToast(null), 2200);
+  const openTopup = (amount: number | null) => {
+    setTopupAmount(amount);
+    setTopupOpen(true);
   };
 
   return (
@@ -72,7 +74,7 @@ export function WalletScreen() {
         <Text style={[styles.section, { color: colors.foreground }]}>{t("wallet.topup.chooseAmount")}</Text>
         <View style={styles.amounts}>
           {presets.map((amount) => (
-            <Press key={amount} onPress={soon} style={styles.amtPress}>
+            <Press key={amount} onPress={() => openTopup(amount)} style={styles.amtPress}>
               <SurfaceCard padded={false}>
                 <View style={styles.amtInner}>
                   <Plus size={14} color={GOLD} />
@@ -82,7 +84,7 @@ export function WalletScreen() {
             </Press>
           ))}
         </View>
-        <GoldButton label={t("wallet.topupCta")} onPress={soon} />
+        <GoldButton label={t("wallet.topupCta")} onPress={() => openTopup(null)} />
         <Press onPress={() => openOverlay({ kind: "earnings" })} style={{ minHeight: 36 }}>
           <Text style={{ color: GOLD, fontWeight: "700" }}>{t("wallet.toEarningsLink")}</Text>
         </Press>
@@ -118,6 +120,17 @@ export function WalletScreen() {
           ))
         )}
       </ScrollView>
+      <TopUpSheet
+        open={topupOpen}
+        initialAmount={topupAmount}
+        onClose={() => setTopupOpen(false)}
+        onDone={(msg) => {
+          setTopupOpen(false);
+          setToast(msg);
+          setTimeout(() => setToast(null), 2600);
+          reloadTx();
+        }}
+      />
       <MockBanner text={toast} />
     </View>
   );

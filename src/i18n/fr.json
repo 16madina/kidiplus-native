@@ -1196,7 +1196,9 @@
       "confirmed": "Paiement confirmé 🎉"
     },
     "autoPaid": "Payé automatiquement avec ton solde ✅",
-    "loadingCardForm": "Chargement du formulaire carte…"
+    "loadingCardForm": "Chargement du formulaire carte…",
+    "paypalBrowser": "Paiement dans le navigateur, retour automatique dans l’app.",
+    "rebuildForCard": "Le paiement carte demande le nouveau build natif : npx expo run:ios --device. En attendant, utilise le solde ou PayPal."
   },
   "orders": {
     "empty": "Aucune commande pour le moment.",
