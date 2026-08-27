@@ -1,13 +1,31 @@
 // Buyer payments — same Supabase RPCs + kidiplus.com HTTP APIs as the web app.
 
-import * as WebBrowser from "expo-web-browser";
+import { AppState, Linking } from "react-native";
 import { supabase } from "./supabase";
 import { normalizeCurrency, type Currency } from "./money";
 import { PAYPAL_REDIRECT_SCHEME, parsePaypalDoneUrl } from "./pay-errors";
 
 const API_BASE = "https://kidiplus.com";
 
-WebBrowser.maybeCompleteAuthSession();
+type WebBrowserModule = typeof import("expo-web-browser");
+
+let webBrowserCached: WebBrowserModule | null | undefined;
+
+function loadWebBrowser(): WebBrowserModule | null {
+  if (webBrowserCached !== undefined) return webBrowserCached;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    webBrowserCached = require("expo-web-browser") as WebBrowserModule;
+    try {
+      webBrowserCached.maybeCompleteAuthSession();
+    } catch {
+      /* ignore */
+    }
+  } catch {
+    webBrowserCached = null;
+  }
+  return webBrowserCached;
+}
 
 async function bearer(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
@@ -144,41 +162,79 @@ export type PaypalBrowserResult =
   | { ok: false; cancelled: true }
   | { ok: false; cancelled: false; error: string };
 
+function resultFromPaypalUrl(url: string): PaypalBrowserResult {
+  const parsed = parsePaypalDoneUrl(url);
+  if (parsed.status === "cancelled") return { ok: false, cancelled: true };
+  if (parsed.status === "ok" || parsed.status === "pending") {
+    return {
+      ok: true,
+      status: parsed.status === "ok" ? "ok" : "pending",
+      amount: parsed.amount,
+      currency: parsed.currency,
+      orderId: parsed.orderId,
+    };
+  }
+  return { ok: false, cancelled: false, error: parsed.status || "paypal_failed" };
+}
+
+/** Fallback when expo-web-browser isn't in the native binary yet. */
+async function openPaypalViaLinking(approveUrl: string): Promise<PaypalBrowserResult> {
+  return await new Promise<PaypalBrowserResult>((resolve) => {
+    let settled = false;
+    const finish = (result: PaypalBrowserResult) => {
+      if (settled) return;
+      settled = true;
+      linkSub.remove();
+      appSub.remove();
+      resolve(result);
+    };
+
+    const linkSub = Linking.addEventListener("url", ({ url }) => {
+      if (url.includes("paypal-done") || url.startsWith("kidiplus://")) {
+        finish(resultFromPaypalUrl(url));
+      }
+    });
+
+    const appSub = AppState.addEventListener("change", (s) => {
+      if (s !== "active") return;
+      // User came back without a deep link (closed Safari / cancelled).
+      // Refresh as pending — server may already have credited on success.
+      setTimeout(() => {
+        finish({ ok: true, status: "pending", amount: null, currency: null, orderId: null });
+      }, 400);
+    });
+
+    void Linking.openURL(approveUrl).catch(() => {
+      finish({ ok: false, cancelled: false, error: "network" });
+    });
+  });
+}
+
 /**
  * Opens PayPal approve URL in a system auth session that auto-closes when the
  * server bounces to `kidiplus://paypal-done` — no "Open in KiDi+?" prompt.
- * Server already finalizes capture on the return URL when native=1.
- * Ephemeral session avoids reusing the merchant PayPal login from Safari.
+ * Falls back to Safari Linking when expo-web-browser isn't linked yet.
  */
 export async function openPaypalCheckout(approveUrl: string): Promise<PaypalBrowserResult> {
-  try {
-    const result = await WebBrowser.openAuthSessionAsync(approveUrl, PAYPAL_REDIRECT_SCHEME, {
-      // Critical: don't reuse Safari cookies where the KiDi+ merchant is logged in.
-      preferEphemeralSession: true,
-      showInRecents: false,
-    });
-    if (result.type === "success" && "url" in result && result.url) {
-      const parsed = parsePaypalDoneUrl(result.url);
-      if (parsed.status === "cancelled") return { ok: false, cancelled: true };
-      if (parsed.status === "ok" || parsed.status === "pending") {
-        return {
-          ok: true,
-          status: parsed.status === "ok" ? "ok" : "pending",
-          amount: parsed.amount,
-          currency: parsed.currency,
-          orderId: parsed.orderId,
-        };
+  const WebBrowser = loadWebBrowser();
+  if (WebBrowser) {
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(approveUrl, PAYPAL_REDIRECT_SCHEME, {
+        preferEphemeralSession: true,
+        showInRecents: false,
+      });
+      if (result.type === "success" && "url" in result && result.url) {
+        return resultFromPaypalUrl(result.url);
       }
-      return { ok: false, cancelled: false, error: parsed.status || "paypal_failed" };
-    }
-    // User closed the sheet (Done) without completing — treat as cancel.
-    if (result.type === "cancel" || result.type === "dismiss") {
+      if (result.type === "cancel" || result.type === "dismiss") {
+        return { ok: false, cancelled: true };
+      }
       return { ok: false, cancelled: true };
+    } catch {
+      /* fall through to Linking */
     }
-    return { ok: false, cancelled: true };
-  } catch {
-    return { ok: false, cancelled: false, error: "network" };
   }
+  return openPaypalViaLinking(approveUrl);
 }
 
 // ---------------------------------------------------------------------------
