@@ -1,6 +1,8 @@
 // Lazy wrapper around @stripe/stripe-react-native so builds that predate the
 // SDK don't crash at import time — card payment then reports "rebuild needed".
 
+import { NativeModules, TurboModuleRegistry } from "react-native";
+
 type StripeModule = {
   initStripe: (opts: { publishableKey: string }) => Promise<void>;
   initPaymentSheet: (opts: {
@@ -13,8 +15,28 @@ type StripeModule = {
 
 let cached: StripeModule | null | undefined;
 
+/** True only when StripeSdk is linked into this iOS/Android binary. */
+function stripeNativePresent(): boolean {
+  try {
+    if (NativeModules.StripeSdk) return true;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return TurboModuleRegistry.get("StripeSdk") != null;
+  } catch {
+    return false;
+  }
+}
+
 function loadStripe(): StripeModule | null {
   if (cached !== undefined) return cached;
+  // Never require the JS package if the native binary lacks StripeSdk —
+  // TurboModuleRegistry.getEnforcing throws a fatal redbox during evaluation.
+  if (!stripeNativePresent()) {
+    cached = null;
+    return null;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     cached = require("@stripe/stripe-react-native") as StripeModule;

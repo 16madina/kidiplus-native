@@ -27,6 +27,7 @@ const CODE_TO_KEY: Record<string, string> = {
   paypal_create_failed: "pay.errors.generic",
   paypal_oauth_failed: "pay.errors.generic",
   paypal_cancelled: "wallet.topup.paypalCancelled",
+  stripe_module_missing: "pay.rebuildForCard",
 };
 
 export function mapPayError(

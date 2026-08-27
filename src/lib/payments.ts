@@ -44,6 +44,22 @@ async function bearer(): Promise<string | null> {
 
 export type ApiFail = { ok: false; error: string; message?: string };
 
+/**
+ * Match kidiplus.com web: tell the Worker which Stripe account to use.
+ * Without this, managed-only resolution can miss the live gateway and
+ * return `stripe_not_configured`.
+ */
+const STRIPE_PAYMENTS_ENV = "live" as const;
+
+function isStripePath(path: string): boolean {
+  return (
+    path.startsWith("/api/wallet-topup") ||
+    path.startsWith("/api/checkout") ||
+    path.includes("wallet-topup") ||
+    path.includes("/checkout")
+  );
+}
+
 async function api<T>(
   path: string,
   body: Record<string, unknown>,
@@ -58,11 +74,14 @@ async function api<T>(
         Authorization: `Bearer ${token}`,
         // RN sometimes omits Origin; kidiplus.com CORS allows this host.
         Origin: "https://kidiplus.com",
+        ...(isStripePath(path) ? { "X-Payments-Env": STRIPE_PAYMENTS_ENV } : {}),
       },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok || json.ok === false || (json.error && !json.clientSecret)) {
+    const hasStripeSecret = typeof json.clientSecret === "string" && json.clientSecret.length > 0;
+    const hasPaypalUrl = typeof json.approveUrl === "string" && json.approveUrl.length > 0;
+    if (!res.ok || json.ok === false || (json.error && !hasStripeSecret && !hasPaypalUrl)) {
       return {
         ok: false,
         error: String(json.error ?? `http_${res.status}`),
@@ -220,10 +239,18 @@ async function openPaypalViaLinking(approveUrl: string): Promise<PaypalBrowserRe
   });
 }
 
+/** True when ASWebAuthenticationSession (ephemeral) is available in this binary. */
+export function paypalAuthSessionAvailable(): boolean {
+  return loadWebBrowser() !== null;
+}
+
 /**
  * Opens PayPal approve URL in a system auth session that auto-closes when the
  * server bounces to `kidiplus://paypal-done` — no "Open in KiDi+?" prompt.
  * Falls back to Safari Linking when expo-web-browser isn't linked yet.
+ *
+ * preferEphemeralSession avoids reusing the merchant PayPal cookies from Safari
+ * (which causes "ce compte est associé au marchand").
  */
 export async function openPaypalCheckout(approveUrl: string): Promise<PaypalBrowserResult> {
   const WebBrowser = loadWebBrowser();

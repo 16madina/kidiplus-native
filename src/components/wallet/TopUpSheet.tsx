@@ -24,10 +24,14 @@ import {
   createPaypalTopup,
   createWalletTopup,
   openPaypalCheckout,
+  paypalAuthSessionAvailable,
   topUpLimits,
 } from "../../lib/payments";
 import { presentStripePayment, stripeAvailable } from "../../lib/stripe-native";
 import { GOLD } from "../../theme";
+
+const REBUILD_HINT =
+  "npm install && npx expo run:ios --device";
 
 export function TopUpSheet({
   open,
@@ -84,12 +88,12 @@ export function TopUpSheet({
     const n = parseAmount();
     if (n == null) return;
     if (!stripeAvailable()) {
-      setError(
-        t("pay.rebuildForCard", {
-          defaultValue:
-            "Le paiement carte demande le nouveau build natif : npx expo run:ios --device. En attendant, utilise PayPal.",
-        }),
-      );
+      const msg = t("pay.rebuildForCard", {
+        defaultValue:
+          "Le paiement carte demande le nouveau build natif : npx expo run:ios --device. En attendant, utilise PayPal.",
+      });
+      setError(msg);
+      Alert.alert(t("pay.rebuildTitle", { defaultValue: "Build natif requis" }), `${msg}\n\n${REBUILD_HINT}`);
       return;
     }
     setBusy("card");
@@ -111,7 +115,13 @@ export function TopUpSheet({
     });
     if (!sheet.ok) {
       setBusy(null);
-      if (!sheet.cancelled) setError(sheet.error ?? t("pay.errors.cardDeclined"));
+      if (!sheet.cancelled) {
+        setError(
+          sheet.error === "stripe_module_missing"
+            ? mapPayError("stripe_module_missing", t)
+            : (sheet.error ?? t("pay.errors.cardDeclined")),
+        );
+      }
       return;
     }
     const piId = intent.data.clientSecret.split("_secret")[0] ?? "";
@@ -141,6 +151,23 @@ export function TopUpSheet({
     if (busy) return;
     const n = parseAmount();
     if (n == null) return;
+    if (!paypalAuthSessionAvailable()) {
+      // Safari shares cookies → merchant PayPal session causes self-pay error.
+      const go = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          "PayPal",
+          t("pay.paypalMerchantHint", {
+            defaultValue:
+              "Connecte-toi avec un compte acheteur (pas le compte marchand KiDi+). Déconnecte-toi de PayPal dans Safari si besoin. Pour une session privée auto : rebuild npx expo run:ios --device.",
+          }),
+          [
+            { text: t("common.cancel", { defaultValue: "Annuler" }), style: "cancel", onPress: () => resolve(false) },
+            { text: t("common.continue", { defaultValue: "Continuer" }), onPress: () => resolve(true) },
+          ],
+        );
+      });
+      if (!go) return;
+    }
     setBusy("paypal");
     setError(null);
     const res = await createPaypalTopup(n);

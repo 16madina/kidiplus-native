@@ -1198,7 +1198,9 @@
     "autoPaid": "Paid automatically with your balance ✅",
     "loadingCardForm": "Loading card form…",
     "paypalBrowser": "Pays in the browser, returns to the app automatically.",
-    "rebuildForCard": "Card payment needs the new native build: npx expo run:ios --device. Meanwhile, use your balance or PayPal."
+    "rebuildTitle": "Native build required",
+    "rebuildForCard": "Card payment needs the new native build: npx expo run:ios --device. Meanwhile, use your balance or PayPal.",
+    "paypalMerchantHint": "Sign in with a buyer PayPal account (not the KiDi+ merchant). Log out of PayPal in Safari if needed. For an automatic private session: rebuild with npx expo run:ios --device."
   },
   "orders": {
     "empty": "No orders yet.",
