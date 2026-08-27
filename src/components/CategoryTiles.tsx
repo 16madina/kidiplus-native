@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import { User } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "./Press";
+import { Glass } from "./Glass";
 import { GOLD, NAVY } from "../theme";
 import { useAuth } from "../context/auth";
 import {
@@ -59,7 +60,11 @@ export function CategoryTiles({
               <Image source={{ uri: meta.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : null}
             <View style={styles.scrim} />
-            <Text style={styles.label}>{t(HOME_CATEGORY_LABEL_KEY[c])}</Text>
+            <View style={styles.labelWrap}>
+              <Glass tone="dark" intensity={28} radius={8} elevated={false}>
+                <Text style={styles.label}>{t(HOME_CATEGORY_LABEL_KEY[c])}</Text>
+              </Glass>
+            </View>
           </Press>
         );
       })}
@@ -105,14 +110,18 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
-  label: {
+  labelWrap: {
     position: "absolute",
-    left: 10,
-    bottom: 8,
-    right: 8,
+    left: 6,
+    right: 6,
+    bottom: 6,
+  },
+  label: {
     color: "#fff",
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "800",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,

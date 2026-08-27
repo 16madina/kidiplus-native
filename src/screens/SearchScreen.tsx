@@ -6,18 +6,19 @@ import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
+import { Glass } from "../components/Glass";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { BROWSE_CATEGORIES, TRENDS, formatViewersFr } from "../mock/browse";
 import { makeStreams } from "../mock/lives";
 import { MOCK_PRODUCTS, MOCK_SELLERS } from "../mock/vitrine";
-import { GOLD, LIVE_RED, NAVY } from "../theme";
+import { GOLD, LIVE_RED } from "../theme";
 
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   const { openList } = useNav();
   const [raw, setRaw] = useState("");
   const [focused, setFocused] = useState(false);
@@ -60,22 +61,24 @@ export function SearchScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.searchRow}>
-        <View style={[styles.search, { backgroundColor: colors.muted }]}>
-          <SearchIcon size={16} color={colors.mutedForeground} />
-          <TextInput
-            value={raw}
-            onChangeText={setRaw}
-            onFocus={() => setFocused(true)}
-            placeholder={t("search.placeholder")}
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, { color: colors.foreground }]}
-          />
-          {raw ? (
-            <Press onPress={() => setRaw("")} style={{ minHeight: 28, minWidth: 28 }}>
-              <X size={16} color={colors.mutedForeground} />
-            </Press>
-          ) : null}
-        </View>
+        <Glass tone={dark ? "dark" : "light"} intensity={44} radius={999} style={{ flex: 1 }} elevated={false}>
+          <View style={styles.search}>
+            <SearchIcon size={16} color={colors.mutedForeground} />
+            <TextInput
+              value={raw}
+              onChangeText={setRaw}
+              onFocus={() => setFocused(true)}
+              placeholder={t("search.placeholder")}
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { color: colors.foreground }]}
+            />
+            {raw ? (
+              <Press onPress={() => setRaw("")} style={{ minHeight: 28, minWidth: 28 }}>
+                <X size={16} color={colors.mutedForeground} />
+              </Press>
+            ) : null}
+          </View>
+        </Glass>
         {focused || searching ? (
           <Press
             onPress={() => {
@@ -134,11 +137,15 @@ export function SearchScreen() {
                     <Press
                       key={k}
                       onPress={() => setSellerScope(k)}
-                      style={[styles.chip, { backgroundColor: sellerScope === k ? NAVY : colors.muted }]}
+                      style={styles.chipPress}
                     >
-                      <Text style={{ color: sellerScope === k ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
-                        {t(k === "all" ? "search.sellerScope.all" : "search.sellerScope.live")}
-                      </Text>
+                      <Glass tone={sellerScope === k ? "gold" : dark ? "dark" : "light"} intensity={36} radius={999} elevated={false}>
+                        <View style={styles.chip}>
+                          <Text style={{ color: sellerScope === k ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
+                            {t(k === "all" ? "search.sellerScope.all" : "search.sellerScope.live")}
+                          </Text>
+                        </View>
+                      </Glass>
                     </Press>
                   ))}
                 </View>
@@ -157,9 +164,11 @@ export function SearchScreen() {
                       </View>
                       <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>@{s.handle} · {formatViewersFr(s.followers)}</Text>
                     </View>
-                    <Press style={[styles.follow, { borderColor: colors.border }]}>
-                      <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("follow.follow")}</Text>
-                    </Press>
+                    <Glass tone={dark ? "dark" : "light"} intensity={32} radius={999} elevated={false}>
+                      <Press style={styles.follow}>
+                        <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("follow.follow")}</Text>
+                      </Press>
+                    </Glass>
                   </View>
                 ))}
               </View>
@@ -167,14 +176,14 @@ export function SearchScreen() {
             {tab === 2 ? (
               <View style={styles.grid}>
                 {products.map((p) => (
-                  <View key={p.id} style={[styles.cell, { backgroundColor: colors.card, borderRadius: 16, overflow: "hidden" }]}>
+                  <Glass key={p.id} tone={dark ? "dark" : "light"} intensity={28} radius={16} style={styles.cell} elevated={false}>
                     <Image source={{ uri: p.image }} style={{ width: "100%", aspectRatio: 1 }} contentFit="cover" />
                     <View style={{ padding: 8 }}>
                       <Text numberOfLines={2} style={{ fontWeight: "700", color: colors.foreground }}>{p.name}</Text>
                       <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{p.seller}</Text>
                       <Text style={{ fontWeight: "800", color: GOLD, marginTop: 4 }}>{p.price}</Text>
                     </View>
-                  </View>
+                  </Glass>
                 ))}
               </View>
             ) : null}
@@ -184,15 +193,19 @@ export function SearchScreen() {
             <Text style={[styles.h, { color: colors.foreground, paddingHorizontal: 16 }]}>{t("search.trending")}</Text>
             <View style={styles.trends}>
               {TRENDS.map((tr) => (
-                <Press key={tr.id} onPress={() => setRaw(tr.name)} style={styles.trend}>
-                  <Image source={{ uri: tr.image }} style={styles.trendImg} contentFit="cover" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 13 }}>{t(tr.nameKey)}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LIVE_RED }} />
-                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatViewersFr(tr.viewers)}</Text>
+                <Press key={tr.id} onPress={() => setRaw(tr.name)} style={styles.trendPress}>
+                  <Glass tone={dark ? "dark" : "light"} intensity={32} radius={14} elevated={false}>
+                    <View style={styles.trend}>
+                      <Image source={{ uri: tr.image }} style={styles.trendImg} contentFit="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 13 }}>{t(tr.nameKey)}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LIVE_RED }} />
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatViewersFr(tr.viewers)}</Text>
+                        </View>
+                      </View>
                     </View>
-                  </View>
+                  </Glass>
                 </Press>
               ))}
             </View>
@@ -201,10 +214,14 @@ export function SearchScreen() {
             </View>
             <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, marginVertical: 8 }}>
               {(["recommended", "popular", "alpha"] as const).map((k) => (
-                <Press key={k} onPress={() => setSort(k)} style={[styles.chip, { backgroundColor: sort === k ? NAVY : colors.muted }]}>
-                  <Text style={{ color: sort === k ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
-                    {t(`search.sort.${k === "alpha" ? "alpha" : k}`)}
-                  </Text>
+                <Press key={k} onPress={() => setSort(k)} style={styles.chipPress}>
+                  <Glass tone={sort === k ? "gold" : dark ? "dark" : "light"} intensity={36} radius={999} elevated={false}>
+                    <View style={styles.chip}>
+                      <Text style={{ color: sort === k ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
+                        {t(`search.sort.${k === "alpha" ? "alpha" : k}`)}
+                      </Text>
+                    </View>
+                  </Glass>
                 </Press>
               ))}
             </View>
@@ -212,8 +229,16 @@ export function SearchScreen() {
               {cats.map((c) => (
                 <Press key={c.id} onPress={() => setRaw(c.query)} style={styles.cat}>
                   <Image source={{ uri: c.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                  <Text style={styles.catLabel}>{t(c.nameKey)}</Text>
-                  <Text style={styles.catViewers}>{formatViewersFr(c.viewers)}</Text>
+                  <View style={styles.catFrost}>
+                    <Glass tone="dark" intensity={30} radius={10} elevated={false}>
+                      <Text style={styles.catLabel}>{t(c.nameKey)}</Text>
+                    </Glass>
+                  </View>
+                  <View style={styles.catViewersWrap}>
+                    <Glass tone="dark" intensity={24} radius={8} elevated={false}>
+                      <Text style={styles.catViewers}>{formatViewersFr(c.viewers)}</Text>
+                    </Glass>
+                  </View>
                 </Press>
               ))}
             </View>
@@ -228,7 +253,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   searchRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
   search: {
-    flex: 1,
     height: 40,
     borderRadius: 999,
     flexDirection: "row",
@@ -243,13 +267,15 @@ const styles = StyleSheet.create({
   tab: { flex: 1, height: 40, borderBottomWidth: 2, borderBottomColor: "transparent" },
   grid: { paddingHorizontal: 16, flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 12 },
   cell: { width: "48.5%" },
-  chip: { height: 32, minHeight: 32, borderRadius: 999, paddingHorizontal: 12 },
+  chipPress: { minHeight: 32, minWidth: 0 },
+  chip: { height: 32, minHeight: 32, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   seller: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   av: { width: 48, height: 48, borderRadius: 24 },
   livePill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: LIVE_RED, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
-  follow: { height: 32, minHeight: 32, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12 },
+  follow: { height: 32, minHeight: 32, borderRadius: 999, paddingHorizontal: 12 },
   trends: { paddingHorizontal: 16, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  trend: { width: "48%", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 64 },
+  trendPress: { width: "48%", minHeight: 64, minWidth: 0, alignItems: "stretch" },
+  trend: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 64, paddingRight: 8 },
   trendImg: { width: 56, height: 56, borderRadius: 10 },
   cat: {
     width: "48.5%",
@@ -261,6 +287,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: "stretch",
   },
-  catLabel: { position: "absolute", top: 12, left: 12, color: "#fff", fontWeight: "800", fontSize: 16 },
-  catViewers: { position: "absolute", bottom: 12, left: 12, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
+  catLabel: { color: "#fff", fontWeight: "800", fontSize: 15, paddingHorizontal: 10, paddingVertical: 6 },
+  catFrost: { position: "absolute", top: 10, left: 10 },
+  catViewersWrap: { position: "absolute", bottom: 10, left: 10 },
+  catViewers: { color: "rgba(255,255,255,0.92)", fontWeight: "600", paddingHorizontal: 8, paddingVertical: 4, fontSize: 12 },
 });

@@ -23,6 +23,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Logo } from "../components/Logo";
 import { Press } from "../components/Press";
+import { Glass, GlassIconButton } from "../components/Glass";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -48,13 +49,13 @@ function GuestProfile() {
       <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(251,246,236,0.82)" }]} />
       <ScrollView contentContainerStyle={{ paddingTop: insets.top, paddingBottom: TAB_SAFE_PADDING + insets.bottom + 16, alignItems: "center", paddingHorizontal: 24 }}>
         <View style={styles.guestHead}>
-          <Press onPress={() => openAuth()} style={styles.icon}>
-            <Bell size={22} color={NAVY} />
-          </Press>
+          <GlassIconButton tone="light" onPress={() => openAuth()}>
+            <Bell size={20} color={NAVY} />
+          </GlassIconButton>
           <Text style={styles.guestHeadTitle}>{t("tabs.profile")}</Text>
-          <Press onPress={() => openAuth()} style={styles.icon}>
-            <MessageCircle size={22} color={NAVY} />
-          </Press>
+          <GlassIconButton tone="light" onPress={() => openAuth()}>
+            <MessageCircle size={20} color={NAVY} />
+          </GlassIconButton>
         </View>
         <Logo size={72} />
         <Text style={styles.guestTitle}>
@@ -69,9 +70,13 @@ function GuestProfile() {
           <UserPlus size={17} color="#fff" />
           <Text style={styles.goldBtnText}>{t("auth.welcome.signUp")}</Text>
         </Press>
-        <Press onPress={() => openAuth("signin")} style={styles.whiteBtn}>
-          <LogIn size={17} color={NAVY} />
-          <Text style={{ fontWeight: "800", color: NAVY }}>{t("auth.welcome.signIn")}</Text>
+        <Press onPress={() => openAuth("signin")} style={{ width: "100%", marginTop: 8, minHeight: 44, alignItems: "stretch" }}>
+          <Glass tone="light" intensity={40} radius={999}>
+            <View style={styles.whiteBtn}>
+              <LogIn size={17} color={NAVY} />
+              <Text style={{ fontWeight: "800", color: NAVY }}>{t("auth.welcome.signIn")}</Text>
+            </View>
+          </Glass>
         </Press>
         <Image source={guestIllu} style={{ width: 90, height: 90, marginTop: 4 }} contentFit="contain" />
         <View style={styles.featGrid}>
@@ -102,8 +107,12 @@ function Feat({
 }) {
   return (
     <Press onPress={onPress} style={[styles.feat, wide && { width: "48%" }]}>
-      {icon}
-      <Text style={styles.featLabel}>{label}</Text>
+      <Glass tone="light" intensity={44} radius={14} style={{ width: "100%" }}>
+        <View style={styles.featInner}>
+          {icon}
+          <Text style={styles.featLabel}>{label}</Text>
+        </View>
+      </Glass>
     </Press>
   );
 }
@@ -122,26 +131,32 @@ function AuthedProfile() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: TAB_SAFE_PADDING + insets.bottom }}>
       <LinearGradient colors={[NAVY, NAVY_600]} style={[styles.hero, { paddingTop: insets.top + 8 }]}>
         <View style={styles.heroTop}>
-          <Press onPress={() => openOverlay({ kind: "activity" })} style={styles.heroIcon}>
-            <Bell size={20} color="#fff" />
+          <View style={styles.heroIcon}>
+            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
+              <Bell size={18} color="#fff" />
+            </GlassIconButton>
             <Text style={styles.heroIconLabel}>{t("profile.hero.activity")}</Text>
-          </Press>
+          </View>
           <View style={styles.avatarRing}>
             <Image source={{ uri: user.avatarUrl ?? undefined }} style={styles.avatar} />
           </View>
-          <Press onPress={() => openOverlay({ kind: "activity" })} style={styles.heroIcon}>
-            <MessageCircle size={20} color="#fff" />
+          <View style={styles.heroIcon}>
+            <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
+              <MessageCircle size={18} color="#fff" />
+            </GlassIconButton>
             <Text style={styles.heroIconLabel}>{t("profile.hero.message")}</Text>
-          </Press>
+          </View>
         </View>
         <Text style={styles.name}>{user.displayName}</Text>
         <Text style={styles.handle}>@{user.handle}</Text>
         <Text style={styles.email}>{user.email}</Text>
-        <View style={styles.stats}>
-          <Stat n={user.followers} label={t("profile.stats.followers")} />
-          <Stat n={user.sales} label={t("profile.stats.sales")} />
-          <Stat n={user.following} label={t("profile.stats.following")} />
-        </View>
+        <Glass tone="dark" intensity={42} radius={18} style={styles.stats}>
+          <View style={styles.statsRow}>
+            <Stat n={user.followers} label={t("profile.stats.followers")} />
+            <Stat n={user.sales} label={t("profile.stats.sales")} />
+            <Stat n={user.following} label={t("profile.stats.following")} />
+          </View>
+        </Glass>
         <View style={styles.quick}>
           <Quick icon={<Store size={18} color={GOLD} />} label={user.isSeller ? t("profile.quick.myShop") : t("profile.quick.recharge")} onPress={() => (user.isSeller ? openOverlay({ kind: "shop" }) : openOverlay({ kind: "wallet" }))} />
           <Quick icon={<Wallet size={18} color={GOLD} />} label={t("profile.quick.wallet")} hint={money} onPress={() => openOverlay({ kind: "wallet" })} />
@@ -187,7 +202,11 @@ function Stat({ n, label }: { n: number; label: string }) {
 function Quick({ icon, label, hint, onPress }: { icon: React.ReactNode; label: string; hint?: string; onPress: () => void }) {
   return (
     <Press onPress={onPress} style={styles.quickItem}>
-      {icon}
+      <Glass tone="gold" intensity={36} radius={16} elevated={false}>
+        <View style={styles.quickInner}>
+          {icon}
+        </View>
+      </Glass>
       <Text style={styles.quickLabel}>{label}</Text>
       {hint ? <Text style={styles.quickHint}>{hint}</Text> : null}
     </Press>
@@ -195,13 +214,13 @@ function Quick({ icon, label, hint, onPress }: { icon: React.ReactNode; label: s
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
       <Text style={{ fontSize: 12, fontWeight: "800", letterSpacing: 0.8, color: colors.mutedForeground, marginBottom: 6 }}>{title}</Text>
-      <View style={{ backgroundColor: colors.card, borderRadius: 16, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }}>
+      <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
         {children}
-      </View>
+      </Glass>
     </View>
   );
 }
@@ -233,7 +252,6 @@ const styles = StyleSheet.create({
   guestRoot: { flex: 1, backgroundColor: GUEST_CREAM },
   guestHead: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   guestHeadTitle: { fontSize: 15, fontWeight: "700", color: NAVY },
-  icon: { width: 44, height: 44 },
   guestTitle: { marginTop: 8, fontSize: 24, fontWeight: "900", color: NAVY, textAlign: "center", lineHeight: 28 },
   guestSub: { marginTop: 6, fontSize: 13, color: `${NAVY}99`, textAlign: "center", maxWidth: 280 },
   goldBtn: {
@@ -248,21 +266,26 @@ const styles = StyleSheet.create({
   whiteBtn: {
     width: "100%",
     height: 44,
-    marginTop: 8,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: `${NAVY}1A`,
-    backgroundColor: "rgba(255,255,255,0.8)",
     flexDirection: "row",
     gap: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   featGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%", gap: 8, marginTop: 4 },
   feat: {
     width: "23%",
     minHeight: 64,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.7)",
+    minWidth: 0,
+    alignItems: "stretch",
+  },
+  featInner: {
+    minHeight: 64,
+    alignItems: "center",
+    justifyContent: "center",
     gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   featLabel: { fontSize: 10, fontWeight: "700", color: NAVY, textAlign: "center" },
   hero: { paddingBottom: 20, paddingHorizontal: 16 },
@@ -274,15 +297,11 @@ const styles = StyleSheet.create({
   name: { marginTop: 10, color: "#fff", fontSize: 22, fontWeight: "900", textAlign: "center" },
   handle: { color: GOLD, textAlign: "center", fontWeight: "700" },
   email: { color: "rgba(255,255,255,0.6)", textAlign: "center", fontSize: 12, marginTop: 2 },
-  stats: {
-    marginTop: 14,
-    flexDirection: "row",
-    backgroundColor: NAVY_INSET,
-    borderRadius: 16,
-    paddingVertical: 12,
-  },
+  stats: { marginTop: 14 },
+  statsRow: { flexDirection: "row", paddingVertical: 12 },
   quick: { flexDirection: "row", marginTop: 14 },
-  quickItem: { flex: 1, minHeight: 0, alignItems: "center", gap: 4 },
+  quickItem: { flex: 1, minHeight: 0, alignItems: "center", gap: 6 },
+  quickInner: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   quickLabel: { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
   quickHint: { color: GOLD, fontSize: 10, fontWeight: "700" },
   row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 52, gap: 12 },

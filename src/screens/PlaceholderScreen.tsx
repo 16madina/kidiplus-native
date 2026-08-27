@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../components/Press";
 import { GoldButton } from "../components/Buttons";
+import { Glass } from "../components/Glass";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
 import type { Overlay } from "../context/navigation";
@@ -21,7 +22,7 @@ const TITLES: Record<string, string> = {
 export function PlaceholderScreen({ kind }: { kind: Overlay["kind"] }) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   const { closeOverlay, overlay } = useNav();
   const title = TITLES[String(kind)] ?? String(kind);
   const isBroadcast = overlay.kind === "broadcast-setup";
@@ -38,11 +39,13 @@ export function PlaceholderScreen({ kind }: { kind: Overlay["kind"] }) {
         <View style={{ width: 64 }} />
       </View>
       <View style={styles.body}>
-        <Text style={[styles.p, { color: colors.mutedForeground }]}>
-          {isBroadcast
-            ? "La caméra, les enchères et le streaming LiveKit seront branchés dans une prochaine itération. Le UI d’entrée Go Live est déjà en place."
-            : "Données mock — le backend KiDi+ (paiements, boutique, commandes) sera connecté plus tard. Cette app native ne touche pas au listing store com.kidiplus.app."}
-        </Text>
+        <Glass tone={dark ? "dark" : "light"} intensity={40} radius={20} padded>
+          <Text style={[styles.p, { color: colors.mutedForeground }]}>
+            {isBroadcast
+              ? "La caméra, les enchères et le streaming LiveKit seront branchés dans une prochaine itération. Le UI d’entrée Go Live est déjà en place."
+              : "Données mock — le backend KiDi+ (paiements, boutique, commandes) sera connecté plus tard. Cette app native ne touche pas au listing store com.kidiplus.app."}
+          </Text>
+        </Glass>
         <GoldButton label={t("common.ok")} onPress={closeOverlay} />
       </View>
     </View>

@@ -1,27 +1,29 @@
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { useAppTheme } from "../context/theme";
+import { Glass } from "./Glass";
 
 export function AuthInput({
   label,
   error,
   ...props
 }: TextInputProps & { label: string; error?: string | null }) {
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   return (
     <View>
       <Text style={[styles.label, { color: colors.mutedForeground }]}>{label}</Text>
-      <TextInput
-        {...props}
-        placeholderTextColor={colors.mutedForeground}
-        style={[
-          styles.input,
-          {
-            color: colors.foreground,
-            borderColor: error ? "#C62828" : colors.border,
-            backgroundColor: colors.card,
-          },
-        ]}
-      />
+      <Glass tone={dark ? "dark" : "light"} intensity={32} radius={16} elevated={false}>
+        <TextInput
+          {...props}
+          placeholderTextColor={colors.mutedForeground}
+          style={[
+            styles.input,
+            {
+              color: colors.foreground,
+              borderColor: error ? "#C62828" : "transparent",
+            },
+          ]}
+        />
+      </Glass>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
@@ -38,7 +40,7 @@ const styles = StyleSheet.create({
   input: {
     height: 48,
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 0,
     paddingHorizontal: 16,
     fontSize: 15,
   },

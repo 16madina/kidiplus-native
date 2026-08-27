@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AuthInput } from "../components/AuthInput";
 import { RedButton } from "../components/Buttons";
 import { Press } from "../components/Press";
+import { Glass } from "../components/Glass";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD } from "../theme";
@@ -32,7 +33,7 @@ const COUNTRIES = [
 export function SignUpScreen() {
   const { t } = useTranslation();
   const { setView, signUp } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [emailConfirm, setEmailConfirm] = useState("");
@@ -95,12 +96,14 @@ export function SignUpScreen() {
       <AuthInput label={t("auth.signUp.emailConfirm")} autoCapitalize="none" keyboardType="email-address" value={emailConfirm} onChangeText={setEmailConfirm} placeholder={t("auth.signIn.emailPlaceholder")} />
       <View>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("auth.signUp.country")}</Text>
-        <Press onPress={() => setCountryOpen(true)} style={[styles.select, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Text style={{ color: selected ? colors.foreground : colors.mutedForeground, fontSize: 15 }}>
-            {selected?.value ?? t("auth.signUp.countryPlaceholder")}
-          </Text>
-          <ChevronDown size={18} color={colors.mutedForeground} />
-        </Press>
+        <Glass tone={dark ? "dark" : "light"} intensity={32} radius={16} elevated={false}>
+          <Press onPress={() => setCountryOpen(true)} style={styles.select}>
+            <Text style={{ color: selected ? colors.foreground : colors.mutedForeground, fontSize: 15 }}>
+              {selected?.value ?? t("auth.signUp.countryPlaceholder")}
+            </Text>
+            <ChevronDown size={18} color={colors.mutedForeground} />
+          </Press>
+        </Glass>
       </View>
       <AuthInput label={t("auth.signUp.phone")} keyboardType="phone-pad" value={phone} onChangeText={setPhone} placeholder={t("auth.signUp.phonePlaceholder")} />
       <View>
@@ -194,11 +197,12 @@ const styles = StyleSheet.create({
   select: {
     height: 48,
     borderRadius: 16,
-    borderWidth: 1,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    width: "100%",
+    minHeight: 48,
   },
   eye: { position: "absolute", right: 8, top: 30, width: 40, height: 40 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8, minHeight: 0 },

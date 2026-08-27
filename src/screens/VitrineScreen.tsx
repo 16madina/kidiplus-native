@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Press } from "../components/Press";
+import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { LiveCard } from "../components/LiveCard";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -29,9 +30,9 @@ export function VitrineScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent"]} style={[styles.top, { paddingTop: insets.top + 4 }]}>
-        <Press onPress={() => setTab("home")} style={styles.icon}>
-          <Home size={22} color="#fff" />
-        </Press>
+        <GlassIconButton tone="dark" onPress={() => setTab("home")}>
+          <Home size={20} color="#fff" />
+        </GlassIconButton>
         <View style={styles.cats}>
           {([
             ["forYou", "vitrine.tabs.forYou"],
@@ -44,9 +45,9 @@ export function VitrineScreen() {
             </Press>
           ))}
         </View>
-        <Press onPress={() => (guestMode ? openAuth() : undefined)} style={styles.icon}>
-          <Plus size={24} color="#fff" />
-        </Press>
+        <GlassIconButton tone="gold" onPress={() => (guestMode ? openAuth() : undefined)}>
+          <Plus size={22} color="#fff" />
+        </GlassIconButton>
       </LinearGradient>
 
       {cat === "forYou" ? (
@@ -124,11 +125,13 @@ function VitrinePostSlide({
         <Action icon={<Store size={26} color="#fff" />} label={t("vitrine.shop")} onPress={() => guest && onAuth()} />
       </View>
       <View style={[styles.meta, { bottom: insets.bottom + 28 }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Image source={{ uri: post.avatar }} style={styles.av} />
-          <Text style={styles.seller}>@{post.handle}</Text>
-        </View>
-        <Text style={styles.caption}>{post.caption}</Text>
+        <Glass tone="dark" intensity={38} radius={16} padded>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Image source={{ uri: post.avatar }} style={styles.av} />
+            <Text style={styles.seller}>@{post.handle}</Text>
+          </View>
+          <Text style={styles.caption}>{post.caption}</Text>
+        </Glass>
       </View>
     </View>
   );
@@ -137,7 +140,9 @@ function VitrinePostSlide({
 function Action({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
   return (
     <Press onPress={onPress} style={styles.action}>
-      {icon}
+      <GlassIcon tone="dark" size={48}>
+        {icon}
+      </GlassIcon>
       <Text style={styles.actionLabel}>{label}</Text>
     </Press>
   );
@@ -167,7 +172,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 8,
   },
-  icon: { width: 44, height: 44 },
   cats: { flex: 1, flexDirection: "row", justifyContent: "center", gap: 12 },
   catBtn: { minHeight: 36, minWidth: 0, paddingHorizontal: 4 },
   catLabel: { color: "rgba(255,255,255,0.7)", fontWeight: "700", fontSize: 15 },

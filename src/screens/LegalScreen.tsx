@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../components/Press";
+import { Glass } from "../components/Glass";
 import { useAppTheme } from "../context/theme";
 import { NAVY } from "../theme";
 
@@ -15,7 +16,7 @@ export function LegalScreen({
 }) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { colors } = useAppTheme();
+  const { colors, dark } = useAppTheme();
   const title = page === "terms" ? t("profile.menu.terms") : t("profile.menu.privacy");
   const body =
     page === "terms"
@@ -32,7 +33,9 @@ export function LegalScreen({
       </View>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-        <Text style={[styles.p, { color: colors.mutedForeground }]}>{body}</Text>
+        <Glass tone={dark ? "dark" : "light"} intensity={36} radius={20} padded>
+          <Text style={[styles.p, { color: colors.mutedForeground }]}>{body}</Text>
+        </Glass>
       </ScrollView>
     </View>
   );

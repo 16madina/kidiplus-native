@@ -15,6 +15,7 @@
     "babel-preset-expo": "~57.0.0",
     "expo": "~57.0.17",
     "expo-asset": "~57.0.15",
+    "expo-blur": "~57.0.2",
     "expo-haptics": "~57.0.2",
     "expo-image": "~57.0.3",
     "expo-linear-gradient": "~57.0.1",

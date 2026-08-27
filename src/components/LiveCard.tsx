@@ -1,7 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { CalendarClock, Clock, Eye } from "lucide-react-native";
 import { Press } from "./Press";
+import { Glass } from "./Glass";
 import { formatMin, formatViewers, initials, LIVE_RED, NAVY } from "../theme";
 import type { LiveStream } from "../mock/lives";
 
@@ -17,40 +19,56 @@ export function LiveCard({
     <Press onPress={() => onPress?.(stream)} style={styles.press} haptic="light">
       <View style={styles.card}>
         <Image source={{ uri: stream.thumbnail }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <LinearGradient
+          colors={["rgba(8,12,26,0)", "rgba(8,12,26,0.18)", "rgba(8,12,26,0.78)"]}
+          style={styles.bottomFade}
+        />
         <View style={styles.badges}>
           {stream.scheduled ? (
-            <View style={[styles.badge, { backgroundColor: "#3D5A99" }]}>
-              <CalendarClock size={11} color="#fff" strokeWidth={2.6} />
-              <Text style={styles.badgeText}>Programmé</Text>
-            </View>
+            <Glass tone="dark" intensity={28} radius={8}>
+              <View style={styles.badgeInner}>
+                <CalendarClock size={11} color="#fff" strokeWidth={2.6} />
+                <Text style={styles.badgeText}>Programmé</Text>
+              </View>
+            </Glass>
           ) : stream.fictitious ? (
             <>
-              <View style={[styles.badge, { backgroundColor: "#4A5878" }]}>
-                <Text style={styles.badgeText}>Démo</Text>
-              </View>
-              <View style={styles.viewers}>
-                <Eye size={11} color="#fff" strokeWidth={2.4} />
-                <Text style={styles.badgeText}>{formatViewers(stream.viewers)}</Text>
-              </View>
+              <Glass tone="dark" intensity={28} radius={8}>
+                <View style={styles.badgeInner}>
+                  <Text style={styles.badgeText}>Démo</Text>
+                </View>
+              </Glass>
+              <Glass tone="dark" intensity={28} radius={8}>
+                <View style={styles.badgeInner}>
+                  <Eye size={11} color="#fff" strokeWidth={2.4} />
+                  <Text style={styles.badgeText}>{formatViewers(stream.viewers)}</Text>
+                </View>
+              </Glass>
             </>
           ) : (
             <>
-              <View style={[styles.badge, { backgroundColor: LIVE_RED }]}>
+              <View style={[styles.liveBadge, { backgroundColor: LIVE_RED }]}>
                 <View style={styles.pulse} />
                 <Text style={styles.badgeText}>Live</Text>
               </View>
-              <View style={styles.viewers}>
-                <Eye size={11} color="#fff" strokeWidth={2.4} />
-                <Text style={styles.badgeText}>{formatViewers(stream.viewers)}</Text>
-              </View>
+              <Glass tone="dark" intensity={28} radius={8}>
+                <View style={styles.badgeInner}>
+                  <Eye size={11} color="#fff" strokeWidth={2.4} />
+                  <Text style={styles.badgeText}>{formatViewers(stream.viewers)}</Text>
+                </View>
+              </Glass>
             </>
           )}
           {((stream.scheduled && stream.startsInMin) || stream.endsInMin) ? (
-            <View style={[styles.viewers, { marginLeft: "auto" }]}>
-              <Clock size={11} color="#fff" strokeWidth={2.4} />
-              <Text style={styles.badgeText}>
-                {stream.scheduled ? formatMin(stream.startsInMin!) : formatMin(stream.endsInMin!)}
-              </Text>
+            <View style={{ marginLeft: "auto" }}>
+              <Glass tone="dark" intensity={28} radius={8}>
+                <View style={styles.badgeInner}>
+                  <Clock size={11} color="#fff" strokeWidth={2.4} />
+                  <Text style={styles.badgeText}>
+                    {stream.scheduled ? formatMin(stream.startsInMin!) : formatMin(stream.endsInMin!)}
+                  </Text>
+                </View>
+              </Glass>
             </View>
           ) : null}
         </View>
@@ -86,9 +104,18 @@ const styles = StyleSheet.create({
   press: { flex: 1, minHeight: 0, minWidth: 0, alignItems: "stretch" },
   card: {
     aspectRatio: 3 / 4,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#E8EAF1",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.38)",
+  },
+  bottomFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "55%",
   },
   badges: {
     position: "absolute",
@@ -100,22 +127,20 @@ const styles = StyleSheet.create({
     gap: 6,
     zIndex: 2,
   },
-  badge: {
+  badgeInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
-  viewers: {
+  liveBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
   pulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
@@ -126,10 +151,16 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: 10,
     paddingTop: 40,
-    backgroundColor: "transparent",
   },
   sellerRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: NAVY },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: NAVY,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
+  },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   initials: { color: "#fff", fontSize: 10, fontWeight: "800" },
   seller: { color: "#fff", fontSize: 13, fontWeight: "700" },

@@ -1,9 +1,11 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Press } from "./Press";
+import { Glass } from "./Glass";
 import { ExploreIcon, HomeIcon, PersonIcon, VitrineIcon } from "./TabIcons";
-import { GOLD, LIVE_BADGE, NAVY } from "../theme";
+import { GOLD, LIVE_BADGE } from "../theme";
 import { useAppTheme } from "../context/theme";
 import type { TabKey } from "../context/navigation";
 
@@ -45,53 +47,43 @@ export function BottomTabBar({
         style={styles.tab}
         haptic="light"
       >
-        <Icon active={isActive} color={color} fillBg={colors.background} />
-        <Text style={[styles.label, { color, fontWeight: isActive ? "600" : "500" }]}>{t(labelKey)}</Text>
+        <Icon active={isActive} color={color} fillBg={dark ? "#0C1122" : "#fff"} />
+        <Text style={[styles.label, { color, fontWeight: isActive ? "700" : "500" }]}>{t(labelKey)}</Text>
         {isActive ? <View style={[styles.dot, { backgroundColor: colors.accent }]} /> : <View style={styles.dotSpacer} />}
       </Press>
     );
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      <View
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <LinearGradient
+        colors={
+          dark
+            ? ["rgba(12,17,34,0)", "rgba(12,17,34,0.72)", "rgba(12,17,34,0.96)"]
+            : ["rgba(255,255,255,0)", "rgba(255,255,255,0.55)", "rgba(248,249,252,0.92)"]
+        }
+        style={styles.fade}
         pointerEvents="none"
-        style={[
-          styles.fade,
-          {
-            backgroundColor: dark
-              ? "transparent"
-              : undefined,
-          },
-        ]}
       />
       <View style={styles.inner}>
-        <View
-          style={[
-            styles.pill,
-            {
-              backgroundColor: dark ? "rgba(20,27,51,0.92)" : "rgba(255,255,255,0.92)",
-              borderColor: colors.border,
-            },
-          ]}
-        >
+        <Glass tone={dark ? "dark" : "light"} intensity={55} radius={32} style={styles.pill}>
           <View style={styles.row}>
             {LEFT.map(renderTab)}
             <View style={styles.centerSpacer} />
             {RIGHT.map(renderTab)}
           </View>
-        </View>
-        <View pointerEvents="box-none" style={styles.liveWrap}>
+        </Glass>
+        <View style={styles.liveWrap}>
           <Press accessibilityLabel={t("tabs.live")} onPress={() => onChange("live")} style={styles.liveBtn} haptic="light">
             <View style={styles.liveGlow} />
-            <Image source={liveBadge} style={styles.liveImg} />
+            <Image source={liveBadge} style={styles.liveImg} resizeMode="contain" />
             <Text
               style={[
                 styles.label,
                 {
                   marginTop: 2,
                   color: active === "live" ? colors.accent : colors.mutedForeground,
-                  fontWeight: active === "live" ? "600" : "500",
+                  fontWeight: active === "live" ? "700" : "500",
                 },
               ]}
             >
@@ -117,7 +109,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    top: -8,
+    height: 120,
   },
   inner: {
     marginHorizontal: 16,
@@ -126,17 +118,9 @@ const styles = StyleSheet.create({
   },
   pill: {
     height: 64,
-    borderRadius: 999,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-    overflow: "hidden",
   },
   row: {
-    flex: 1,
+    height: 64,
     flexDirection: "row",
     alignItems: "stretch",
     paddingHorizontal: 8,
@@ -164,20 +148,20 @@ const styles = StyleSheet.create({
   },
   liveGlow: {
     position: "absolute",
-    width: LIVE_BADGE - 8,
-    height: LIVE_BADGE - 8,
-    borderRadius: 16,
-    top: 4,
+    width: LIVE_BADGE - 6,
+    height: LIVE_BADGE - 6,
+    borderRadius: 18,
+    top: 3,
+    backgroundColor: "rgba(232,185,59,0.18)",
     shadowColor: GOLD,
-    shadowOpacity: 0.42,
-    shadowRadius: 12,
+    shadowOpacity: 0.65,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    elevation: 10,
   },
   liveImg: {
     width: LIVE_BADGE,
     height: LIVE_BADGE,
-    resizeMode: "contain",
   },
 });
 

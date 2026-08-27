@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
 import { GoldButton, OutlineButton } from "../components/Buttons";
+import { Glass, GlassIconButton } from "../components/Glass";
 import { Press } from "../components/Press";
 import { X } from "lucide-react-native";
 import { GOLD_WELCOME, WELCOME_BG } from "../theme";
@@ -56,9 +57,9 @@ export function WelcomeScreen() {
         <View style={styles.topRow}>
           <AuthLanguageToggle variant="dark" />
           {authOverlay ? (
-            <Press onPress={closeAuth} style={styles.close}>
-              <X size={22} color="#10162B" strokeWidth={2.2} />
-            </Press>
+            <GlassIconButton tone="light" onPress={closeAuth}>
+              <X size={20} color="#10162B" strokeWidth={2.2} />
+            </GlassIconButton>
           ) : (
             <View />
           )}
@@ -74,9 +75,11 @@ export function WelcomeScreen() {
         </Text>
         <View style={{ flex: 1, minHeight: 8 }} />
         <Press onPress={() => setAcceptTerms((v) => !v)} style={styles.consent} haptic="none">
-          <View style={[styles.checkbox, acceptTerms && styles.checkboxOn]}>
-            {acceptTerms ? <Text style={styles.checkMark}>✓</Text> : null}
-          </View>
+          <Glass tone="dark" intensity={28} radius={5} elevated={false}>
+            <View style={[styles.checkbox, acceptTerms && styles.checkboxOn]}>
+              {acceptTerms ? <Text style={styles.checkMark}>✓</Text> : null}
+            </View>
+          </Glass>
           <Text style={styles.consentText}>
             {t("consent.checkbox").split("<t>")[0]}
             <Text style={styles.link} onPress={() => setLegal("terms")}>
@@ -105,7 +108,9 @@ export function WelcomeScreen() {
       </View>
       {toast ? (
         <View style={[styles.toast, { bottom: insets.bottom + 16 }]}>
-          <Text style={styles.toastText}>{toast}</Text>
+          <Glass tone="dark" intensity={48} radius={16} padded>
+            <Text style={styles.toastText}>{toast}</Text>
+          </Glass>
         </View>
       ) : null}
     </View>
@@ -118,12 +123,6 @@ const styles = StyleSheet.create({
   bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "22%" },
   content: { flex: 1, alignItems: "center", paddingHorizontal: 24 },
   topRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  close: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.9)",
-  },
   badge: {
     width: 92,
     height: 92,
@@ -162,10 +161,7 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 16,
     height: 16,
-    marginTop: 2,
     borderRadius: 3,
-    borderWidth: 1.5,
-    borderColor: GOLD_WELCOME,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -180,9 +176,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 20,
     right: 20,
-    backgroundColor: "#3B1020",
-    borderRadius: 14,
-    padding: 12,
   },
   toastText: { color: "#fff", fontSize: 13, fontWeight: "600", textAlign: "center" },
 });

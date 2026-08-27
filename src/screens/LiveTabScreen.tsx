@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Logo } from "../components/Logo";
 import { Press } from "../components/Press";
+import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -40,17 +41,29 @@ function GuestLive() {
         <Text style={styles.guestTitle}>{t("guest.live.title", { defaultValue: "Crée un compte pour vendre en live" })}</Text>
         <Text style={styles.guestSub}>{t("guest.live.subtitle", { defaultValue: "Lance ton live shopping en quelques secondes et vends à ta communauté." })}</Text>
         <View style={{ flex: 1, width: "100%", marginTop: 16 }}>
-          <View style={[styles.pill, { top: "8%", left: -8, backgroundColor: `${NAVY}E6` }]}>
-            <Radio size={14} color="#fff" />
-            <Text style={styles.pillText}>{t("guest.live.pill1", { defaultValue: "Prêt à démarrer un live ?" })}</Text>
+          <View style={[styles.pill, { top: "8%", left: -8 }]}>
+            <Glass tone="dark" intensity={40} radius={999}>
+              <View style={styles.pillInner}>
+                <Radio size={14} color="#fff" />
+                <Text style={styles.pillText}>{t("guest.live.pill1", { defaultValue: "Prêt à démarrer un live ?" })}</Text>
+              </View>
+            </Glass>
           </View>
-          <View style={[styles.pill, { top: "38%", right: -8, alignSelf: "flex-end", backgroundColor: `${GOLD_GUEST}E6` }]}>
-            <Gavel size={14} color="#fff" />
-            <Text style={styles.pillText}>{t("guest.live.pill2", { defaultValue: "Vends aux enchères en direct" })}</Text>
+          <View style={[styles.pill, { top: "38%", right: -8, alignSelf: "flex-end" }]}>
+            <Glass tone="gold" intensity={44} radius={999}>
+              <View style={styles.pillInner}>
+                <Gavel size={14} color="#fff" />
+                <Text style={styles.pillText}>{t("guest.live.pill2", { defaultValue: "Vends aux enchères en direct" })}</Text>
+              </View>
+            </Glass>
           </View>
-          <View style={[styles.pill, { top: "68%", left: 16, backgroundColor: `${NAVY}E6` }]}>
-            <Sparkles size={14} color="#fff" />
-            <Text style={styles.pillText}>{t("guest.live.pill3", { defaultValue: "Crée ton compte gratuitement" })}</Text>
+          <View style={[styles.pill, { top: "68%", left: 16 }]}>
+            <Glass tone="dark" intensity={40} radius={999}>
+              <View style={styles.pillInner}>
+                <Sparkles size={14} color="#fff" />
+                <Text style={styles.pillText}>{t("guest.live.pill3", { defaultValue: "Crée ton compte gratuitement" })}</Text>
+              </View>
+            </Glass>
           </View>
         </View>
         <Press onPress={() => openAuth("signup")} style={[styles.cta, { backgroundColor: GOLD_GUEST }]}>
@@ -113,7 +126,9 @@ function BecomeSeller({ onActivate }: { onActivate: () => void }) {
 function Feat({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <View style={{ flex: 1, alignItems: "center", gap: 8 }}>
-      <View style={styles.featIcon}>{icon}</View>
+      <Glass tone="gold" intensity={36} radius={16} elevated={false}>
+        <View style={styles.featIcon}>{icon}</View>
+      </Glass>
       <Text style={{ fontSize: 12, fontWeight: "700", textAlign: "center", color: NAVY }}>{label}</Text>
     </View>
   );
@@ -126,9 +141,9 @@ function GoLiveEntry() {
   return (
     <View style={styles.goRoot}>
       <View style={[styles.goTop, { paddingTop: insets.top + 2 }]}>
-        <Press onPress={() => setTab("home")} style={styles.close}>
-          <X size={22} color="#fff" />
-        </Press>
+        <GlassIconButton tone="dark" onPress={() => setTab("home")}>
+          <X size={20} color="#fff" />
+        </GlassIconButton>
         <View style={{ alignItems: "center", flex: 1 }}>
           <Logo size={36} />
           <View style={styles.goldLine} />
@@ -141,18 +156,18 @@ function GoLiveEntry() {
         <View style={styles.choiceRow}>
           <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "now" })} style={styles.choice}>
             <Image source={startBg} style={StyleSheet.absoluteFill} contentFit="cover" />
-            <View style={[styles.choiceBadge, { backgroundColor: "#E5393F" }]}>
+            <Glass tone="dark" intensity={28} radius={8} elevated={false} style={styles.choiceBadge}>
               <Text style={styles.choiceBadgeText}>EN DIRECT</Text>
-            </View>
+            </Glass>
             <Radio size={22} color={GOLD_GO_LIVE} strokeWidth={2.4} />
             <Text style={styles.choiceTitle}>{t("golive.entry.startNow")}</Text>
             <Text style={styles.choiceSub}>{t("golive.entry.startNowSub")}</Text>
           </Press>
           <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.choice}>
             <Image source={scheduleBg} style={StyleSheet.absoluteFill} contentFit="cover" />
-            <View style={[styles.choiceBadge, { backgroundColor: GOLD_GO_LIVE }]}>
-              <Text style={[styles.choiceBadgeText, { color: NAVY }]}>PLANIFIER</Text>
-            </View>
+            <Glass tone="gold" intensity={32} radius={8} elevated={false} style={styles.choiceBadge}>
+              <Text style={[styles.choiceBadgeText, { color: "#fff" }]}>PLANIFIER</Text>
+            </Glass>
             <CalendarIcon size={22} color={GOLD_GO_LIVE} strokeWidth={2.4} />
             <Text style={styles.choiceTitle}>{t("golive.entry.schedule")}</Text>
             <Text style={styles.choiceSub}>{t("golive.entry.scheduleSub")}</Text>
@@ -164,15 +179,17 @@ function GoLiveEntry() {
           <Text style={{ fontWeight: "800", color: NAVY }}>Publier une photo ou une vidéo</Text>
         </Press>
         <Text style={[styles.publishTitle, { marginTop: 8 }]}>{t("golive.entry.myScheduled")}</Text>
-        <View style={styles.emptySched}>
-          <View style={styles.calIcon}>
-            <CalendarIcon size={22} color={GOLD_GO_LIVE} />
+        <Glass tone="gold" intensity={36} radius={22} style={{ marginHorizontal: 16 }}>
+          <View style={styles.emptySched}>
+            <GlassIcon tone="gold" size={44}>
+              <CalendarIcon size={22} color={GOLD_GO_LIVE} />
+            </GlassIcon>
+            <Text style={{ flex: 1, color: "#fff", fontWeight: "700", fontSize: 13.5 }}>{t("golive.entry.emptyScheduled")}</Text>
+            <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.planBtn}>
+              <Text style={{ color: GOLD_GO_LIVE, fontWeight: "800", fontSize: 12 }}>Programmer</Text>
+            </Press>
           </View>
-          <Text style={{ flex: 1, color: "#fff", fontWeight: "700", fontSize: 13.5 }}>{t("golive.entry.emptyScheduled")}</Text>
-          <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.planBtn}>
-            <Text style={{ color: GOLD_GO_LIVE, fontWeight: "800", fontSize: 12 }}>Programmer</Text>
-          </Press>
-        </View>
+        </Glass>
       </ScrollView>
     </View>
   );
@@ -186,10 +203,11 @@ const styles = StyleSheet.create({
   guestSub: { marginTop: 8, fontSize: 14, color: `${NAVY}B3`, textAlign: "center", maxWidth: 280 },
   pill: {
     position: "absolute",
+  },
+  pillInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -212,8 +230,6 @@ const styles = StyleSheet.create({
   featIcon: {
     width: 48,
     height: 48,
-    borderRadius: 16,
-    backgroundColor: "rgba(212,175,55,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -231,7 +247,6 @@ const styles = StyleSheet.create({
   goldCtaText: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "900", color: NAVY },
   goRoot: { flex: 1, backgroundColor: "#061331" },
   goTop: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 6 },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.12)" },
   goldLine: { marginTop: 4, height: 1, width: 96, backgroundColor: GOLD_GO_LIVE },
   goTitle: { marginTop: 12, fontSize: 30, fontWeight: "900", color: "#fff", textAlign: "center", letterSpacing: -0.4 },
   goSub: { marginTop: 8, fontSize: 14, color: "rgba(255,255,255,0.7)", textAlign: "center", paddingHorizontal: 28 },
@@ -248,8 +263,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     backgroundColor: "#0B1938",
   },
-  choiceBadge: { position: "absolute", top: 12, left: 12, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  choiceBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  choiceBadge: { position: "absolute", top: 12, left: 12 },
+  choiceBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800", paddingHorizontal: 8, paddingVertical: 4 },
   choiceTitle: { color: "#fff", fontWeight: "800", fontSize: 15, marginTop: 8 },
   choiceSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 },
   publishTitle: { color: "#fff", fontWeight: "800", fontSize: 15, paddingHorizontal: 20, marginTop: 20, marginBottom: 8 },
@@ -262,24 +277,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptySched: {
-    marginHorizontal: 16,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(228,180,56,0.42)",
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  calIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "rgba(228,180,56,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(228,180,56,0.42)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   planBtn: {
     minHeight: 36,
