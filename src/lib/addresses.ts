@@ -64,6 +64,12 @@ export async function fetchMyAddresses(userId: string): Promise<AddressRow[]> {
   return data as AddressRow[];
 }
 
+/** Buyer's default shipping address (or first saved), used for live bid/buy gate. */
+export async function fetchDefaultAddress(userId: string): Promise<AddressRow | null> {
+  const rows = await fetchMyAddresses(userId);
+  return rows.find((r) => r.is_default) ?? rows[0] ?? null;
+}
+
 export async function createAddress(
   userId: string,
   input: AddressInput,

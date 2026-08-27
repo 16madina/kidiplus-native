@@ -86,6 +86,17 @@ const ORDER_SELECT = `
   buyer:profiles!orders_buyer_id_fkey(display_name, handle)
 `;
 
+export async function fetchOrderById(orderId: string): Promise<OrderView | null> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select(ORDER_SELECT)
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as unknown as OrderRow;
+  return toOrderView(row, embedName(row.seller, "Vendeur"));
+}
+
 export async function fetchMyPurchases(buyerId: string, limit = 50): Promise<OrderView[]> {
   // Opportunistic cleanup so pending orders past the deadline show cancelled.
   await supabase.rpc("expire_overdue_orders", {} as never).then(

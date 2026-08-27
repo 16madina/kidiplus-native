@@ -51,6 +51,40 @@ function coerce(row: Record<string, unknown> | null | undefined, sellerId: strin
   };
 }
 
+export type EligibilityResult = {
+  eligible: boolean;
+  reason?: "no_address" | "no_country_coverage" | "courier_country_mismatch";
+};
+
+/** Same gate as kidiplus.com — blocks bid/buy when delivery is impossible. */
+export function canDeliver(args: {
+  settings: SellerDeliverySettings | null;
+  sellerCountry?: string | null;
+  buyerCountry?: string | null;
+}): EligibilityResult {
+  const buyer = normalizeCountryCode(args.buyerCountry) ?? (args.buyerCountry ?? "").trim().toUpperCase();
+  if (!buyer) return { eligible: false, reason: "no_address" };
+
+  const settings = args.settings;
+  if (!settings || settings.mode === "flat") return { eligible: true };
+
+  if (settings.mode === "courier") {
+    const seller = normalizeCountryCode(args.sellerCountry) ?? (args.sellerCountry ?? "").trim().toUpperCase();
+    if (!seller) return { eligible: true };
+    return buyer === seller
+      ? { eligible: true }
+      : { eligible: false, reason: "courier_country_mismatch" };
+  }
+
+  const zones = Array.isArray(settings.zones) ? settings.zones : [];
+  if (zones.length === 0) return { eligible: true };
+  const hit = zones.some((z) => {
+    const zc = normalizeCountryCode(z.country) ?? z.country.trim().toUpperCase();
+    return zc === buyer;
+  });
+  return hit ? { eligible: true } : { eligible: false, reason: "no_country_coverage" };
+}
+
 export async function fetchDeliverySettings(sellerId: string): Promise<SellerDeliverySettings | null> {
   const { data, error } = await supabase.rpc("get_seller_delivery_settings", {
     _seller_id: sellerId,
