@@ -85,7 +85,13 @@
       ],
       "./plugins/withLiveKitIos.js",
       "./plugins/withStatusBarPlist.js",
-      "@stripe/stripe-react-native"
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.kidiplus.native",
+          "enableGooglePay": false
+        }
+      ]
     ]
   }
 }
