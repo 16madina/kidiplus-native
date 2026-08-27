@@ -23,7 +23,7 @@ function firstName(full: string | null | undefined): string {
   if (!full) return "—";
   const trimmed = full.trim();
   const space = trimmed.indexOf(" ");
-  return (space === -1 ? trimmed : trimmed.slice(0, space)).toUpperCase();
+  return space === -1 ? trimmed : trimmed.slice(0, space);
 }
 
 /** Logo KiDi+ ~1s, puis carte gagnant / invendu ~2s — comme kidiplus.com. */
