@@ -6,18 +6,15 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Calendar,
   Camera,
   Plus,
   RefreshCw,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react-native";
@@ -31,6 +28,7 @@ import { GlassIconButton } from "../components/Glass";
 import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
 import { SetupCamera, SETUP_FILTERS, type SetupFilterId } from "../components/broadcast/SetupCamera";
+import { ScheduleLiveScreen } from "./ScheduleLiveScreen";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import {
@@ -40,7 +38,6 @@ import {
 } from "../lib/broadcast-categories";
 import { type LiveDraftProduct } from "../lib/broadcast-products";
 import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
-import { createScheduledLiveInDb, uploadLiveCover } from "../lib/lives";
 import { formatMoney } from "../lib/money";
 import { GOLD, GOLD_GO_LIVE, NAVY } from "../theme";
 import type { CameraType } from "expo-camera";
@@ -48,36 +45,18 @@ import type { CameraType } from "expo-camera";
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 const GOLD_SOFT = "rgba(232,185,59,0.38)";
 const PINK = "#FE2C55";
-const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const;
 const WEB = "https://kidiplus.com";
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function defaultScheduleParts() {
-  const d = new Date(Date.now() + 60 * 60 * 1000);
-  return {
-    date: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
-    time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
-  };
-}
-
-function parseSchedule(date: string, time: string): Date | null {
-  const [y, m, day] = date.split("-").map(Number);
-  const [h, min] = time.split(":").map(Number);
-  if (!y || !m || !day || Number.isNaN(h) || Number.isNaN(min)) return null;
-  const dt = new Date(y, m - 1, day, h, min, 0, 0);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-}
-
 export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
+  if (mode === "schedule") return <ScheduleLiveScreen />;
+  return <GoLiveSetup />;
+}
+
+function GoLiveSetup() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { closeOverlay } = useNav();
   const { user } = useAuth();
-  const now = mode === "now";
-  const initial = defaultScheduleParts();
   const currency = user?.walletCurrency ?? "EUR";
 
   const [title, setTitle] = useState(user?.displayName?.trim() ? `${user.displayName} 💎 KiDi+` : "");
@@ -94,15 +73,6 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
   const [facing, setFacing] = useState<CameraType>("front");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  const [scheduleDate, setScheduleDate] = useState(initial.date);
-  const [scheduleTime, setScheduleTime] = useState(initial.time);
-  const [duration, setDuration] = useState(45);
-  const [description, setDescription] = useState("");
-  const [allowBids, setAllowBids] = useState(true);
-  const [allowBuyNow, setAllowBuyNow] = useState(true);
-  const [notifyFollowers, setNotifyFollowers] = useState(true);
-  const [allowGifts, setAllowGifts] = useState(true);
 
   const flash = useCallback((msg: string, thenClose = false) => {
     setToast(msg);
@@ -144,54 +114,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
       flash(t("broadcast.setup.readyHelp"));
       return;
     }
-
-    if (now) {
-      flash("Le studio caméra arrive bientôt. Programme un live, ou lance-le sur kidiplus.com.");
-      return;
-    }
-
-    const dt = parseSchedule(scheduleDate, scheduleTime);
-    if (!dt) {
-      flash("Date ou heure invalide.");
-      return;
-    }
-    if (dt.getTime() < Date.now() + 5 * 60 * 1000) {
-      flash("Programme au moins 5 minutes à l’avance.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const coverPath = cover ? await uploadLiveCover(user.id, cover) : null;
-      await createScheduledLiveInDb({
-        sellerId: user.id,
-        title: title.trim(),
-        category,
-        coverPath,
-        scheduledAt: dt.toISOString(),
-        description: description.trim() || null,
-        estimatedDurationMin: duration,
-        allowBids,
-        allowBuyNow,
-        notifyFollowers,
-        allowGifts,
-        currency,
-        products: products.map((p) => ({
-          name: p.name,
-          imagePath: p.imagePath ?? null,
-          mode: p.mode,
-          price: p.mode === "auction" ? p.startPrice : p.price,
-          stock: p.stock,
-          shopProductId: p.shopProductId,
-          timerSeconds: p.timerSec,
-        })),
-      });
-      flash(t("schedule.savedToast"), true);
-    } catch (e) {
-      flash(e instanceof Error ? e.message : "Programmation impossible.");
-    } finally {
-      setBusy(false);
-    }
+    flash("Le studio caméra arrive bientôt. Programme un live, ou lance-le sur kidiplus.com.");
   };
 
   const primaryCats = useMemo(() => BROADCAST_CATEGORY_KEYS.slice(0, 4), []);
@@ -221,7 +144,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
         >
           <X size={20} color="#fff" />
         </GlassIconButton>
-        <Logo size={34} />
+        <Logo size={34} onDark />
         <GlassIconButton tone="dark" onPress={() => setFacing((v) => (v === "front" ? "back" : "front"))}>
           <RefreshCw size={18} color="#fff" />
         </GlassIconButton>
@@ -289,42 +212,6 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
                 );
               })}
             </ScrollView>
-
-            {!now ? (
-              <View style={{ gap: 8 }}>
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.miniLbl}>{t("schedule.form.date")}</Text>
-                    <TextInput value={scheduleDate} onChangeText={setScheduleDate} style={styles.miniInput} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.miniLbl}>{t("schedule.form.time")}</Text>
-                    <TextInput value={scheduleTime} onChangeText={setScheduleTime} style={styles.miniInput} />
-                  </View>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills}>
-                  {DURATION_OPTIONS.map((mins) => (
-                    <Press key={mins} onPress={() => setDuration(mins)} style={styles.pillBtn}>
-                      <View style={[styles.pill, duration === mins && styles.pillOn]}>
-                        <Text style={[styles.pillTxt, duration === mins && styles.pillTxtOn]}>{mins} min</Text>
-                      </View>
-                    </Press>
-                  ))}
-                </ScrollView>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t("broadcast.setup.descriptionPlaceholder")}
-                  placeholderTextColor="rgba(255,255,255,0.45)"
-                  style={[styles.miniInput, { height: 72, textAlignVertical: "top", paddingTop: 10 }]}
-                  multiline
-                />
-                <Opt label={t("schedule.form.optAuctions")} value={allowBids} onValueChange={setAllowBids} />
-                <Opt label={t("schedule.form.optBuyNow")} value={allowBuyNow} onValueChange={setAllowBuyNow} />
-                <Opt label={t("schedule.form.optNotify")} value={notifyFollowers} onValueChange={setNotifyFollowers} />
-                <Opt label={t("schedule.form.optGifts")} value={allowGifts} onValueChange={setAllowGifts} />
-              </View>
-            ) : null}
 
             <SocialCard
               title={t("broadcast.youtube.connectTitle")}
@@ -406,13 +293,8 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
               style={[styles.launch, (!canLaunch || busy) && { opacity: 0.55 }]}
             >
               <LinearGradient colors={[GOLD, GOLD_GO_LIVE, "#C9962C"]} style={styles.launchGrad}>
-                {now ? null : <Calendar size={16} color="#0a0a12" />}
                 <Text style={styles.launchTxt}>
-                  {busy
-                    ? t("common.loading")
-                    : now
-                      ? t("broadcast.setup.start")
-                      : t("schedule.form.cta")}
+                  {busy ? t("common.loading") : t("broadcast.setup.start")}
                 </Text>
               </LinearGradient>
             </Press>
@@ -447,6 +329,10 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
         open={showAdd}
         onClose={() => setShowAdd(false)}
         onAdd={(p) => addProducts([p])}
+        onPickFromShop={() => {
+          setShowAdd(false);
+          setShowShop(true);
+        }}
         currency={currency}
       />
       <ShopPickerSheet
@@ -484,24 +370,6 @@ function SocialCard({
       <Press onPress={onPress} style={styles.connectBtn}>
         <Text style={styles.connectTxt}>{action}</Text>
       </Press>
-    </View>
-  );
-}
-
-function Opt({
-  label,
-  value,
-  onValueChange,
-}: {
-  label: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-}) {
-  return (
-    <View style={styles.opt}>
-      <Sparkles size={14} color={GOLD} />
-      <Text style={styles.optLbl}>{label}</Text>
-      <Switch value={value} onValueChange={onValueChange} trackColor={{ false: "#333", true: GOLD }} thumbColor="#fff" />
     </View>
   );
 }

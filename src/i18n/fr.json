@@ -686,7 +686,9 @@
       "optNotify": "Notifier mes abonnés",
       "optGifts": "Autoriser les cadeaux",
       "cta": "Programmer mon live",
-      "hint": "Tu pourras modifier ton live avant sa diffusion."
+      "hint": "Tu pourras modifier ton live avant sa diffusion.",
+      "needDatetime": "Choisis une date et une heure.",
+      "tooSoon": "Programme au moins 5 minutes à l’avance."
     }
   },
   "profile": {

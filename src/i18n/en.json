@@ -686,7 +686,9 @@
       "optNotify": "Notify my followers",
       "optGifts": "Allow gifts",
       "cta": "Schedule my live",
-      "hint": "You can edit your live before it goes on air."
+      "hint": "You can edit your live before it goes on air.",
+      "needDatetime": "Pick a date and time.",
+      "tooSoon": "Schedule at least 5 minutes ahead."
     }
   },
   "profile": {

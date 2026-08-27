@@ -5,11 +5,12 @@ import { useAppTheme } from "../context/theme";
 const logoLight = require("../../assets/brand/logo.png");
 const logoDark = require("../../assets/brand/logo-dark.png");
 
-export function Logo({ size = 44 }: { size?: number }) {
+export function Logo({ size = 44, onDark }: { size?: number; onDark?: boolean }) {
   const { dark } = useAppTheme();
+  const darkAsset = onDark ?? dark;
   return (
     <Image
-      source={dark ? logoDark : logoLight}
+      source={darkAsset ? logoDark : logoLight}
       style={{ height: size, width: size * 2.4, resizeMode: "contain" }}
       accessibilityLabel="KiDi+"
     />

@@ -23,11 +23,13 @@ export function AddProductSheet({
   open,
   onClose,
   onAdd,
+  onPickFromShop,
   currency,
 }: {
   open: boolean;
   onClose: () => void;
   onAdd: (p: LiveDraftProduct) => void;
+  onPickFromShop?: () => void;
   currency: string;
 }) {
   const { t } = useTranslation();
@@ -113,6 +115,11 @@ export function AddProductSheet({
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 24, gap: 8 }}
             >
+              {onPickFromShop ? (
+                <Press onPress={onPickFromShop} style={styles.shopPick}>
+                  <Text style={styles.shopPickTxt}>{t("shop.pickFromShop")}</Text>
+                </Press>
+              ) : null}
               <View style={styles.photos}>
                 {[0, 1, 2].map((i) => {
                   const src = slots[i]?.preview;
@@ -319,6 +326,13 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
   title: { flex: 1, fontSize: 22, fontWeight: "800", color: NAVY },
   close: { width: 40, height: 40, minWidth: 40, minHeight: 40 },
+  shopPick: {
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: NAVY,
+    marginBottom: 4,
+  },
+  shopPickTxt: { color: "#fff", fontWeight: "800", fontSize: 14 },
   photos: { flexDirection: "row", gap: 10 },
   photoBtn: { flex: 1, minHeight: 0, minWidth: 0, alignItems: "stretch" },
   photo: {
