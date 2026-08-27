@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  BadgeCheck,
   Bell,
   ChevronRight,
   Coins,
@@ -18,6 +19,8 @@ import {
   ShoppingBag,
   Store,
   TrendingUp,
+  Truck,
+  UserPen,
   UserPlus,
   Wallet,
 } from "lucide-react-native";
@@ -27,6 +30,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Logo } from "../components/Logo";
 import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -156,15 +160,17 @@ function AuthedProfile() {
             </GlassIconButton>
             <Text style={styles.heroIconLabel}>{t("profile.hero.activity")}</Text>
           </View>
-          <View style={styles.avatarRing}>
-            {isHttpUrl(user.avatarUrl) ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}>
-                <Text style={styles.avatarInitials}>{initials(user.displayName)}</Text>
-              </View>
-            )}
-          </View>
+          <Press onPress={() => openOverlay({ kind: "edit-profile" })} style={{ minHeight: 0, minWidth: 0 }}>
+            <View style={styles.avatarRing}>
+              {isHttpUrl(user.avatarUrl) ? (
+                <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarInitials}>{initials(user.displayName)}</Text>
+                </View>
+              )}
+            </View>
+          </Press>
           <View style={styles.heroIcon}>
             <GlassIconButton tone="dark" onPress={() => openOverlay({ kind: "activity" })}>
               <MessageCircle size={18} color="#fff" />
@@ -194,12 +200,18 @@ function AuthedProfile() {
         </View>
       </LinearGradient>
 
-      <Section title={t("profile.sections.boutique")}>
-        <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
-      </Section>
+      {user.isSeller ? (
+        <Section title={t("profile.sections.boutique")}>
+          <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
+          <Row icon={<Truck size={18} color={colors.foreground} />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
+          <Row icon={<BadgeCheck size={18} color={colors.foreground} />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
+        </Section>
+      ) : null}
       <Section title={t("profile.sections.finances")}>
         <Row icon={<Wallet size={18} color={colors.foreground} />} label={t("profile.menu.wallet")} onPress={() => openOverlay({ kind: "wallet" })} />
-        <Row icon={<Coins size={18} color={colors.foreground} />} label={t("profile.quick.earnings")} onPress={() => openOverlay({ kind: "earnings" })} />
+        {user.isSeller ? (
+          <Row icon={<Coins size={18} color={colors.foreground} />} label={t("profile.quick.earnings")} onPress={() => openOverlay({ kind: "earnings" })} />
+        ) : null}
       </Section>
       <Section title={t("profile.sections.purchases")}>
         <Row icon={<ShoppingBag size={18} color={colors.foreground} />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
@@ -217,7 +229,8 @@ function AuthedProfile() {
           <Row icon={<Shield size={18} color={GOLD} />} label={t("admin.title")} onPress={() => openOverlay({ kind: "admin" })} />
         </Section>
       ) : null}
-      <Section title={t("profile.sections.general")}>
+      <Section title={t("profile.sections.account")}>
+        <Row icon={<UserPen size={18} color={colors.foreground} />} label={t("profile.editProfile")} onPress={() => openOverlay({ kind: "edit-profile" })} />
         <Row icon={<Settings size={18} color={colors.foreground} />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />
         <Row icon={<Moon size={18} color={colors.foreground} />} label={t("profile.menu.darkMode")} right={<Text style={{ color: GOLD, fontWeight: "700" }}>{dark ? "ON" : "OFF"}</Text>} onPress={() => setDark(!dark)} />
         <Row icon={<HelpCircle size={18} color={colors.foreground} />} label={t("profile.menu.help")} onPress={() => openOverlay({ kind: "help" })} />
@@ -251,13 +264,11 @@ function Quick({ icon, label, hint, onPress }: { icon: React.ReactNode; label: s
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const { colors, dark } = useAppTheme();
+  const { colors } = useAppTheme();
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
       <Text style={{ fontSize: 12, fontWeight: "800", letterSpacing: 0.8, color: colors.mutedForeground, marginBottom: 6 }}>{title}</Text>
-      <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
-        {children}
-      </Glass>
+      <SurfaceCard padded={false}>{children}</SurfaceCard>
     </View>
   );
 }

@@ -23,6 +23,9 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { AddressesScreen } from "./screens/AddressesScreen";
 import { HelpScreen } from "./screens/HelpScreen";
 import { ReferralScreen } from "./screens/ReferralScreen";
+import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { CertificationScreen } from "./screens/CertificationScreen";
+import { DeliverySettingsScreen } from "./screens/DeliverySettingsScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
 import { GOLD, NAVY } from "./theme";
@@ -118,6 +121,15 @@ export function AppShell() {
       </PushScreen>
       <PushScreen open={overlay.kind === "addresses"} onClose={closeOverlay}>
         <AddressesScreen />
+      </PushScreen>
+      <PushScreen open={overlay.kind === "edit-profile"} onClose={closeOverlay}>
+        <EditProfileScreen />
+      </PushScreen>
+      <PushScreen open={overlay.kind === "certification"} onClose={closeOverlay}>
+        <CertificationScreen />
+      </PushScreen>
+      <PushScreen open={overlay.kind === "delivery"} onClose={closeOverlay}>
+        <DeliverySettingsScreen />
       </PushScreen>
       <PushScreen open={overlay.kind === "broadcast-setup"} onClose={closeOverlay}>
         {shown.kind === "broadcast-setup" ? <BroadcastSetupScreen mode={shown.mode} /> : null}

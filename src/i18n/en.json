@@ -713,6 +713,12 @@
   "profile": {
     "mySales": "My sales",
     "editProfile": "Edit profile",
+    "handleLabel": "Handle (@username)",
+    "bioLabel": "Bio",
+    "updated": "Profile updated",
+    "photoUpdated": "Photo updated",
+    "handleTaken": "This handle is already taken.",
+    "handleInvalid": "Handle must be 2–30 chars (lowercase, digits, _ or .).",
     "signOut": "Sign out",
     "sections": {
       "general": "GENERAL",
@@ -759,6 +765,7 @@
   },
   "activity": {
     "title": "Activity",
+    "markAll": "Mark all read",
     "tabs": {
       "notifications": "Notifications",
       "orders": "Orders",

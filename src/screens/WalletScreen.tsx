@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Plus } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
+import { SurfaceCard } from "../components/SurfaceCard";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { useAuth } from "../context/auth";
@@ -72,12 +73,12 @@ export function WalletScreen() {
         <View style={styles.amounts}>
           {TOPUP_AMOUNTS.map((cents) => (
             <Press key={cents} onPress={soon} style={styles.amtPress}>
-              <Glass tone={dark ? "dark" : "light"} intensity={36} radius={16} elevated={false}>
+              <SurfaceCard padded={false}>
                 <View style={styles.amtInner}>
                   <Plus size={14} color={GOLD} />
                   <Text style={{ fontWeight: "800", color: colors.foreground }}>{formatMoney(cents / 100, "EUR", i18n.language)}</Text>
                 </View>
-              </Glass>
+              </SurfaceCard>
             </Press>
           ))}
         </View>
@@ -96,7 +97,7 @@ export function WalletScreen() {
           </View>
         ) : (
           tx.map((row) => (
-            <Glass key={row.id} tone={dark ? "dark" : "light"} intensity={32} radius={16} elevated={false}>
+            <SurfaceCard key={row.id} padded={false}>
               <View style={styles.row}>
                 <View style={styles.txIcon}>
                   {row.amount >= 0 ? (
@@ -113,7 +114,7 @@ export function WalletScreen() {
                   {formatWalletAmount(row.amount, row.currency)}
                 </Text>
               </View>
-            </Glass>
+            </SurfaceCard>
           ))
         )}
       </ScrollView>

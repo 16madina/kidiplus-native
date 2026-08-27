@@ -15,6 +15,9 @@ export type Overlay =
   | { kind: "help" }
   | { kind: "addresses" }
   | { kind: "referral" }
+  | { kind: "edit-profile" }
+  | { kind: "certification" }
+  | { kind: "delivery" }
   | { kind: "broadcast-setup"; mode: "now" | "schedule" }
   | {
       kind: "broadcast-live";

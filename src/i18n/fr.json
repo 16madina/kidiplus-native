@@ -713,6 +713,12 @@
   "profile": {
     "mySales": "Mes ventes",
     "editProfile": "Modifier le profil",
+    "handleLabel": "Handle (@pseudo)",
+    "bioLabel": "Bio",
+    "updated": "Profil mis à jour",
+    "photoUpdated": "Photo mise à jour",
+    "handleTaken": "Ce handle est déjà pris.",
+    "handleInvalid": "Le handle doit contenir 2 à 30 caractères (minuscules, chiffres, _ ou .).",
     "signOut": "Se déconnecter",
     "sections": {
       "general": "GÉNÉRAL",
@@ -759,6 +765,7 @@
   },
   "activity": {
     "title": "Activité",
+    "markAll": "Tout lire",
     "tabs": {
       "notifications": "Notifications",
       "orders": "Commandes",

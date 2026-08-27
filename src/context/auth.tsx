@@ -66,6 +66,14 @@ type Ctx = {
   becomeSeller: () => Promise<void>;
   adjustWallet: (deltaCents: number) => void;
   sendReset: (email: string) => Promise<void>;
+  updateProfile: (patch: {
+    display_name?: string;
+    handle?: string;
+    bio?: string | null;
+    country?: string | null;
+    avatar_url?: string;
+  }) => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<Ctx | null>(null);
@@ -110,6 +118,16 @@ async function toAuthUser(
   wallet: { balance: number; currency: Currency },
 ): Promise<AuthUser> {
   const meta = (authUser.user_metadata ?? {}) as Record<string, unknown>;
+  // Live "Ventes" stat like kidiplus.com: paid orders where I'm the seller.
+  let salesCount = 0;
+  if (profile?.is_seller) {
+    const { count } = await supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_id", authUser.id)
+      .eq("status", "paid");
+    salesCount = count ?? 0;
+  }
   const displayName =
     profile?.display_name ||
     (typeof meta.display_name === "string" ? meta.display_name : "") ||
@@ -131,7 +149,7 @@ async function toAuthUser(
     bio: profile?.bio ?? null,
     followers: profile?.followers_count ?? 0,
     following: profile?.following_count ?? 0,
-    sales: 0,
+    sales: salesCount,
     walletBalance: wallet.balance,
     walletCurrency: wallet.currency,
   };
@@ -314,6 +332,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, user?.isSeller]);
 
+  const refreshUser = useCallback(async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data.user) await hydrate(data.user);
+  }, [hydrate]);
+
+  const updateProfile = useCallback(
+    async (patch: {
+      display_name?: string;
+      handle?: string;
+      bio?: string | null;
+      country?: string | null;
+      avatar_url?: string;
+    }) => {
+      const id = user?.id;
+      if (!id) return;
+      const { error } = await supabase.from("profiles").update(patch).eq("id", id);
+      if (error) throw new Error(error.message);
+      await refreshUser();
+    },
+    [user?.id, refreshUser],
+  );
+
   const adjustWallet = useCallback((deltaCents: number) => {
     setUser((prev) => {
       if (!prev) return prev;
@@ -357,6 +397,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       becomeSeller,
       adjustWallet,
       sendReset,
+      updateProfile,
+      refreshUser,
     }),
     [
       user,
@@ -373,6 +415,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       becomeSeller,
       adjustWallet,
       sendReset,
+      updateProfile,
+      refreshUser,
     ],
   );
 
