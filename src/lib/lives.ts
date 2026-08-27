@@ -291,13 +291,15 @@ export async function createLiveInDb(input: {
   return live.id as string;
 }
 
-export async function endLiveInDb(liveId: string): Promise<void> {
+export async function endLiveInDb(liveId: string): Promise<{ ok: boolean; error?: string }> {
   const endedAt = new Date().toISOString();
-  await supabase
+  const { error } = await supabase
     .from("lives")
     .update({ status: "ended", ended_at: endedAt, ingress_id: null })
     .eq("id", liveId)
     .eq("status", "live");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function touchLiveHostInDb(liveId: string): Promise<void> {

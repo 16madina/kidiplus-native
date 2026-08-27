@@ -402,6 +402,8 @@
     "endLive": "Terminer",
     "confirmEnd": "Terminer ce live ?",
     "confirmEndBody": "Tu ne pourras pas reprendre ce live une fois terminé.",
+    "endFailed": "Impossible de terminer le live — réessaie",
+    "endingLive": "Fin du live…",
     "startAuction": "Démarrer l'enchère",
     "startNext": "Démarrer ▸",
     "endAuction": "Terminer l'enchère",

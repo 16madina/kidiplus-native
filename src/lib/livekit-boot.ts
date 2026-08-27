@@ -1,3 +1,4 @@
+import { LogBox } from "react-native";
 import { registerGlobals } from "@livekit/react-native";
 
 let ready = false;
@@ -11,6 +12,12 @@ try {
   ready = true;
 } catch {
   // Expo Go has no WebRTC native module.
+}
+
+try {
+  LogBox.ignoreLogs(["error reading from signal stream"]);
+} catch {
+  /* web / tests */
 }
 
 export function bootLiveKit(): void {

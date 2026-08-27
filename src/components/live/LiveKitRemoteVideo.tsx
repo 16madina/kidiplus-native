@@ -1,6 +1,7 @@
 import { bootLiveKit } from "../../lib/livekit-boot";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useTracks } from "@livekit/react-native";
 import { Track } from "livekit-client";
 import { fetchLiveKitSession } from "../../lib/livekit";
@@ -18,8 +19,11 @@ export function LiveKitRemoteVideo({
   identity: string;
   displayName: string;
 }) {
+  const { t } = useTranslation();
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ended, setEnded] = useState(false);
+  const endedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +50,13 @@ export function LiveKitRemoteVideo({
     };
   }, []);
 
+  if (ended) {
+    return (
+      <View style={[FILL, styles.center]}>
+        <Text style={styles.wait}>{t("live.endedTitle")}</Text>
+      </View>
+    );
+  }
   if (error) {
     return (
       <View style={[FILL, styles.center]}>
@@ -71,7 +82,15 @@ export function LiveKitRemoteVideo({
         video={false}
         options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
         connectOptions={{ autoSubscribe: true }}
-        onError={(e) => setError(e.message)}
+        onDisconnected={() => {
+          endedRef.current = true;
+          setEnded(true);
+        }}
+        onError={(e) => {
+          if (endedRef.current) return;
+          if (e.name === "ConnectionError") return;
+          setError(e.message);
+        }}
       >
         <RemoteCamera />
       </LiveKitRoom>

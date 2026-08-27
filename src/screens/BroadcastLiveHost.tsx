@@ -1,6 +1,7 @@
 import { bootLiveKit } from "../lib/livekit-boot";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { ActivityIndicator, Alert, LogBox, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import {
   AudioSession,
   LiveKitRoom,
@@ -8,20 +9,26 @@ import {
   isTrackReference,
   useLocalParticipant,
   useParticipants,
+  useRoomContext,
   useTracks,
 } from "@livekit/react-native";
 import { LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
+import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { useNav } from "../context/navigation";
 import { fetchLiveKitSession } from "../lib/livekit";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
+import { supabase } from "../lib/supabase";
 import { GOLD } from "../theme";
 import type { CameraType } from "expo-camera";
 
 bootLiveKit();
+LogBox.ignoreLogs(["error reading from signal stream"]);
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+type LiveSummaryStats = { durationSec: number; peakViewers: number };
 
 export function BroadcastLiveHost({
   liveId,
@@ -39,8 +46,10 @@ export function BroadcastLiveHost({
   facing: CameraType;
 }) {
   const { closeOverlay } = useNav();
+  const endingRef = useRef(false);
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<LiveSummaryStats | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +82,23 @@ export function BroadcastLiveHost({
     };
   }, []);
 
+  useEffect(() => {
+    if (!summary) return;
+    void AudioSession.stopAudioSession();
+  }, [summary]);
+
+  if (summary) {
+    return (
+      <BroadcastSummary
+        liveId={liveId}
+        title={title}
+        durationSec={summary.durationSec}
+        peakViewers={summary.peakViewers}
+        onDone={closeOverlay}
+      />
+    );
+  }
+
   if (error) {
     return (
       <View style={styles.center}>
@@ -102,7 +128,9 @@ export function BroadcastLiveHost({
         video={false}
         options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
         connectOptions={{ autoSubscribe: true }}
+        onDisconnected={() => undefined}
         onError={(e) => {
+          if (endingRef.current) return;
           if (e.name === "ConnectionError") {
             setError("Connexion live coupée. Vérifie le Wi-Fi et relance.");
             return;
@@ -116,6 +144,8 @@ export function BroadcastLiveHost({
           identity={identity}
           displayName={displayName}
           facing={facing}
+          endingRef={endingRef}
+          onEnded={setSummary}
         />
       </LiveKitRoom>
     </View>
@@ -137,13 +167,18 @@ function HostStage({
   identity,
   displayName,
   facing: initialFacing,
+  endingRef,
+  onEnded,
 }: {
   liveId: string;
   identity: string;
   displayName: string;
   facing: CameraType;
+  endingRef: MutableRefObject<boolean>;
+  onEnded: (stats: LiveSummaryStats) => void;
 }) {
-  const { closeOverlay } = useNav();
+  const { t } = useTranslation();
+  const room = useRoomContext();
   const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
   const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
@@ -151,6 +186,8 @@ function HostStage({
   const [busy, setBusy] = useState(false);
   const [facing, setFacing] = useState<CameraType>(initialFacing);
   const [flipBusy, setFlipBusy] = useState(false);
+  const startedAtMsRef = useRef(Date.now());
+  const peakRef = useRef(0);
 
   useEffect(() => {
     const tick = () => void touchLiveHostInDb(liveId);
@@ -159,18 +196,67 @@ function HostStage({
     return () => clearInterval(id);
   }, [liveId]);
 
+  useEffect(() => {
+    let alive = true;
+    void supabase
+      .from("lives")
+      .select("started_at")
+      .eq("id", liveId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!alive) return;
+        const ms = data?.started_at ? new Date(String(data.started_at)).getTime() : NaN;
+        if (Number.isFinite(ms)) startedAtMsRef.current = ms;
+      });
+    return () => {
+      alive = false;
+    };
+  }, [liveId]);
+
+  useEffect(() => {
+    const n = Math.max(0, people.length - 1);
+    if (n > peakRef.current) peakRef.current = n;
+  }, [people.length]);
+
+  const actuallyFinish = async () => {
+    if (busy || endingRef.current) return;
+    endingRef.current = true;
+    setBusy(true);
+    const durationSec = Math.max(0, Math.floor((Date.now() - startedAtMsRef.current) / 1000));
+    const peakViewers = Math.max(peakRef.current, Math.max(0, people.length - 1));
+
+    const ended = await endLiveInDb(liveId);
+    if (!ended.ok) {
+      endingRef.current = false;
+      setBusy(false);
+      Alert.alert(t("live.endFailed"));
+      return;
+    }
+
+    try {
+      await localParticipant.setCameraEnabled(false);
+      await localParticipant.setMicrophoneEnabled(false);
+    } catch {
+      /* already tearing down */
+    }
+    try {
+      await room.disconnect();
+    } catch {
+      /* LiveKit logs ConnectionError / signal stream on a clean hangup */
+    }
+
+    onEnded({ durationSec, peakViewers });
+  };
+
   const finish = () => {
-    Alert.alert("Terminer le live ?", "Les spectateurs seront déconnectés.", [
-      { text: "Annuler", style: "cancel" },
+    if (busy) return;
+    Alert.alert(t("live.confirmEnd"), t("live.confirmEndBody"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Terminer",
+        text: t("live.endLive"),
         style: "destructive",
         onPress: () => {
-          if (busy) return;
-          setBusy(true);
-          void endLiveInDb(liveId).finally(() => {
-            closeOverlay();
-          });
+          void actuallyFinish();
         },
       },
     ]);
@@ -226,6 +312,12 @@ function HostStage({
         onFlip={() => void flip()}
         onEnd={finish}
       />
+      {busy ? (
+        <View style={[FILL, styles.ending]} pointerEvents="auto">
+          <ActivityIndicator color={GOLD} />
+          <Text style={styles.wait}>{t("live.endingLive")}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -254,4 +346,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   endTxt: { color: "#fff", fontWeight: "800" },
+  ending: {
+    backgroundColor: "rgba(5,6,10,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    zIndex: 80,
+  },
 });

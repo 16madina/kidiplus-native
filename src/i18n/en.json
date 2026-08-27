@@ -402,6 +402,8 @@
     "endLive": "End",
     "confirmEnd": "End this live?",
     "confirmEndBody": "You won't be able to resume this live once ended.",
+    "endFailed": "Couldn't end the live — try again",
+    "endingLive": "Ending live…",
     "startAuction": "Start auction",
     "startNext": "Start ▸",
     "endAuction": "End auction",
