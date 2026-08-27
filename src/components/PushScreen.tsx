@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { PanResponder, Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, {
   Easing,
   Extrapolation,
@@ -14,9 +13,9 @@ import Animated, {
 const IOS_EASE = Easing.bezier(0.32, 0.72, 0, 1);
 const IN_MS = 300;
 const OUT_MS = 260;
-const EDGE = 32;
+const EDGE = 40;
 const DISMISS_X = 90;
-const DISMISS_V = 450;
+const DISMISS_V = 0.7;
 
 type Props = {
   open: boolean;
@@ -59,24 +58,29 @@ export function PushScreen({ open, onClose, children, zIndex = 70, swipeBackEnab
     onClose();
   }, [onClose]);
 
-  const pan = Gesture.Pan()
-    .enabled(swipeBackEnabled && mounted)
-    .maxPointers(1)
-    .activeOffsetX(8)
-    .failOffsetY([-24, 24])
-    .onUpdate((e) => {
-      const next = e.translationX;
-      x.value = next > 0 ? next : 0;
-    })
-    .onEnd((e) => {
-      if (e.translationX > DISMISS_X || e.velocityX > DISMISS_V) {
-        x.value = withTiming(screenW.value, { duration: 180, easing: IOS_EASE }, (finished) => {
-          if (finished) runOnJS(finishSwipe)();
-        });
-      } else {
-        x.value = withTiming(0, { duration: 220, easing: IOS_EASE });
-      }
-    });
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => swipeBackEnabled,
+        onMoveShouldSetPanResponder: (_, g) => swipeBackEnabled && Math.abs(g.dx) > Math.abs(g.dy),
+        onPanResponderMove: (_, g) => {
+          x.value = g.dx > 0 ? g.dx : 0;
+        },
+        onPanResponderRelease: (_, g) => {
+          if (g.dx > DISMISS_X || g.vx > DISMISS_V) {
+            x.value = withTiming(screenW.value, { duration: 180, easing: IOS_EASE }, (finished) => {
+              if (finished) runOnJS(finishSwipe)();
+            });
+          } else {
+            x.value = withTiming(0, { duration: 220, easing: IOS_EASE });
+          }
+        },
+        onPanResponderTerminate: () => {
+          x.value = withTiming(0, { duration: 220, easing: IOS_EASE });
+        },
+      }),
+    [swipeBackEnabled, finishSwipe, x, screenW],
+  );
 
   const panelStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }],
@@ -94,9 +98,11 @@ export function PushScreen({ open, onClose, children, zIndex = 70, swipeBackEnab
       <Animated.View style={[styles.panel, panelStyle]}>
         <View style={styles.fill}>{children}</View>
         {swipeBackEnabled ? (
-          <GestureDetector gesture={pan}>
-            <View style={styles.edge} collapsable={false} />
-          </GestureDetector>
+          <View
+            style={[styles.edge, Platform.OS === "web" ? (webEdge as object) : null]}
+            collapsable={false}
+            {...panResponder.panHandlers}
+          />
         ) : null}
       </Animated.View>
     </View>
@@ -136,10 +142,17 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   edge: {
     position: "absolute",
-    top: 0,
+    top: 56,
     bottom: 0,
     left: 0,
     width: EDGE,
     zIndex: 40,
+    backgroundColor: "rgba(0,0,0,0.02)",
   },
 });
+
+const webEdge = {
+  cursor: "ew-resize",
+  touchAction: "none",
+  userSelect: "none",
+} as const;
