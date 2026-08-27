@@ -18,7 +18,7 @@
       "bitcode": false,
       "infoPlist": {
         "CFBundleDisplayName": "KiDi+",
-        "UIViewControllerBasedStatusBarAppearance": true,
+        "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
         "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives."
       }
