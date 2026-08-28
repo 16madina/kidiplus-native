@@ -75,6 +75,13 @@ export function VitrineScreen() {
     () => posts.filter((p) => !p.userId || !blockedIds.has(p.userId)),
     [posts, blockedIds],
   );
+  const liveBySeller = useMemo(() => {
+    const map = new Map<string, (typeof lives)[number]>();
+    for (const s of lives) {
+      if (s.sellerId) map.set(s.sellerId, s);
+    }
+    return map;
+  }, [lives]);
   const liveCards = useMemo(() => {
     const samples = sampleLivesForCategory("Pour toi", lives.length);
     return [...lives, ...samples];
@@ -209,7 +216,9 @@ export function VitrineScreen() {
                 void load(true);
               }} />
             }
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+              const sellerLive = item.userId ? liveBySeller.get(item.userId) : undefined;
+              return (
               <VitrinePostSlide
                 post={item}
                 width={width}
@@ -217,6 +226,17 @@ export function VitrineScreen() {
                 active={tabVisible && cat === "forYou" && item.id === activeId}
                 onAuth={openAuth}
                 guest={guestMode}
+                sellerLive={sellerLive ?? null}
+                onAvatar={() => {
+                  if (guestMode) return openAuth();
+                  if (sellerLive) {
+                    const idx = lives.findIndex((s) => s.id === sellerLive.id);
+                    if (idx >= 0) openList(lives, idx);
+                    return;
+                  }
+                  if (!item.userId) return;
+                  openOverlay({ kind: "shop", sellerId: item.userId, sellerName: item.sellerName });
+                }}
                 onShop={() => {
                   if (guestMode) return openAuth();
                   if (!item.userId) return;
@@ -236,7 +256,8 @@ export function VitrineScreen() {
                   setPosts((prev) => prev.filter((p) => p.userId !== item.userId));
                 }}
               />
-            )}
+              );
+            }}
           />
         )
       ) : null}
@@ -302,9 +323,11 @@ function VitrinePostSlide({
   guest,
   onAuth,
   onShop,
+  onAvatar,
   onComments,
   onLikeChange,
   onBlocked,
+  sellerLive,
 }: {
   post: VitrineFeedPost;
   width: number;
@@ -313,9 +336,11 @@ function VitrinePostSlide({
   guest: boolean;
   onAuth: () => void;
   onShop: () => void;
+  onAvatar: () => void;
   onComments: () => void;
   onLikeChange: (liked: boolean, likes: number) => void;
   onBlocked?: () => void;
+  sellerLive: { id: string } | null;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -324,6 +349,7 @@ function VitrinePostSlide({
   const [comments, setComments] = useState(post.comments);
   const [reportOpen, setReportOpen] = useState(false);
   const busyLike = useRef(false);
+  const isLive = !!sellerLive;
 
   useEffect(() => {
     setLiked(post.likedByMe);
@@ -391,6 +417,22 @@ function VitrinePostSlide({
       <VitrineMedia post={post} active={active} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} pointerEvents="none" />
       <View pointerEvents="box-none" style={[styles.side, { bottom: insets.bottom + 28 }]}>
+        <Press onPress={onAvatar} style={styles.avatarAction} hitSlop={6}>
+          <View style={[styles.avatarRing, isLive ? styles.avatarRingLive : styles.avatarRingGold]}>
+            {isHttpUrl(post.avatarUrl) ? (
+              <Image source={{ uri: post.avatarUrl }} style={styles.avatarImg} />
+            ) : (
+              <View style={[styles.avatarImg, styles.avFallback]}>
+                <Text style={styles.avInitials}>{initials(post.sellerName)}</Text>
+              </View>
+            )}
+          </View>
+          {isLive ? (
+            <View style={styles.liveChip}>
+              <Text style={styles.liveChipTxt}>LIVE</Text>
+            </View>
+          ) : null}
+        </Press>
         <Action
           icon={<Heart size={26} color={liked ? LIVE_RED : "#fff"} fill={liked ? LIVE_RED : "none"} />}
           label={String(likes)}
@@ -574,6 +616,51 @@ const styles = StyleSheet.create({
   underline: { height: 2, backgroundColor: GOLD, marginTop: 4, borderRadius: 1 },
   bottomGrad: { position: "absolute", left: 0, right: 0, bottom: 0, height: 220 },
   side: { position: "absolute", right: 10, alignItems: "center", gap: 12, zIndex: 12 },
+  avatarAction: {
+    minHeight: 0,
+    minWidth: 0,
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  avatarRing: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    padding: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarRingGold: {
+    borderWidth: 2,
+    borderColor: GOLD,
+    backgroundColor: GOLD,
+  },
+  avatarRingLive: {
+    borderWidth: 2.5,
+    borderColor: LIVE_RED,
+    backgroundColor: LIVE_RED,
+  },
+  avatarImg: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#111",
+  },
+  liveChip: {
+    marginTop: -8,
+    backgroundColor: LIVE_RED,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1.5,
+    borderColor: "#000",
+  },
+  liveChipTxt: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
   action: { minHeight: 0, minWidth: 0, alignItems: "center" },
   actionLabel: { color: "#fff", fontSize: 11, fontWeight: "700", marginTop: 2 },
   meta: { position: "absolute", left: 16, right: 80, zIndex: 11 },
