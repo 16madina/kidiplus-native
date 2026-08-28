@@ -304,6 +304,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       bitsPerComponent: 8,
       bytesPerRow: w * 4,
       space: cs,
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ), let cg = ctx.makeImage() else { return nil }
     var mask = CIImage(cgImage: cg)
     let radius = max(1, CGFloat(w) * 0.008)
