@@ -162,9 +162,9 @@ function GoLiveEntry() {
           void (async () => {
             try {
               await cancelScheduledLiveInDb(row.id);
-              await loadScheduled();
-            } catch {
-              /* ignore */
+              setScheduled((prev) => prev.filter((r) => r.id !== row.id));
+            } catch (e) {
+              Alert.alert("Erreur", "Impossible d'annuler ce live. Réessaie.");
             }
           })();
         },

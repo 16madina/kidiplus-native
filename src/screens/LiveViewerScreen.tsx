@@ -34,6 +34,7 @@ import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
 import { isBattleLiveActive, useBattleForLive } from "../lib/battles";
 import { guestLiveKitIdentity } from "../lib/livekit";
 import { useViewerLiveRoom } from "../lib/live-viewer";
+import { useDemoViewerSim } from "../lib/use-demo-viewer-sim";
 import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
 import { fetchOrderById, type OrderView } from "../lib/orders";
@@ -73,11 +74,13 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   );
   const displayName = user?.displayName?.trim() || "Invité";
 
-  const room = useViewerLiveRoom(liveId, {
-    displayName,
-    userId: user?.id ?? null,
-    identity,
-  });
+  const room = s.fictitious
+    ? useDemoViewerSim(normalizeCurrency(s.currency))
+    : useViewerLiveRoom(liveId, {
+        displayName,
+        userId: user?.id ?? null,
+        identity,
+      });
   const battle = useBattleForLive(liveId ?? null);
   const battleActive = isBattleLiveActive(battle);
   const hostBattleLive =

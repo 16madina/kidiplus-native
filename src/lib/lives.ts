@@ -208,8 +208,17 @@ export async function fetchMyScheduledLives(sellerId: string): Promise<Scheduled
 }
 
 export async function cancelScheduledLiveInDb(liveId: string): Promise<void> {
-  const { error } = await supabase.from("lives").delete().eq("id", liveId).eq("status", "scheduled");
-  if (error) throw error;
+  // Soft-delete: update to 'cancelled' (more reliable with RLS than DELETE)
+  const { error: updateErr } = await supabase
+    .from("lives")
+    .update({ status: "cancelled" })
+    .eq("id", liveId)
+    .eq("status", "scheduled");
+  if (updateErr) {
+    // Fallback: try hard delete
+    const { error } = await supabase.from("lives").delete().eq("id", liveId).eq("status", "scheduled");
+    if (error) throw error;
+  }
 }
 
 export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext: string; contentType: string }): Promise<string> {
