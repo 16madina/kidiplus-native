@@ -27,6 +27,7 @@ import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { AdminPrelaunchSimPanel } from "../components/admin/AdminPrelaunchSimPanel";
+import { AdminPushPanel } from "../components/admin/AdminPushPanel";
 import { PaymentsModeBadge } from "../components/admin/PaymentsModeBadge";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
@@ -147,7 +148,8 @@ export function AdminDashboardScreen() {
         {tab === "lives" ? <LivesTab flash={flash} /> : null}
         {tab === "sim" ? <AdminPrelaunchSimPanel flash={flash} /> : null}
         {tab === "referral" ? <ReferralAdminTab flash={flash} /> : null}
-        {tab === "push" || tab === "media" ? (
+        {tab === "push" ? <AdminPushPanel flash={flash} /> : null}
+        {tab === "media" ? (
           <SurfaceCard>
             <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("admin.webOnly")}</Text>
           </SurfaceCard>

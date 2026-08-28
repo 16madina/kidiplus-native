@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { AuctionFinalCountdown } from "../components/live/AuctionFinalCountdown";
+import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
 import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { TopUpSheet } from "../components/wallet/TopUpSheet";
@@ -377,6 +378,14 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
 
       <AuctionFinalCountdown secondsLeft={room.timeLeft} active={!!auctionLive && !ended} />
       <WinnerReveal reveal={room.lastReveal} onDone={room.clearReveal} />
+      <BidPulseFlash
+        text={
+          room.lastBid && featured && room.lastBid.productId === featured.id
+            ? `${room.lastBid.bidderName} · ${fmt(room.lastBid.amount)}`
+            : null
+        }
+        pulseKey={room.lastBid?.ts ?? 0}
+      />
 
       {giftFlash ? (
         <View pointerEvents="none" style={[styles.giftFlash, { top: insets.top + 72 }]}>

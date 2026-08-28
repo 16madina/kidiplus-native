@@ -34,6 +34,7 @@ import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
+import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
 import { useAuth } from "../../context/auth";
 import {
@@ -319,10 +320,20 @@ export function HostStudioHud({
 
       <AuctionFinalCountdown secondsLeft={session.timeLeft} active={!!session.auction && !reveal} />
       <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
+      <BidPulseFlash
+        text={
+          session.lastBid
+            ? `${session.lastBid.bidderName} · ${fmt(session.lastBid.amount)}`
+            : null
+        }
+        pulseKey={session.lastBid?.ts ?? 0}
+      />
 
       {flash ? (
         <View pointerEvents="none" style={[styles.sdFlash, { top: insets.top + 118 }]}>
-          <Text style={styles.sdTxt}>{t("auction.suddenDeath.flash")}</Text>
+          <View style={styles.sdPill}>
+            <Text style={styles.sdTxt}>{t("auction.suddenDeath.flash")}</Text>
+          </View>
         </View>
       ) : null}
 
@@ -731,17 +742,21 @@ const styles = StyleSheet.create({
   },
   sdFlash: {
     position: "absolute",
-    alignSelf: "center",
-    left: 24,
-    right: 24,
+    left: 0,
+    right: 0,
     zIndex: 40,
+    alignItems: "center",
+    paddingHorizontal: 36,
+  },
+  sdPill: {
+    maxWidth: "100%",
     borderRadius: 999,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     backgroundColor: GOLD,
     alignItems: "center",
   },
-  sdTxt: { color: NAVY, fontWeight: "900", fontSize: 16, textAlign: "center" },
+  sdTxt: { color: NAVY, fontWeight: "900", fontSize: 13, textAlign: "center" },
   toast: {
     position: "absolute",
     left: 24,

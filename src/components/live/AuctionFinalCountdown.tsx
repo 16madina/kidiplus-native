@@ -48,10 +48,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pill: {
-    minWidth: 88,
-    paddingHorizontal: 22,
-    paddingVertical: 8,
-    borderRadius: 18,
+    minWidth: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "rgba(16,22,43,0.12)",
     alignItems: "center",
@@ -62,10 +62,10 @@ const styles = StyleSheet.create({
   },
   num: {
     color: NAVY,
-    fontSize: 48,
+    fontSize: 34,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
-    lineHeight: 52,
+    lineHeight: 38,
   },
   numUrgent: {
     color: "#fff",
