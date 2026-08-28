@@ -47,6 +47,7 @@ import { battleAccept, battleDecline, usePendingBattleInvite } from "../../lib/b
 import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
+import { GIFT_CATALOG } from "../../lib/gifts";
 import { GOLD, NAVY } from "../../theme";
 
 const RAIL_BG = "rgba(10,12,20,0.55)";
@@ -94,6 +95,7 @@ export function HostStudioHud({
   const [flash, setFlash] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
+  const [giftFlash, setGiftFlash] = useState<typeof session.lastGift>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
 
   // Pre-launch crowd (admin → Simu) : fake viewers, comments and bids.
@@ -127,6 +129,13 @@ export function HostStudioHud({
     if (!session.lastEnd) return;
     setReveal(session.lastEnd);
   }, [session.lastEnd?.endId]);
+
+  useEffect(() => {
+    if (!session.lastGift) return;
+    setGiftFlash(session.lastGift);
+    const id = setTimeout(() => setGiftFlash(null), 2800);
+    return () => clearTimeout(id);
+  }, [session.lastGift?.id, session.lastGift?.at]);
 
   const soon = (msg: string) => setToast(msg);
 
@@ -173,6 +182,14 @@ export function HostStudioHud({
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
+      {giftFlash ? (
+        <View pointerEvents="none" style={[styles.giftFlash, { top: insets.top + 100 }]}>
+          <Text style={styles.giftFlashTxt}>
+            {GIFT_CATALOG.find((g) => g.key === giftFlash.giftKey)?.emoji ?? "🎁"}{" "}
+            {giftFlash.senderName}
+          </Text>
+        </View>
+      ) : null}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.topLeft}>
           <View style={styles.livePill}>
@@ -583,6 +600,18 @@ function RailBtn({
 
 const styles = StyleSheet.create({
   root: { ...FILL, zIndex: 8 },
+  giftFlash: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 40,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  giftFlashTxt: { color: "#fff", fontWeight: "800", fontSize: 16 },
   top: {
     position: "absolute",
     left: 8,

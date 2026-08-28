@@ -5,6 +5,7 @@ import { resolveStoredImage } from "./storage";
 import { uploadLiveProductImage } from "./lives";
 import { isSimBidderId } from "./prelaunch-live-sim";
 import type { LiveDraftProduct } from "./broadcast-products";
+import type { GiftKey } from "./gifts";
 
 /** Anti-snipe: a bid in the last N seconds resets the timer to N seconds. */
 export const AUCTION_EXTENSION_WINDOW_SECONDS = 10;
@@ -44,6 +45,22 @@ export type AuctionEndReveal = {
   productName: string | null;
   winnerId: string | null;
   winnerName: string | null;
+};
+
+/** Same shape as web `GiftEvt` — id = live_gifts.id for broadcast/postgres dedupe. */
+export type HostGiftEvt = {
+  id: string;
+  giftKey: GiftKey | string;
+  senderId?: string;
+  senderName: string;
+  at: number;
+};
+
+type GiftDbRow = {
+  id: string;
+  sender_id: string;
+  gift_key: string;
+  created_at?: string | null;
 };
 
 export type HostChatMsg = {
@@ -294,6 +311,7 @@ export function useHostLiveSession(args: {
   const [presentViewers, setPresentViewers] = useState<HostPresenceViewer[]>([]);
   const [sales, setSales] = useState({ revenue: 0, count: 0 });
   const [gifts, setGifts] = useState({ count: 0, sellerNet: 0 });
+  const [lastGift, setLastGift] = useState<HostGiftEvt | null>(null);
   const [simViewers, setSimViewers] = useState<number | null>(null);
   const [featuredId, setFeaturedId] = useState<string | null>(null);
   const [lastEnd, setLastEnd] = useState<AuctionEndReveal | null>(null);
@@ -305,6 +323,7 @@ export function useHostLiveSession(args: {
   const startingRef = useRef(false);
   const endingRef = useRef<string | null>(null);
   const seenExtendBidRef = useRef<number | null>(null);
+  const seenGiftIdsRef = useRef<Set<string>>(new Set());
   const auctionRef = useRef(auction);
   const productsRef = useRef(products);
   const lastBidRef = useRef(lastBid);
@@ -319,6 +338,106 @@ export function useHostLiveSession(args: {
       return next.length > 80 ? next.slice(next.length - 80) : next;
     });
   }, []);
+
+  const pushChatRef = useRef(pushChat);
+  pushChatRef.current = pushChat;
+
+  const ingestGiftRef = useRef<(evt: HostGiftEvt) => void>(() => {});
+  ingestGiftRef.current = (evt: HostGiftEvt) => {
+    if (!evt?.id || !evt.giftKey) return;
+    if (seenGiftIdsRef.current.has(evt.id)) return;
+    if (evt.at && Date.now() - evt.at > 5 * 60_000) return;
+    seenGiftIdsRef.current.add(evt.id);
+    if (seenGiftIdsRef.current.size > 200) {
+      const arr = Array.from(seenGiftIdsRef.current);
+      seenGiftIdsRef.current = new Set(arr.slice(arr.length - 100));
+    }
+    setLastGift(evt);
+    pushChatRef.current({
+      id: `gift-${evt.id}`,
+      user: evt.senderName,
+      text: `🎁 ${evt.giftKey}`,
+    });
+  };
+
+  const ingestGiftRowRef = useRef<(row: GiftDbRow) => Promise<void>>(async () => {});
+  ingestGiftRowRef.current = async (row: GiftDbRow) => {
+    if (!row?.id || !row.gift_key || seenGiftIdsRef.current.has(row.id)) return;
+    let senderName = "Viewer";
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, handle")
+        .eq("id", row.sender_id)
+        .maybeSingle();
+      senderName =
+        (data as { display_name?: string | null; handle?: string | null } | null)?.display_name?.trim() ||
+        (data as { handle?: string | null } | null)?.handle?.trim() ||
+        senderName;
+    } catch {
+      /* best-effort */
+    }
+    ingestGiftRef.current({
+      id: row.id,
+      giftKey: row.gift_key,
+      senderId: row.sender_id,
+      senderName,
+      at: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    });
+  };
+
+  useEffect(() => {
+    seenGiftIdsRef.current = new Set();
+    setLastGift(null);
+  }, [liveId]);
+
+  // Drop lastGift after the animation window so remount cannot re-flash.
+  useEffect(() => {
+    if (!lastGift) return;
+    const t = setTimeout(() => {
+      setLastGift((cur) => (cur?.id === lastGift.id ? null : cur));
+    }, 8_000);
+    return () => clearTimeout(t);
+  }, [lastGift]);
+
+  // Rescue poll — same as web: catch gifts missed while reconnecting.
+  useEffect(() => {
+    if (!liveId) return;
+    let alive = true;
+    let inFlight = false;
+    let cursorIso = new Date(Date.now() - 5_000).toISOString();
+
+    const rescueGifts = async () => {
+      if (!alive || inFlight) return;
+      inFlight = true;
+      try {
+        const { data, error } = await supabase
+          .from("live_gifts")
+          .select("id, sender_id, gift_key, created_at")
+          .eq("live_id", liveId)
+          .gte("created_at", cursorIso)
+          .order("created_at", { ascending: true })
+          .limit(20);
+        if (error || !data?.length) return;
+        for (const row of data as GiftDbRow[]) {
+          await ingestGiftRowRef.current(row);
+          if (row.created_at && row.created_at > cursorIso) cursorIso = row.created_at;
+        }
+        void fetchLiveGiftsTotal(liveId).then((totals) => {
+          if (alive) setGifts(totals);
+        });
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const id = setInterval(() => void rescueGifts(), 8_000);
+    void rescueGifts();
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [liveId]);
 
   const sendBroadcast = useCallback((event: string, payload: Record<string, unknown>) => {
     handleRef.current?.send(event, payload);
@@ -458,8 +577,10 @@ export function useHostLiveSession(args: {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "live_gifts", filter: `live_id=eq.${liveId}` },
-        () => {
+        (payload) => {
           void fetchLiveGiftsTotal(liveId).then(setGifts);
+          const row = payload.new as GiftDbRow | undefined;
+          if (row?.id) void ingestGiftRowRef.current(row);
         },
       )
       .subscribe();
@@ -481,6 +602,25 @@ export function useHostLiveSession(args: {
       const p = payload as HostChatMsg;
       if (!p?.id || !p.text) return;
       pushChat(p);
+    });
+    ch.on("broadcast", { event: "gift" }, ({ payload }) => {
+      const p = payload as {
+        id?: string;
+        giftKey?: string;
+        senderId?: string;
+        senderName?: string;
+        fromName?: string;
+        ts?: number;
+      };
+      const giftKey = String(p?.giftKey ?? "");
+      if (!giftKey) return;
+      ingestGiftRef.current({
+        id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
+        giftKey,
+        senderId: p.senderId,
+        senderName: String(p.senderName ?? p.fromName ?? "Viewer"),
+        at: Number(p.ts ?? Date.now()),
+      });
     });
     ch.on("broadcast", { event: "auction:extend" }, ({ payload }) => {
       const evt = payload as { productId?: string; deadlineMs?: number; ts?: number };
@@ -763,6 +903,7 @@ export function useHostLiveSession(args: {
     presentViewers,
     sales,
     gifts,
+    lastGift,
     durationSec,
     currency,
     startAuction,

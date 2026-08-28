@@ -40,7 +40,7 @@ export type ViewerRoomState = {
   chat: HostChatMsg[];
   viewers: number;
   lastReveal: AuctionEndReveal | null;
-  lastGift: { giftKey: GiftKey; fromName: string; at: number } | null;
+  lastGift: { id?: string; giftKey: GiftKey; fromName: string; at: number } | null;
   loading: boolean;
   error: string | null;
 };
@@ -83,6 +83,7 @@ export function useViewerLiveRoom(
   const channelRef = useRef<RealtimeChannel | null>(null);
   const displayNameRef = useRef(opts.displayName);
   displayNameRef.current = opts.displayName;
+  const seenGiftIdsRef = useRef<Set<string>>(new Set());
 
   const featured = useMemo(
     () => pickFeatured(products, auction?.productId ?? null, featuredId),
@@ -101,6 +102,29 @@ export function useViewerLiveRoom(
       return next.length > 80 ? next.slice(next.length - 80) : next;
     });
   }, []);
+
+  const ingestGift = useCallback(
+    (evt: { id: string; giftKey: GiftKey; fromName: string; at: number }) => {
+      if (!evt.id || !evt.giftKey) return;
+      if (seenGiftIdsRef.current.has(evt.id)) return;
+      if (evt.at && Date.now() - evt.at > 5 * 60_000) return;
+      seenGiftIdsRef.current.add(evt.id);
+      if (seenGiftIdsRef.current.size > 200) {
+        const arr = Array.from(seenGiftIdsRef.current);
+        seenGiftIdsRef.current = new Set(arr.slice(arr.length - 100));
+      }
+      setLastGift(evt);
+      pushChat({
+        id: `gift-${evt.id}`,
+        user: evt.fromName,
+        text: `🎁 ${evt.giftKey}`,
+      });
+    },
+    [pushChat],
+  );
+
+  const ingestGiftRef = useRef(ingestGift);
+  ingestGiftRef.current = ingestGift;
 
   const refreshProducts = useCallback(async () => {
     if (!liveId) return;
@@ -192,15 +216,21 @@ export function useViewerLiveRoom(
         });
       })
       .on("broadcast", { event: "gift" }, ({ payload }) => {
-        const p = payload as { giftKey?: string; senderName?: string; fromName?: string };
+        const p = payload as {
+          id?: string;
+          giftKey?: string;
+          senderName?: string;
+          fromName?: string;
+          ts?: number;
+        };
         const giftKey = String(p?.giftKey ?? "") as GiftKey;
         if (!giftKey) return;
         const fromName = String(p.senderName ?? p.fromName ?? "Viewer");
-        setLastGift({ giftKey, fromName, at: Date.now() });
-        pushChat({
-          id: `gift-${uid()}`,
-          user: fromName,
-          text: `🎁 ${giftKey}`,
+        ingestGiftRef.current({
+          id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
+          giftKey,
+          fromName,
+          at: Number(p.ts ?? Date.now()),
         });
       })
       .on("broadcast", { event: "auction:start" }, ({ payload }) => {
@@ -345,14 +375,62 @@ export function useViewerLiveRoom(
       )
       .subscribe();
 
+    // Durable backup if ephemeral broadcast is dropped (same as web / host).
+    const giftsCh = supabase
+      .channel(`viewer-gifts-${liveId}-${uid()}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "live_gifts", filter: `live_id=eq.${liveId}` },
+        (payload) => {
+          const row = payload.new as {
+            id?: string;
+            sender_id?: string;
+            gift_key?: string;
+            created_at?: string | null;
+          };
+          if (!row?.id || !row.gift_key) return;
+          void (async () => {
+            let fromName = "Viewer";
+            if (row.sender_id) {
+              try {
+                const { data } = await supabase
+                  .from("profiles")
+                  .select("display_name, handle")
+                  .eq("id", row.sender_id)
+                  .maybeSingle();
+                fromName =
+                  (data as { display_name?: string | null; handle?: string | null } | null)?.display_name?.trim() ||
+                  (data as { handle?: string | null } | null)?.handle?.trim() ||
+                  fromName;
+              } catch {
+                /* best-effort */
+              }
+            }
+            ingestGiftRef.current({
+              id: row.id!,
+              giftKey: row.gift_key as GiftKey,
+              fromName,
+              at: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+            });
+          })();
+        },
+      )
+      .subscribe();
+
     return () => {
       void channel.untrack();
       void supabase.removeChannel(channel);
       void supabase.removeChannel(productsCh);
       void supabase.removeChannel(liveCh);
+      void supabase.removeChannel(giftsCh);
       channelRef.current = null;
     };
   }, [liveId, opts.identity, pushChat, refreshProducts]);
+
+  useEffect(() => {
+    seenGiftIdsRef.current = new Set();
+    setLastGift(null);
+  }, [liveId]);
 
   const sendChat = useCallback(async (text: string) => {
     const t = text.trim();
@@ -444,7 +522,13 @@ export function useViewerLiveRoom(
       const res = await sendGiftRpc(liveId, giftKey);
       if (!res.ok) return { ok: false as const, error: res.error };
       const fromName = res.senderName || displayNameRef.current || "Viewer";
-      setLastGift({ giftKey, fromName, at: Date.now() });
+      const at = Date.now();
+      ingestGiftRef.current({
+        id: String(res.giftId),
+        giftKey,
+        fromName,
+        at,
+      });
       void channelRef.current?.send({
         type: "broadcast",
         event: "gift",
@@ -453,7 +537,7 @@ export function useViewerLiveRoom(
           giftKey,
           senderId: opts.userId,
           senderName: fromName,
-          ts: Date.now(),
+          ts: at,
         },
       });
       return { ok: true as const };
