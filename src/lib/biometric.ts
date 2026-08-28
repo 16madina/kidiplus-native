@@ -1,23 +1,37 @@
 import { Platform } from "react-native";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as LocalAuthentication from "expo-local-authentication";
 
 const BIOMETRIC_ENABLED_KEY = "kidiplus.biometricEnabled";
 
-export async function canUseBiometric(): Promise<boolean> {
+type LocalAuthModule = typeof import("expo-local-authentication");
+
+function loadLocalAuth(): LocalAuthModule | null {
+  if (!requireOptionalNativeModule("ExpoLocalAuthentication")) return null;
   try {
-    const compatible = await LocalAuthentication.hasHardwareAsync();
+    return require("expo-local-authentication") as LocalAuthModule;
+  } catch {
+    return null;
+  }
+}
+
+export async function canUseBiometric(): Promise<boolean> {
+  const mod = loadLocalAuth();
+  if (!mod) return false;
+  try {
+    const compatible = await mod.hasHardwareAsync();
     if (!compatible) return false;
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    return enrolled;
+    return await mod.isEnrolledAsync();
   } catch {
     return false;
   }
 }
 
 export async function authenticateWithBiometric(): Promise<boolean> {
+  const mod = loadLocalAuth();
+  if (!mod) return false;
   try {
-    const result = await LocalAuthentication.authenticateAsync({
+    const result = await mod.authenticateAsync({
       promptMessage: "Déverrouiller KiDi+",
       fallbackLabel: "Utiliser le code",
       cancelLabel: "Annuler",
