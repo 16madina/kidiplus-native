@@ -5,30 +5,20 @@
 - Token / Lens Group production (Info.plist + Android meta-data)
 - JS : `FilterProvider`, `FiltersCarousel`, bridge `kidi-camera-kit`
 - Autolinking via `"kidi-camera-kit": "file:./modules/kidi-camera-kit"`
+- **iOS** : pas d’`import LiveKit` Swift (évite l’erreur CocoaPods). Preview + lenses Snap OK ; la vidéo live reste publiée par `@livekit/react-native`.
 
 ## Rebuild requis (appareil physique)
 ```bash
-npx expo prebuild
+git pull
+npx expo prebuild --clean
 npx expo run:ios --device
-# ou
-npx expo run:android --device
 ```
 
 ## iOS deps
-- CocoaPods : `SCCameraKit` (via podspec du module)
-- LiveKit Swift (`import LiveKit`) : à lier via SPM
-  `https://github.com/livekit/client-sdk-swift` (product `LiveKit`)
-  — pas encore auto-injecté ; ajouter dans Xcode ou un config plugin SPM
-  si `pod install` / build échoue sur `import LiveKit`.
+- CocoaPods : `SCCameraKit` (via podspec)
+- LiveKit Swift SPM **non** requis pour compiler
 
-## Android deps (Gradle module)
+## Android deps
 - `com.snap.camerakit:camerakit:1.50.0` + `support-camerax`
-- `io.livekit:livekit-android:2.28.0`
+- `io.livekit:livekit-android` (publish natif Android encore dans le module)
 - JitPack (config plugin `withCameraKit.js`)
-
-## Live publish
-Le module peut publier via `setPublishEnabled(roomUrl, token)` (salle LiveKit
-native dédiée, comme Capacitor). Le host Expo utilise encore
-`setCameraEnabled` pour la caméra brute — brancher `setBridgePublishEnabled`
-dans `BroadcastLiveHost` une fois le rebuild validé (désactiver la caméra RN
-pendant que Camera Kit publie).

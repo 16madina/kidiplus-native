@@ -1,7 +1,6 @@
 import ARKit
 import AVFoundation
 import Foundation
-import LiveKit
 import SCSDKCameraKit
 import UIKit
 
@@ -10,8 +9,9 @@ private typealias CameraKitSession = SCSDKCameraKit.Session
 
 // MARK: - KiDi+ Camera Kit native bridge
 //
-// SDK Snap natif (SCSDKCameraKit) + publication LiveKit via BufferCapturer.
-// Remplace le rendu WASM `@snap/camera-kit` pendant le live.
+// SDK Snap natif (SCSDKCameraKit) : preview + lenses.
+// Publication LiveKit filtrée : via @livekit/react-native côté JS pour l’instant
+// (pas d’import LiveKit Swift — évite l’échec CocoaPods `no such module LiveKit`).
 //
 // Plain Swift class (no Capacitor / CAPPlugin dependency) so it can be driven
 // by any host — currently the ExpoModulesCore `KidiCameraKitModule`. All
@@ -43,9 +43,7 @@ final class KidiCameraKitSession: NSObject {
 
     private let lensQueue = DispatchQueue(label: "com.kidiplus.camerakit.lenses")
 
-    private var liveKitRoom: Room?
-    private var liveKitVideoTrack: LocalVideoTrack?
-    private var liveKitOutput: KidiCameraKitLiveKitOutput?
+    private var frameOutput: KidiCameraKitFrameOutput?
     private var publishEnabled = false
     private var idleStopWork: DispatchWorkItem?
 
@@ -277,7 +275,7 @@ final class KidiCameraKitSession: NSObject {
         }
     }
 
-    // MARK: - LiveKit publishing
+    // MARK: - Live publish (JS LiveKit owns the room for now)
 
     func setPublishEnabled(
         enabled: Bool,
@@ -285,23 +283,10 @@ final class KidiCameraKitSession: NSObject {
         token: String?,
         completion: @escaping (Result<Bool, Error>) -> Void
     ) {
-        if !enabled {
-            Task { @MainActor in
-                await self.stopPublishing()
-                completion(.success(false))
-            }
-            return
-        }
-
-        guard let roomUrl, let token, !roomUrl.isEmpty, !token.isEmpty else {
-            completion(.failure(KidiCameraKitError.message("Missing roomUrl or token")))
-            return
-        }
-
-        // Resolve as soon as the Camera Kit preview is up. The production JS
-        // stays on « Connexion au live… » until this promise settles; LiveKit
-        // connect/publish must not block it (and must not run exclusively on
-        // the main actor — that can deadlock room.connect).
+        // Native BufferCapturer publish is deferred until LiveKit Swift is
+        // linked via SPM. Keep Camera Kit preview/lenses running; JS continues
+        // to publish via @livekit/react-native.
+        publishEnabled = enabled
         DispatchQueue.main.async {
             do {
                 try self.bootstrapSession(apiToken: nil, groupIds: nil)
@@ -312,16 +297,8 @@ final class KidiCameraKitSession: NSObject {
                 facing: self.cameraPosition == .front ? "user" : "environment",
                 waitForCapture: false
             ) { _ in
-                print("[KidiCameraKit] setPublishEnabled preview ready")
-                completion(.success(true))
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    do {
-                        try await self.startPublishing(url: roomUrl, token: token)
-                    } catch {
-                        print("[KidiCameraKit] background publish failed: \(error)")
-                    }
-                }
+                print("[KidiCameraKit] setPublishEnabled enabled=\(enabled) (JS LiveKit path)")
+                completion(.success(enabled))
             }
         }
     }
@@ -553,127 +530,6 @@ private extension KidiCameraKitSession {
     }
 }
 
-// MARK: - LiveKit
-
-private extension KidiCameraKitSession {
-    @MainActor
-    func startPublishing(url: String, token: String) async throws {
-        publishEnabled = true
-        idleStopWork?.cancel()
-        idleStopWork = nil
-
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            do {
-                try bootstrapSession(apiToken: nil, groupIds: nil)
-            } catch {
-                print("[KidiCameraKit] publish bootstrap: \(error.localizedDescription)")
-            }
-            ensureSessionStarted(
-                facing: cameraPosition == .front ? "user" : "environment",
-                waitForCapture: false
-            ) { _ in
-                cont.resume()
-            }
-        }
-
-        guard isInitialized, let cameraKit else {
-            throw KidiCameraKitError.message("Camera Kit session missing — call initialize() first")
-        }
-
-        let room = liveKitRoom ?? Room()
-        liveKitRoom = room
-        if room.connectionState != .connected {
-            try await withTimeout(seconds: 12) {
-                try await room.connect(url: url, token: token)
-            }
-        }
-
-        let videoTrack = LocalVideoTrack.createBufferTrack(
-            name: "camera",
-            source: .camera,
-            options: BufferCaptureOptions()
-        )
-        liveKitVideoTrack = videoTrack
-        let capturer = videoTrack.capturer as? BufferCapturer
-
-        let output = liveKitOutput ?? KidiCameraKitLiveKitOutput()
-        output.capturer = capturer
-        output.resetFrameFlag()
-        if liveKitOutput == nil {
-            cameraKit.add(output: output)
-            liveKitOutput = output
-        } else {
-            // Re-bind after a previous stop; keep the same Output registered.
-            output.capturer = capturer
-        }
-
-        // Prefer waiting for a filtered frame so LiveKit gets real dimensions,
-        // but do not hard-fail: publish anyway so the host is never stuck on
-        // « Connexion au live… » if the first buffer is slightly late.
-        let gotFrame = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            var resumed = false
-            output.onFirstFrame = {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: true)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: false)
-            }
-        }
-        if !gotFrame {
-            print("[KidiCameraKit] no Camera Kit frame yet — publishing anyway")
-        }
-
-        try await room.localParticipant.publish(videoTrack: videoTrack)
-        // Best-effort mic — failure must not abort video publish.
-        _ = try? await room.localParticipant.setMicrophone(enabled: true)
-
-        print("[KidiCameraKit] LiveKit video published")
-    }
-
-    @MainActor
-    func stopPublishing() async {
-        publishEnabled = false
-        if let output = liveKitOutput, let cameraKit {
-            cameraKit.remove(output: output)
-        }
-        liveKitOutput = nil
-        if let publication = liveKitRoom?.localParticipant.trackPublications.values
-            .compactMap({ $0 as? LocalTrackPublication })
-            .first(where: { $0.source == .camera })
-        {
-            try? await liveKitRoom?.localParticipant.unpublish(publication: publication)
-        }
-        liveKitVideoTrack = nil
-        await liveKitRoom?.disconnect()
-        liveKitRoom = nil
-        if previewView?.superview == nil {
-            sessionInput?.stopRunning()
-        }
-        print("[KidiCameraKit] LiveKit publish stopped")
-    }
-
-    func withTimeout<T>(
-        seconds: TimeInterval,
-        operation: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await operation() }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                throw KidiCameraKitError.message("Timed out after \(Int(seconds))s")
-            }
-            guard let result = try await group.next() else {
-                throw KidiCameraKitError.message("Timed out")
-            }
-            group.cancelAll()
-            return result
-        }
-    }
-}
 
 // MARK: - Lens repository
 
