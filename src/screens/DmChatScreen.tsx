@@ -159,8 +159,8 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={styles.head}>
-        <Press onPress={onClose} style={styles.back} hitSlop={8}>
+      <View style={[styles.head, { zIndex: 50 }]}>
+        <Press onPress={onClose} style={styles.back} hitSlop={12}>
           <ChevronLeft size={24} color={colors.foreground} />
         </Press>
         <Press onPress={onMenu} style={styles.headCenter}>

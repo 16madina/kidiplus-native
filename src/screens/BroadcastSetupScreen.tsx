@@ -182,7 +182,7 @@ function GoLiveSetup() {
       )}
       {!showFilters ? <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" /> : null}
 
-      <View style={[styles.top, { paddingTop: insets.top + 4 }]}>
+      <View style={[styles.top, { paddingTop: insets.top + 4, zIndex: 50 }]}>
         <GlassIconButton
           tone="dark"
           onPress={() => {
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 12,
-    zIndex: 4,
+    zIndex: 50,
   },
   sheet: {
     marginTop: "auto",

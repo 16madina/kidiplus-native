@@ -24,8 +24,8 @@ export function OverlayHeader({
   const { closeOverlay } = useNav();
   const fg = onDark ? "#fff" : colors.foreground;
   return (
-    <View style={[styles.head, { paddingTop: insets.top }]}>
-      <Press onPress={onBack ?? closeOverlay} style={styles.back}>
+    <View style={[styles.head, { paddingTop: insets.top, zIndex: 50 }]}>
+      <Press onPress={onBack ?? closeOverlay} style={styles.back} hitSlop={12}>
         <ChevronLeft size={24} color={fg} strokeWidth={2.2} />
         <Text style={{ fontWeight: "700", color: fg }}>{backLabel ?? t("common.close")}</Text>
       </Press>

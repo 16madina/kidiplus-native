@@ -98,8 +98,8 @@ export function ActivityScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={styles.head}>
-        <Press onPress={closeOverlay} style={styles.back}>
+      <View style={[styles.head, { zIndex: 50 }]}>
+        <Press onPress={closeOverlay} style={styles.back} hitSlop={12}>
           <ChevronLeft size={24} color={colors.foreground} />
           <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("common.back")}</Text>
         </Press>

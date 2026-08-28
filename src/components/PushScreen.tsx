@@ -68,8 +68,20 @@ export function PushScreen({ open, onClose, children, zIndex = 70, swipeBackEnab
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => swipeBackEnabled,
-        onMoveShouldSetPanResponder: (_, g) => swipeBackEnabled && Math.abs(g.dx) > Math.abs(g.dy),
+        // Never steal the initial touch — left-side back/X buttons must receive taps.
+        onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponderCapture: () => false,
+        onMoveShouldSetPanResponder: (_, g) =>
+          swipeBackEnabled &&
+          g.dx > 10 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.2 &&
+          Math.abs(g.dy) < 24,
+        onMoveShouldSetPanResponderCapture: (_, g) =>
+          swipeBackEnabled &&
+          g.dx > 14 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.2 &&
+          Math.abs(g.dy) < 24,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_, g) => {
           x.value = g.dx > 0 ? g.dx : 0;
         },
@@ -149,12 +161,13 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   edge: {
     position: "absolute",
-    top: 56,
+    // Below typical overlay headers (~safe area + 52) so back/X taps are never covered.
+    top: 100,
     bottom: 0,
     left: 0,
     width: EDGE,
     zIndex: 40,
-    backgroundColor: "rgba(0,0,0,0.02)",
+    backgroundColor: "transparent",
   },
 });
 
