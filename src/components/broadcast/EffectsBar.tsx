@@ -13,27 +13,36 @@ export function EffectsBar() {
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>{t("broadcast.effects.title", "Fond & poster")}</Text>
+      {effects.backgroundUnavailable ? (
+        <Text style={styles.unavailable}>
+          {t("broadcast.effects.unavailable", "Arrière-plan indisponible sur cet appareil")}
+        </Text>
+      ) : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        <EffectTile
-          label={t("broadcast.effects.blur", "Flou du fond")}
-          active={effects.backgroundMode === "blur"}
-          icon={<Aperture size={20} color="#fff" />}
-          onPress={() => effects.setBackgroundBlur(effects.backgroundMode !== "blur")}
-        />
-        <EffectTile
-          label={t("broadcast.effects.greenScreen", "Écran vert")}
-          active={effects.backgroundMode === "image"}
-          thumb={effects.backgroundMode === "image" ? effects.backgroundUrl : null}
-          icon={<ImagePlus size={20} color="#fff" />}
-          onPress={() => {
-            if (effects.backgroundMode === "image") effects.clearBackground();
-            else void effects.setBackgroundFromPicker();
-          }}
-        />
+        {!effects.backgroundUnavailable ? (
+          <EffectTile
+            label={t("broadcast.effects.blur", "Flou du fond")}
+            active={effects.backgroundMode === "blur"}
+            icon={<Aperture size={20} color="#fff" />}
+            onPress={() => effects.setBackgroundBlur(effects.backgroundMode !== "blur")}
+          />
+        ) : null}
+        {!effects.backgroundUnavailable ? (
+          <EffectTile
+            label={t("broadcast.effects.greenScreen", "Écran vert")}
+            active={effects.backgroundMode === "image"}
+            thumb={effects.backgroundMode === "image" ? effects.backgroundUrl : null}
+            icon={<ImagePlus size={20} color="#fff" />}
+            onPress={() => {
+              if (effects.backgroundMode === "image") effects.clearBackground();
+              else void effects.setBackgroundFromPicker();
+            }}
+          />
+        ) : null}
         <EffectTile
           label={t("broadcast.effects.posterFace", "Ajouter image")}
           active={!!effects.posterUrl && effects.posterMode === "cover"}
@@ -88,6 +97,13 @@ function EffectTile({
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 10 },
+  unavailable: {
+    color: GOLD,
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 8,
+    paddingLeft: 2,
+  },
   title: {
     color: "rgba(255,255,255,0.7)",
     fontSize: 11,

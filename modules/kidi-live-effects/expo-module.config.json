@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["KidiLiveEffectsModule"]
+  },
+  "android": {
+    "modules": ["com.kidiplus.liveeffects.KidiLiveEffectsModule"]
+  }
+}

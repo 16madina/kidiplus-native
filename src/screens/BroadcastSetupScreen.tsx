@@ -30,13 +30,17 @@ import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
 import { SetupCamera } from "../components/broadcast/SetupCamera";
 import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
+import { LiveEffectsPreview } from "../components/broadcast/LiveEffectsPreview";
 import { LiveEffectsOverlay } from "../components/broadcast/LiveEffectsOverlay";
+import { PosterGestureLayer } from "../components/broadcast/PosterGestureLayer";
 import { FiltersCarousel } from "../components/broadcast/FiltersCarousel";
 import { ScheduleLiveScreen } from "./ScheduleLiveScreen";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useFilter } from "../lib/filters/filter-context";
 import { isCameraKitSupported } from "../lib/filters/camera-kit-bridge";
+import { useLiveEffects } from "../lib/filters/live-effects-context";
+import { isNativeLiveEffectsSupported } from "../lib/filters/live-effects-native-bridge";
 import {
   BROADCAST_CATEGORY_FR,
   BROADCAST_CATEGORY_KEYS,
@@ -66,8 +70,10 @@ function GoLiveSetup() {
   const { closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
   const { tint, cameraKitReady } = useFilter();
+  const { hasEffects } = useLiveEffects();
   const currency = user?.walletCurrency ?? "EUR";
-  const useSnapPreview = isCameraKitSupported() && cameraKitReady;
+  const useEffectsPreview = hasEffects && isNativeLiveEffectsSupported();
+  const useSnapPreview = !useEffectsPreview && isCameraKitSupported() && cameraKitReady;
 
   const [title, setTitle] = useState(user?.displayName?.trim() || "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");
@@ -184,12 +190,15 @@ function GoLiveSetup() {
             <Text style={styles.rtmpBody}>{t("broadcast.rtmp.previewBody")}</Text>
           </View>
         </View>
+      ) : useEffectsPreview ? (
+        <LiveEffectsPreview facing={facing} />
       ) : useSnapPreview ? (
         <SnapCameraPreview facing={facing} />
       ) : (
         <SetupCamera facing={facing} tint={tint} />
       )}
       <LiveEffectsOverlay />
+      <PosterGestureLayer />
       {!showFilters ? (
         <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" />
       ) : null}

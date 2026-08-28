@@ -2,35 +2,40 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { Platform } from "react-native";
 import { pickImageFromLibrary } from "../pick-image";
+import {
+  clampPosterTransform,
+  DEFAULT_POSTER_TRANSFORM,
+  type BackgroundMode,
+  type PosterMode,
+  type PosterTransform,
+} from "./live-effects-compositor";
+import {
+  isNativeLiveEffectsSupported,
+  subscribeNativeLiveEffectsUnavailable,
+  warmupNativeLiveEffects,
+} from "./live-effects-native-bridge";
 
-export type PosterTransform = { x: number; y: number; scale: number };
-export const DEFAULT_POSTER_TRANSFORM: PosterTransform = { x: 0.5, y: 0.4, scale: 1 };
-
-export function clampPosterTransform(t: PosterTransform): PosterTransform {
-  return {
-    x: Math.min(0.95, Math.max(0.05, t.x)),
-    y: Math.min(0.95, Math.max(0.05, t.y)),
-    scale: Math.min(3, Math.max(0.35, t.scale)),
-  };
-}
-
-export type BackgroundMode = "none" | "blur" | "image";
-export type PosterMode = "off" | "cover";
+export type { BackgroundMode, PosterMode, PosterTransform };
+export { clampPosterTransform, DEFAULT_POSTER_TRANSFORM };
 
 export type LiveEffectsState = {
   backgroundUrl: string | null;
   backgroundMode: BackgroundMode;
+  backgroundUnavailable: boolean;
   posterUrl: string | null;
   posterMode: PosterMode;
   posterTransform: PosterTransform;
   hasEffects: boolean;
   setBackgroundFromPicker: () => Promise<void>;
   setBackgroundBlur: (on: boolean) => void;
+  markBackgroundUnavailable: () => void;
   clearBackground: () => void;
   setPosterFromPicker: () => Promise<void>;
   setPosterTransform: (t: PosterTransform) => void;
@@ -43,23 +48,60 @@ const LiveEffectsContext = createContext<LiveEffectsState | null>(null);
 export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("none");
+  const [backgroundUnavailable, setBackgroundUnavailable] = useState(false);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [posterMode, setPosterMode] = useState<PosterMode>("off");
   const [posterTransform, setPosterTransformRaw] = useState<PosterTransform>(
     DEFAULT_POSTER_TRANSFORM,
   );
 
+  const markBackgroundUnavailable = useCallback(() => {
+    setBackgroundUnavailable(true);
+    setBackgroundMode("none");
+    setBackgroundUrl(null);
+  }, []);
+
+  useEffect(() => subscribeNativeLiveEffectsUnavailable(markBackgroundUnavailable), [
+    markBackgroundUnavailable,
+  ]);
+
+  const ensureNativeReady = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS === "web") return true;
+    if (backgroundUnavailable) return false;
+    if (!isNativeLiveEffectsSupported()) {
+      markBackgroundUnavailable();
+      return false;
+    }
+    const ok = await warmupNativeLiveEffects();
+    if (!ok) {
+      markBackgroundUnavailable();
+      return false;
+    }
+    return true;
+  }, [backgroundUnavailable, markBackgroundUnavailable]);
+
   const setBackgroundFromPicker = useCallback(async () => {
+    if (!(await ensureNativeReady())) return;
     const picked = await pickImageFromLibrary();
     if (!picked) return;
     setBackgroundUrl(picked.preview);
     setBackgroundMode("image");
-  }, []);
+  }, [ensureNativeReady]);
 
-  const setBackgroundBlur = useCallback((on: boolean) => {
-    setBackgroundMode(on ? "blur" : "none");
-    if (on) setBackgroundUrl(null);
-  }, []);
+  const setBackgroundBlur = useCallback(
+    (on: boolean) => {
+      if (!on) {
+        setBackgroundMode("none");
+        return;
+      }
+      void (async () => {
+        if (!(await ensureNativeReady())) return;
+        setBackgroundMode("blur");
+        setBackgroundUrl(null);
+      })();
+    },
+    [ensureNativeReady],
+  );
 
   const clearBackground = useCallback(() => {
     setBackgroundUrl(null);
@@ -93,6 +135,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
     () => ({
       backgroundUrl,
       backgroundMode,
+      backgroundUnavailable,
       posterUrl,
       posterMode,
       posterTransform,
@@ -100,6 +143,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
         backgroundMode !== "none" || (!!posterUrl && posterMode !== "off"),
       setBackgroundFromPicker,
       setBackgroundBlur,
+      markBackgroundUnavailable,
       clearBackground,
       setPosterFromPicker,
       setPosterTransform,
@@ -109,11 +153,13 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
     [
       backgroundUrl,
       backgroundMode,
+      backgroundUnavailable,
       posterUrl,
       posterMode,
       posterTransform,
       setBackgroundFromPicker,
       setBackgroundBlur,
+      markBackgroundUnavailable,
       clearBackground,
       setPosterFromPicker,
       setPosterTransform,
@@ -132,12 +178,14 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
 const EMPTY: LiveEffectsState = {
   backgroundUrl: null,
   backgroundMode: "none",
+  backgroundUnavailable: false,
   posterUrl: null,
   posterMode: "off",
   posterTransform: DEFAULT_POSTER_TRANSFORM,
   hasEffects: false,
   setBackgroundFromPicker: async () => {},
   setBackgroundBlur: () => {},
+  markBackgroundUnavailable: () => {},
   clearBackground: () => {},
   setPosterFromPicker: async () => {},
   setPosterTransform: () => {},

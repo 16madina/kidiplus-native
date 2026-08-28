@@ -1,0 +1,14 @@
+{
+  "name": "kidi-live-effects",
+  "version": "1.0.0",
+  "description": "MediaPipe-equivalent virtual background (blur + green screen) for KiDi+ Expo",
+  "license": "UNLICENSED",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

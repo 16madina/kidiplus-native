@@ -416,6 +416,7 @@ function HostStage({
         onFlip={() => void flip()}
         onEnd={finish}
         onBattleAccepted={onBattleAccepted}
+        cameraFacing={facing}
       />
       {busy ? (
         <View style={[FILL, styles.ending]} pointerEvents="auto">
