@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { RefreshCw, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../Press";
+import { EffectsBar } from "./EffectsBar";
 import { useFilter } from "../../lib/filters/filter-context";
 import type { Lens } from "../../lib/filters/lenses-catalog";
 import { GOLD, NAVY } from "../../theme";
@@ -87,6 +88,8 @@ export function FiltersCarousel({
         </Text>
       ) : null}
       {lensesError ? <Text style={styles.error}>{lensesError}</Text> : null}
+
+      <EffectsBar />
 
       <ScrollView
         horizontal

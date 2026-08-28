@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "./src/context/auth";
 import { NavigationProvider } from "./src/context/navigation";
 import { PushProvider } from "./src/context/push";
 import { FilterProvider } from "./src/lib/filters/filter-context";
+import { LiveEffectsProvider } from "./src/lib/filters/live-effects-context";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthFlow } from "./src/screens/AuthFlow";
 import { AppShell } from "./src/AppShell";
@@ -61,7 +62,9 @@ export default function App() {
             <AuthProvider>
               <NavigationProvider>
                 <FilterProvider>
-                  <Root />
+                  <LiveEffectsProvider>
+                    <Root />
+                  </LiveEffectsProvider>
                 </FilterProvider>
               </NavigationProvider>
             </AuthProvider>

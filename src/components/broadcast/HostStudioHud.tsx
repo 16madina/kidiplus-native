@@ -35,6 +35,7 @@ import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
 import { FiltersCarousel } from "./FiltersCarousel";
 import { SnapCameraPreview } from "./SnapCameraPreview";
+import { PosterGestureLayer } from "./PosterGestureLayer";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
@@ -194,6 +195,7 @@ export function HostStudioHud({
           <SnapCameraPreview facing="front" />
         </View>
       ) : null}
+      <PosterGestureLayer />
       {giftFlash ? (
         <View
           pointerEvents="none"
