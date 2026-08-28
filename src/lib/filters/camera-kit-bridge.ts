@@ -98,7 +98,9 @@ export async function clearBridgeLens() {
 
 export async function startBridgePreview(facing: "user" | "environment") {
   const mod = await ensureInitialized();
-  await mod.startPreview(facing === "user", facing);
+  // Snap Camera Kit gère le miroir de la caméra frontale en interne.
+  // Ne pas passer mirrored=true → ça créerait un double miroir.
+  await mod.startPreview(false, facing);
 }
 
 export async function stopBridgePreview() {

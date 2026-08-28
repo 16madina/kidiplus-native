@@ -208,22 +208,6 @@ function GoLiveSetup() {
         </GlassIconButton>
       </View>
 
-      {!showFilters && !rtmp ? (
-        <View
-          pointerEvents="box-none"
-          style={[styles.filterFabWrap, { bottom: Math.max(insets.bottom, 14) + 268 }]}
-        >
-          <Press
-            onPress={() => setShowFilters(true)}
-            style={styles.filterFab}
-            accessibilityLabel={t("broadcast.setup.filterBtn", "Filtre")}
-          >
-            <Sparkles size={18} color={NAVY} strokeWidth={2.2} />
-            <Text style={styles.filterFabTxt}>{t("broadcast.setup.filterBtn", "Filtre")}</Text>
-          </Press>
-        </View>
-      ) : null}
-
       {!showFilters ? (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 14) }]}>
@@ -470,7 +454,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     marginTop: "auto",
-    maxHeight: "78%",
+    maxHeight: "62%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,
@@ -501,7 +485,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16,22,43,0.9)",
   },
   avatar: { width: "100%", height: "100%" },
-  editRow: { flexDirection: "row", gap: 4, marginTop: 6 },
+  editRow: { flexDirection: "row", gap: 4, marginTop: 6, flexWrap: "wrap" },
   editChip: {
     minHeight: 26,
     height: 26,
@@ -511,7 +495,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 4,
   },
-  editChipTxt: { color: "#0a0a12", fontWeight: "800", fontSize: 11, textTransform: "capitalize" },
+  editChipTxt: { color: "#0a0a12", fontWeight: "800", fontSize: 10, textTransform: "capitalize" },
   filterChip: {
     minHeight: 26,
     height: 26,
@@ -521,27 +505,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 4,
   },
-  filterChipTxt: { color: NAVY, fontWeight: "800", fontSize: 11 },
-  filterFabWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 45,
-    alignItems: "center",
-  },
-  filterFab: {
-    minHeight: 44,
-    height: 44,
-    minWidth: 116,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: GOLD,
-    flexDirection: "row",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-  },
-  filterFabTxt: { color: NAVY, fontWeight: "900", fontSize: 14 },
+  filterChipTxt: { color: NAVY, fontWeight: "800", fontSize: 10 },
   titleBox: {
     flex: 1,
     minHeight: 72,
