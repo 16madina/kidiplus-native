@@ -193,11 +193,31 @@ export async function settleExpiredAuctions(liveId: string): Promise<void> {
 }
 
 export async function fetchLiveSales(liveId: string): Promise<{ revenue: number; count: number }> {
-  const { data } = await supabase.from("orders").select("amount, status").eq("live_id", liveId);
-  const paid = ((data ?? []) as { amount: number; status: string }[]).filter((r) => r.status === "paid");
+  const [ordersRes, soldRes] = await Promise.all([
+    supabase.from("orders").select("amount, status, item_name").eq("live_id", liveId),
+    supabase
+      .from("live_products")
+      .select("name, final_price, price, status")
+      .eq("live_id", liveId)
+      .eq("status", "sold"),
+  ]);
+  const orders = (ordersRes.data ?? []) as { amount: number; status: string; item_name: string | null }[];
+  // paid + pending: an adjudicated auction counts as a sale even before payment clears.
+  const counted = orders.filter((r) => r.status === "paid" || r.status === "pending");
+  const orderNames = new Set(counted.map((o) => (o.item_name ?? "").trim().toLowerCase()));
+  const sold = (soldRes.data ?? []) as {
+    name: string | null;
+    final_price: number | null;
+    price: number;
+    status: string;
+  }[];
+  // Auctions marked sold whose winner hasn't created the order yet.
+  const extra = sold.filter((p) => !orderNames.has((p.name ?? "").trim().toLowerCase()));
   return {
-    revenue: paid.reduce((s, o) => s + Number(o.amount), 0),
-    count: paid.length,
+    revenue:
+      counted.reduce((s, o) => s + Number(o.amount), 0) +
+      extra.reduce((s, p) => s + Number(p.final_price ?? p.price ?? 0), 0),
+    count: counted.length + extra.length,
   };
 }
 
@@ -327,9 +347,19 @@ export function useHostLiveSession(args: {
   const auctionRef = useRef(auction);
   const productsRef = useRef(products);
   const lastBidRef = useRef(lastBid);
+  const auctionRoundKeyRef = useRef<string | null>(null);
+  const auctionRoundStartTsRef = useRef(0);
   auctionRef.current = auction;
   productsRef.current = products;
   lastBidRef.current = lastBid;
+  {
+    // Track when the current auction round began (extensions keep the same key).
+    const roundKey = auction ? `${auction.productId}:${auction.auctionRound ?? 1}` : null;
+    if (roundKey !== auctionRoundKeyRef.current) {
+      auctionRoundKeyRef.current = roundKey;
+      if (roundKey) auctionRoundStartTsRef.current = Date.now();
+    }
+  }
 
   const pushChat = useCallback((msg: HostChatMsg) => {
     setChat((prev) => {
@@ -707,7 +737,12 @@ export function useHostLiveSession(args: {
     const product = productsRef.current.find((p) => p.id === auction.productId);
     const round = product?.auction_round ?? auction.auctionRound ?? 1;
     const bid = lastBidRef.current;
-    const lastBidMatches = !!bid && bid.productId === auction.productId && bid.auctionRound === round;
+    // Round numbers can be stale/missing on live_bids rows: also accept any bid
+    // on this product placed after the current round started.
+    const lastBidMatches =
+      !!bid &&
+      bid.productId === auction.productId &&
+      (bid.auctionRound === round || bid.ts >= auctionRoundStartTsRef.current);
     const winnerName = lastBidMatches ? bid!.bidderName : null;
     const winnerId = lastBidMatches ? bid!.bidderId : null;
     const finalPrice = product?.price ?? 0;
@@ -733,10 +768,12 @@ export function useHostLiveSession(args: {
     });
     setAuction(null);
     void (async () => {
+      // Sim winners have non-UUID ids ("sim:Name") the RPC would reject.
+      const dbWinnerId = winnerId && !isSimBidderId(winnerId) ? winnerId : null;
       let res = await finalizeAuctionInDb({
         liveId,
         productId: auction.productId,
-        winnerId,
+        winnerId: dbWinnerId,
         winnerName,
         finalPrice,
       });
@@ -745,7 +782,7 @@ export function useHostLiveSession(args: {
         res = await finalizeAuctionInDb({
           liveId,
           productId: auction.productId,
-          winnerId,
+          winnerId: dbWinnerId,
           winnerName,
           finalPrice,
         });
@@ -758,6 +795,8 @@ export function useHostLiveSession(args: {
           system: true,
         });
       }
+      // Reflect the adjudicated sale in the host's "Ventes" stat right away.
+      void fetchLiveSales(liveId).then(setSales);
     })();
   }, [auction, timeLeft, liveId, sendBroadcast, pushChat]);
 

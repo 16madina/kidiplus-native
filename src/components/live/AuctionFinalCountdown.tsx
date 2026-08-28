@@ -4,25 +4,33 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { NAVY } from "../../theme";
 
-/** Gros 3 → 1 des 3 dernières secondes. Mort subite = reprend à 3. */
+/**
+ * Gros 3 → 1 des 3 dernières secondes.
+ * Mort subite : le countdown régénéré (10 → 1) reste visible en continu.
+ */
 export function AuctionFinalCountdown({
   secondsLeft,
   active,
   embedded,
   compact,
+  suddenDeath,
 }: {
   secondsLeft: number;
   active: boolean;
   /** When true, no absolute positioning (parent stacks with mort subite / bid). */
   embedded?: boolean;
   compact?: boolean;
+  /** Sudden death mode: keep the regenerated countdown on screen (up to 10s). */
+  suddenDeath?: boolean;
 }) {
-  const show = active && secondsLeft > 0 && secondsLeft <= 3;
+  const limit = suddenDeath ? 10 : 3;
+  const show = active && secondsLeft > 0 && secondsLeft <= limit;
+  const urgent = secondsLeft <= 3;
 
   useEffect(() => {
-    if (!show) return;
+    if (!show || !urgent) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
-  }, [show, secondsLeft]);
+  }, [show, urgent, secondsLeft]);
 
   if (!show) return null;
 

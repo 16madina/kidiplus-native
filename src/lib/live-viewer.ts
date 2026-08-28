@@ -36,6 +36,7 @@ export type ViewerRoomState = {
   featured: LiveProductRow | null;
   auction: AuctionStartEvt | null;
   timeLeft: number;
+  suddenDeathTick: number;
   lastBid: LastBidEvt | null;
   chat: HostChatMsg[];
   viewers: number;
@@ -72,6 +73,7 @@ export function useViewerLiveRoom(
   const [auction, setAuction] = useState<AuctionStartEvt | null>(null);
   const [featuredId, setFeaturedId] = useState<string | null>(null);
   const [lastBid, setLastBid] = useState<LastBidEvt | null>(null);
+  const [suddenDeathTick, setSuddenDeathTick] = useState(0);
   const [chat, setChat] = useState<HostChatMsg[]>([]);
   const [viewers, setViewers] = useState(0);
   const [lastReveal, setLastReveal] = useState<AuctionEndReveal | null>(null);
@@ -244,6 +246,7 @@ export function useViewerLiveRoom(
         });
         setFeaturedId(String(p.productId));
         setLastBid(null);
+        setSuddenDeathTick(0);
         void refreshProducts();
       })
       .on("broadcast", { event: "auction:extend" }, ({ payload }) => {
@@ -252,6 +255,7 @@ export function useViewerLiveRoom(
         setAuction((cur) =>
           cur && cur.productId === p.productId ? { ...cur, deadlineMs: Number(p.deadlineMs) } : cur,
         );
+        setSuddenDeathTick((n) => n + 1);
       })
       .on("broadcast", { event: "auction:end" }, ({ payload }) => {
         const p = payload as {
@@ -554,6 +558,7 @@ export function useViewerLiveRoom(
     featured,
     auction,
     timeLeft,
+    suddenDeathTick,
     lastBid,
     chat,
     viewers,

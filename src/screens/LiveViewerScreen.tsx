@@ -445,6 +445,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           active={!!auctionLive && !ended}
           embedded
           compact={layout.compact}
+          suddenDeath={(room.suddenDeathTick ?? 0) > 0}
         />
         <BidPulseFlash
           text={

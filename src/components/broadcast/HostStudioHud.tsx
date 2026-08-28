@@ -104,6 +104,7 @@ export function HostStudioHud({
   const [flash, setFlash] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
+  const [suddenDeathMode, setSuddenDeathMode] = useState(false);
   const [giftFlash, setGiftFlash] = useState<typeof session.lastGift>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const incoming = usePendingBattleInvite(user?.id ?? null);
@@ -118,7 +119,10 @@ export function HostStudioHud({
   const currency = session.currency || user?.walletCurrency || "EUR";
   const fmt = (n: number) => formatMoney(n, currency, i18n.language);
   const countdownOn =
-    !!session.auction && !reveal && session.timeLeft > 0 && session.timeLeft <= 3;
+    !!session.auction &&
+    !reveal &&
+    session.timeLeft > 0 &&
+    session.timeLeft <= (suddenDeathMode ? 10 : 3);
   /** After mort subite leaves, a simultaneous bid sits a bit lower. */
   const bidLower = !flash && !countdownOn;
 
@@ -131,9 +135,18 @@ export function HostStudioHud({
   useEffect(() => {
     if (session.suddenDeathTick === 0) return;
     setFlash(true);
+    setSuddenDeathMode(true);
     const id = setTimeout(() => setFlash(false), 2600);
     return () => clearTimeout(id);
   }, [session.suddenDeathTick]);
+
+  // Mort subite ends with the auction (or when a new round starts).
+  const auctionKey = session.auction
+    ? `${session.auction.productId}:${session.auction.auctionRound ?? 1}`
+    : "none";
+  useEffect(() => {
+    setSuddenDeathMode(false);
+  }, [auctionKey]);
 
   useEffect(() => {
     if (!session.lastEnd) return;
@@ -324,9 +337,11 @@ export function HostStudioHud({
           </Press>
           {auctionOnFeatured ? (
             <>
-              <Text style={styles.featuredMeta}>{t("live.currentBid")}</Text>
+              <Text style={styles.featuredMeta}>
+                {`${t("live.currentBid")} · ${fmt(featured.price)}`}
+              </Text>
               <View style={styles.featuredPriceRow}>
-                <Text style={styles.featuredPrice}>{fmt(featured.price)}</Text>
+                <Text style={styles.featuredPrice}>{fmt(featured.start_price)}</Text>
                 <Text style={[styles.featuredTimer, session.timeLeft <= 3 && { color: "#ff6b6b" }]}>
                   {String(session.timeLeft).padStart(2, "0")}s
                 </Text>
@@ -411,6 +426,7 @@ export function HostStudioHud({
           active={!!session.auction && !reveal}
           embedded
           compact={layout.compact}
+          suddenDeath={suddenDeathMode}
         />
         {flash ? (
           <View style={styles.sdPill}>

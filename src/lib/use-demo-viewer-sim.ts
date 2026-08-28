@@ -195,6 +195,7 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
       ? { productId: featured!.id, deadlineMs: deadlineRef.current, timerSec: 30, auctionRound: 1 }
       : null,
     timeLeft,
+    suddenDeathTick: 0,
     lastBid,
     chat,
     viewers,
