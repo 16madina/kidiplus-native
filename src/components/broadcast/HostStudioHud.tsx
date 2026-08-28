@@ -38,6 +38,7 @@ import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
 import { useAuth } from "../../context/auth";
+import { useFilter } from "../../lib/filters/filter-context";
 import {
   fmtDuration,
   useHostLiveSession,
@@ -85,6 +86,7 @@ export function HostStudioHud({
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { user } = useAuth();
+  const { tint, activeLens } = useFilter();
   const session = useHostLiveSession({ liveId, identity, displayName });
   const [draft, setDraft] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -186,6 +188,9 @@ export function HostStudioHud({
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
+      {tint && tint !== "transparent" && !activeLens.isSnapLens ? (
+        <View pointerEvents="none" style={[FILL, { backgroundColor: tint, zIndex: 1 }]} />
+      ) : null}
       {giftFlash ? (
         <View
           pointerEvents="none"
@@ -348,6 +353,9 @@ export function HostStudioHud({
           },
         ]}
       >
+        <RailBtn size={layout.icon} onPress={() => setFiltersOpen(true)} accent={filtersOpen || activeLens.lensId !== "none"}>
+          <Sparkles size={layout.compact ? 17 : 19} color={filtersOpen || activeLens.lensId !== "none" ? NAVY : "#fff"} strokeWidth={1.9} />
+        </RailBtn>
         <RailBtn size={layout.icon} onPress={onToggleMic} off={!micOn}>
           {micOn ? (
             <Mic size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
@@ -364,9 +372,6 @@ export function HostStudioHud({
         </RailBtn>
         <RailBtn size={layout.icon} onPress={onFlip}>
           <RefreshCw size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
-        </RailBtn>
-        <RailBtn size={layout.icon} onPress={() => setFiltersOpen(true)}>
-          <Sparkles size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
         <RailBtn size={layout.icon} onPress={() => setBattleOpen(true)}>
           <Swords size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
@@ -423,6 +428,7 @@ export function HostStudioHud({
         </View>
       ) : null}
 
+      {!filtersOpen ? (
       <KeyboardAvoidingView
         pointerEvents="box-none"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -469,6 +475,7 @@ export function HostStudioHud({
           </View>
         </View>
       </KeyboardAvoidingView>
+      ) : null}
 
       <Modal visible={productsOpen} animationType="slide" transparent onRequestClose={() => setProductsOpen(false)}>
         <View style={styles.sheetRoot}>
@@ -642,11 +649,13 @@ function RailBtn({
   children,
   onPress,
   off,
+  accent,
   size = 44,
 }: {
   children: ReactNode;
   onPress: () => void;
   off?: boolean;
+  accent?: boolean;
   size?: number;
 }) {
   return (
@@ -656,6 +665,7 @@ function RailBtn({
         styles.railBtn,
         { width: size, height: size, borderRadius: size / 2 },
         off && styles.railOff,
+        accent && styles.railAccent,
       ]}
     >
       {children}
@@ -834,6 +844,7 @@ const styles = StyleSheet.create({
     borderColor: RAIL_BORDER,
   },
   railOff: { backgroundColor: "rgba(216,44,52,0.82)" },
+  railAccent: { backgroundColor: GOLD, borderColor: "rgba(255,255,255,0.45)" },
   plusBtn: {
     width: 44,
     height: 44,

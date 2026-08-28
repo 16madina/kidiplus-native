@@ -15,6 +15,7 @@ import {
   Camera,
   Plus,
   RefreshCw,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react-native";
@@ -182,7 +183,9 @@ function GoLiveSetup() {
       ) : (
         <SetupCamera facing={facing} tint={tint} />
       )}
-      {!showFilters ? <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" /> : null}
+      {!showFilters ? (
+        <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" />
+      ) : null}
 
       <View style={[styles.top, { paddingTop: insets.top + 4, zIndex: 50 }]}>
         <GlassIconButton
@@ -199,6 +202,22 @@ function GoLiveSetup() {
           <RefreshCw size={18} color="#fff" />
         </GlassIconButton>
       </View>
+
+      {!showFilters && !rtmp ? (
+        <View
+          pointerEvents="box-none"
+          style={[styles.filterFabWrap, { bottom: Math.max(insets.bottom, 14) + 268 }]}
+        >
+          <Press
+            onPress={() => setShowFilters(true)}
+            style={styles.filterFab}
+            accessibilityLabel={t("broadcast.setup.filterBtn", "Filtre")}
+          >
+            <Sparkles size={18} color={NAVY} strokeWidth={2.2} />
+            <Text style={styles.filterFabTxt}>{t("broadcast.setup.filterBtn", "Filtre")}</Text>
+          </Press>
+        </View>
+      ) : null}
 
       {!showFilters ? (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -226,7 +245,8 @@ function GoLiveSetup() {
                     <Text style={styles.editChipTxt}>{t("common.edit")}</Text>
                   </Press>
                   <Press onPress={() => setShowFilters(true)} style={styles.filterChip}>
-                    <Text style={styles.filterChipTxt}>{t("broadcast.setup.filterBtn", { defaultValue: "Filtre" })}</Text>
+                    <Sparkles size={11} color={NAVY} />
+                    <Text style={styles.filterChipTxt}>{t("broadcast.setup.filterBtn", "Filtre")}</Text>
                   </Press>
                 </View>
               </View>
@@ -351,14 +371,16 @@ function GoLiveSetup() {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-      ) : (
+      ) : null}
+
+      {!rtmp ? (
         <FiltersCarousel
           open={showFilters}
           onClose={() => setShowFilters(false)}
           doneLabel={t("broadcast.setup.filtersDone")}
           hint={t("broadcast.setup.filtersHint")}
         />
-      )}
+      ) : null}
 
       <AddProductSheet
         open={showAdd}
@@ -490,11 +512,31 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 999,
     paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: GOLD_SOFT,
-    backgroundColor: "rgba(16,22,43,0.85)",
+    backgroundColor: GOLD,
+    flexDirection: "row",
+    gap: 4,
   },
-  filterChipTxt: { color: "#fff", fontWeight: "800", fontSize: 11 },
+  filterChipTxt: { color: NAVY, fontWeight: "800", fontSize: 11 },
+  filterFabWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 45,
+    alignItems: "center",
+  },
+  filterFab: {
+    minHeight: 44,
+    height: 44,
+    minWidth: 116,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+    flexDirection: "row",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  filterFabTxt: { color: NAVY, fontWeight: "900", fontSize: 14 },
   titleBox: {
     flex: 1,
     minHeight: 72,

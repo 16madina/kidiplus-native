@@ -466,7 +466,11 @@
     },
     "filters": {
       "unstable": "Filter turned off: unstable on this device",
-      "unavailable": "Filters unavailable on this device"
+      "unavailable": "Filters unavailable on this device",
+      "title": "Filters",
+      "none": "None",
+      "refresh": "Refresh",
+      "nativePending": "Snap AR filters: native rebuild required. Local styles available."
     },
     "setup": {
       "titlePlaceholder": "Live title…",

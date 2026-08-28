@@ -466,7 +466,11 @@
     },
     "filters": {
       "unstable": "Filtre désactivé : instable sur cet appareil",
-      "unavailable": "Filtres indisponibles sur cet appareil"
+      "unavailable": "Filtres indisponibles sur cet appareil",
+      "title": "Filtres",
+      "none": "Aucun",
+      "refresh": "Actualiser",
+      "nativePending": "Filtres AR Snap : rebuild natif requis. Styles locaux disponibles."
     },
     "setup": {
       "titlePlaceholder": "Titre du live…",

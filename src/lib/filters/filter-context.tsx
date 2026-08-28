@@ -95,10 +95,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     void clearBridgeLens();
   }, []);
 
-  const lenses = useMemo(() => {
-    if (snapLenses.length === 0) return LENSES;
-    return [NONE_LENS, ...snapLenses];
-  }, [snapLenses]);
+  // Comme le web : Aucun + lenses Snap (si dispo) + styles locaux (toujours).
+  const lenses = useMemo(
+    () => [NONE_LENS, ...snapLenses, ...LENSES.filter((l) => l.lensId !== "none")],
+    [snapLenses],
+  );
 
   const value = useMemo<FilterContextValue>(
     () => ({
