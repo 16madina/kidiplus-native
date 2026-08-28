@@ -43,7 +43,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const cameraKitReady = isCameraKitSupported();
 
   const runLoad = useCallback((force: boolean) => {
-    if (loadStartedRef.current && !force) return;
+    if (!force && loadStartedRef.current) return;
     if (!isCameraKitSupported()) {
       setSnapLenses([]);
       setLensesError(

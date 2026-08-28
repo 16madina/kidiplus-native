@@ -5,6 +5,10 @@ const EMBEDDED_API_TOKEN =
   "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzg0MDQzNzkxLCJzdWIiOiIxOWJhOGM5OC1jMDRhLTRlOTgtOGVkYi04YWM4ZDQyODUzMzN-UFJPRFVDVElPTn43OTRjMjZhNC02ZDg0LTQ5NGYtOGE4Ny04MmZkMmVkZDVmYTUifQ.YE50FTWYfbngNKJGigMDb-I_eVvfASwRF9NRsQ4MD_4";
 
 const EMBEDDED_LENS_GROUP_ID = "df287f43-6646-4b01-a711-1a0e632c211a";
+const EMBEDDED_LENS_GROUP_IDS_ALL = [
+  "df287f43-6646-4b01-a711-1a0e632c211a",
+  "5b22f85d-3308-452f-8bcc-058a5c9dc34b",
+];
 
 function readEnv(key: string): string {
   try {
@@ -40,7 +44,7 @@ export const SNAP_LENS_GROUP_ID =
 export const SNAP_LENS_GROUP_IDS: string[] = Array.from(
   new Set(
     [
-      SNAP_LENS_GROUP_ID,
+      ...EMBEDDED_LENS_GROUP_IDS_ALL,
       ...readEnv("EXPO_PUBLIC_SNAP_LENS_GROUP_IDS")
         .split(",")
         .map((s) => s.trim())
