@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["KidiCameraKitModule"]
+  },
+  "android": {
+    "modules": ["com.kidiplus.camerakit.KidiCameraKitModule"]
+  }
+}
