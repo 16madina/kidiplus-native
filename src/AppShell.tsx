@@ -1,5 +1,5 @@
-import { lazy, Suspense, useRef } from "react";
-import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { lazy, Suspense, useEffect, useRef } from "react";
+import { ActivityIndicator, BackHandler, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabBar } from "./components/BottomTabBar";
 import { PushScreen } from "./components/PushScreen";
@@ -36,6 +36,7 @@ import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
 import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
 import { HostResumeListener } from "./components/home/HostResumeListener";
+import { LivePipShell } from "./components/live/LivePipShell";
 import { GOLD, NAVY } from "./theme";
 import { CONTENT_MAX_WIDTH } from "./lib/layout";
 
@@ -78,7 +79,17 @@ function useCachedOverlay<K extends OverlayKind>(kind: K) {
 }
 
 export function AppShell() {
-  const { tab, setTab, closeOverlay, isOverlayOpen } = useNav();
+  const {
+    tab,
+    setTab,
+    overlay,
+    closeOverlay,
+    isOverlayOpen,
+    livePresentation,
+    minimizeLive,
+    expandLive,
+    closeLive,
+  } = useNav();
   const { authOverlay, closeAuth } = useAuth();
   const { dark, colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -94,10 +105,26 @@ export function AppShell() {
   const live = useCachedOverlay("live");
   const sellerProfile = useCachedOverlay("seller-profile");
 
+  const liveFullScreen = isOverlayOpen("live") && livePresentation === "full";
+  const liveMinimized = isOverlayOpen("live") && livePresentation === "minimized";
   const hideTabs =
-    tab === "vitrine" || isOverlayOpen("live") || isOverlayOpen("broadcast-live");
-  const statusLight =
-    tab === "vitrine" || isOverlayOpen("live") || isOverlayOpen("broadcast-live") || dark;
+    tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live");
+  const statusLight = tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live") || dark;
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (overlay.kind === "live" && livePresentation === "full") {
+        minimizeLive();
+        return true;
+      }
+      if (overlay.kind === "live" && livePresentation === "minimized") {
+        closeLive();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [overlay.kind, livePresentation, minimizeLive, closeLive]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -216,11 +243,21 @@ export function AppShell() {
       <PushScreen open={isOverlayOpen("discover")} onClose={closeOverlay} zIndex={70}>
         <DiscoverScreen />
       </PushScreen>
-      <PushScreen open={live.open} onClose={closeOverlay} zIndex={80}>
-        {live.entry ? (
-          <LiveListViewer list={live.entry.list} initialIndex={live.entry.index} />
-        ) : null}
-      </PushScreen>
+      {live.open && live.entry ? (
+        <LivePipShell
+          minimized={liveMinimized}
+          systemPip={false}
+          onExpand={expandLive}
+          onClose={closeLive}
+          onMinimize={minimizeLive}
+        >
+          <LiveListViewer
+            list={live.entry.list}
+            initialIndex={live.entry.index}
+            compact={liveMinimized}
+          />
+        </LivePipShell>
+      ) : null}
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />
       </PushScreen>

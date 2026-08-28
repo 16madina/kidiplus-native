@@ -70,12 +70,17 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
-  const { closeOverlay, openOverlay } = useNav();
+  const { openOverlay, livePresentation, minimizeLive, expandLive, closeLive } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
   const liveVideo = Boolean(s.roomName && !s.fictitious) && !isExpoGo();
-  const pip = useViewerSystemPip(!!liveVideo && active, closeOverlay);
+  const pip = useViewerSystemPip(!!liveVideo && active, closeLive);
+  const chromeHidden = pip.active || livePresentation === "minimized";
+
+  useEffect(() => {
+    if (pip.active && Platform.OS === "android") expandLive();
+  }, [pip.active, expandLive]);
   const identity = useMemo(
     () => user?.id ?? guestLiveKitIdentity(),
     [user?.id],
@@ -159,9 +164,9 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     if (!s.sellerId || s.fictitious) return;
     if (!blockedIds.has(s.sellerId)) return;
     setToast(t("block.autoClosedLive"));
-    const id = setTimeout(() => closeOverlay(), 900);
+    const id = setTimeout(() => closeLive(), 900);
     return () => clearTimeout(id);
-  }, [blockedIds, s.sellerId, s.fictitious, closeOverlay, t]);
+  }, [blockedIds, s.sellerId, s.fictitious, closeLive, t]);
 
   const openMore = () => {
     if (!requireAccount()) return;
@@ -189,7 +194,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
                 }).then((r) => {
                   if (r.ok) {
                     setToast(t("block.blocked"));
-                    setTimeout(() => closeOverlay(), 700);
+                    setTimeout(() => closeLive(), 700);
                   } else {
                     setToast(r.error ?? t("block.failed"));
                   }
@@ -477,7 +482,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       ) : (
         <Image source={{ uri: s.thumbnail }} style={FILL} contentFit="cover" />
       )}
-      {pip.active ? null : (
+      {chromeHidden ? null : (
       <>
       <LinearGradient
         colors={["rgba(0,0,0,0.45)", "transparent", "rgba(0,0,0,0.75)"]}
@@ -573,7 +578,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           <GlassIconButton size={layout.icon} tone="dark" onPress={openMore}>
             <MoreVertical size={18} color="#fff" />
           </GlassIconButton>
-          <GlassIconButton size={layout.icon} tone="dark" onPress={closeOverlay}>
+          <GlassIconButton size={layout.icon} tone="dark" onPress={ended ? closeLive : minimizeLive}>
             <X size={20} color="#fff" />
           </GlassIconButton>
         </View>
@@ -582,7 +587,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       {ended ? (
         <View style={[styles.endedCard, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={styles.endedTitle}>{t("live.endedTitle")}</Text>
-          <Press style={styles.endedBtn} onPress={closeOverlay}>
+          <Press style={styles.endedBtn} onPress={closeLive}>
             <Text style={styles.endedBtnTxt}>{t("live.backHome")}</Text>
           </Press>
         </View>

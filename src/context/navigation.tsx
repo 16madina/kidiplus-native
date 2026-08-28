@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import type { LiveViewerPresentation } from "../lib/live-pip-presentation";
 import type { LiveStream } from "../mock/lives";
 import type { DmChatTarget } from "../lib/dm";
 
@@ -83,6 +85,12 @@ type Ctx = {
   findOverlay: <K extends OverlayKind>(kind: K) => Extract<OverlayEntry, { kind: K }> | undefined;
   openLive: (stream: LiveStream, list?: LiveStream[], index?: number) => void;
   openList: (list: LiveStream[], index: number) => void;
+  /** full = immersive overlay; minimized = in-app mini player (LiveKit stays up). */
+  livePresentation: LiveViewerPresentation;
+  minimizeLive: () => void;
+  expandLive: () => void;
+  /** Unmount the live session (mini X, ended, block). */
+  closeLive: () => void;
   /** Push (or replace if same kind already on top). Parent overlays stay underneath. */
   openOverlay: (o: OverlayEntry) => void;
   /** Pop the top overlay only. */
@@ -98,6 +106,7 @@ const NavContext = createContext<Ctx | null>(null);
 export function NavigationProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<TabKey>("home");
   const [stack, setStack] = useState<OverlayEntry[]>([]);
+  const [livePresentation, setLivePresentation] = useState<LiveViewerPresentation>("full");
   const [pendingVitrinePostId, setPendingVitrinePostId] = useState<string | null>(null);
 
   const overlay: Overlay = stack.length ? stack[stack.length - 1]! : { kind: "none" };
@@ -125,6 +134,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   const openLive = useCallback(
     (stream: LiveStream, list?: LiveStream[], index?: number) => {
+      setLivePresentation("full");
       pushOverlay({
         kind: "live",
         stream,
@@ -139,10 +149,24 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     (list: LiveStream[], index: number) => {
       const stream = list[index];
       if (!stream) return;
+      setLivePresentation("full");
       pushOverlay({ kind: "live", stream, list, index });
     },
     [pushOverlay],
   );
+
+  const minimizeLive = useCallback(() => {
+    setLivePresentation("minimized");
+  }, []);
+
+  const expandLive = useCallback(() => {
+    setLivePresentation("full");
+  }, []);
+
+  const closeLive = useCallback(() => {
+    setLivePresentation("full");
+    setStack((prev) => prev.filter((o) => o.kind !== "live"));
+  }, []);
 
   const openOverlay = useCallback(
     (o: OverlayEntry) => {
@@ -155,7 +179,16 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     setStack((prev) => prev.slice(0, -1));
   }, []);
 
-  const closeAllOverlays = useCallback(() => setStack([]), []);
+  const closeAllOverlays = useCallback(() => {
+    setLivePresentation("full");
+    setStack([]);
+  }, []);
+
+  useEffect(() => {
+    if (!stack.some((o) => o.kind === "live") && livePresentation !== "full") {
+      setLivePresentation("full");
+    }
+  }, [stack, livePresentation]);
 
   const value = useMemo<Ctx>(
     () => ({
@@ -167,6 +200,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       findOverlay,
       openLive,
       openList,
+      livePresentation,
+      minimizeLive,
+      expandLive,
+      closeLive,
       openOverlay,
       closeOverlay,
       closeAllOverlays,
@@ -181,6 +218,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       findOverlay,
       openLive,
       openList,
+      livePresentation,
+      minimizeLive,
+      expandLive,
+      closeLive,
       openOverlay,
       closeOverlay,
       closeAllOverlays,
