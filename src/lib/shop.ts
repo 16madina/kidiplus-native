@@ -71,6 +71,11 @@ export async function toShopItem(row: ShopProductRow): Promise<ShopItem> {
     currency,
     description: row.description,
     imagePath,
+    imagePaths: Array.isArray(row.images)
+      ? (row.images as unknown[]).filter((x): x is string => typeof x === "string")
+      : imagePath
+        ? [imagePath]
+        : [],
   };
 }
 

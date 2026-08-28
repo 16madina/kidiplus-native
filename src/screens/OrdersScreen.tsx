@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { OrderTimeline } from "../components/orders/OrderTimeline";
 import { InvoiceSheet } from "../components/orders/InvoiceSheet";
+import { LeaveReviewSheet } from "../components/orders/LeaveReviewSheet";
 import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
@@ -20,8 +21,9 @@ import {
   markOrderShipped,
   type OrderView,
 } from "../lib/orders";
-import { GOLD, NAVY } from "../theme";
+import { fetchMyReviewedOrderIds } from "../lib/reviews";
 import { type MockOrder } from "../mock/account";
+import { GOLD, NAVY } from "../theme";
 
 function statusLabel(status: MockOrder["status"], t: (k: string) => string) {
   if (status === "awaitingPayment") return t("orders.status.awaitingPayment");
@@ -57,6 +59,8 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const [detailOrder, setDetailOrder] = useState<OrderView | null>(null);
   const [detailIsSale, setDetailIsSale] = useState(false);
   const [invoiceOrder, setInvoiceOrder] = useState<OrderView | null>(null);
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const openedOrderRef = useRef<string | null>(null);
   const list = tab === "purchases" ? purchases : sales;
 
@@ -79,6 +83,8 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
     ]);
     setPurchases(buy);
     setSales(sell);
+    const delivered = buy.filter((o) => o.status === "delivered").map((o) => o.id);
+    setReviewedIds(await fetchMyReviewedOrderIds(delivered));
     setLoading(false);
   }, [user?.id, user?.isSeller]);
 
@@ -212,6 +218,17 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
                   </Press>
                 ) : null}
 
+                {isBuyer && o.status === "delivered" ? (
+                  <Press
+                    onPress={() => setReviewOrderId(o.id)}
+                    style={[styles.cta, reviewedIds.has(o.id) && { backgroundColor: "#E8F6EE" }]}
+                  >
+                    <Text style={{ fontWeight: "800", color: NAVY }}>
+                      {reviewedIds.has(o.id) ? `✓ ${t("reviews.left")}` : t("reviews.rateOrder")}
+                    </Text>
+                  </Press>
+                ) : null}
+
                 {isBuyer && o.rawStatus === "paid" && (o.fulfillment === "shipped" || o.fulfillment === "awaiting") ? (
                   <View style={styles.actions}>
                     {o.fulfillment === "shipped" ? (
@@ -284,6 +301,15 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
         } : null}
         visible={!!invoiceOrder}
         onClose={() => setInvoiceOrder(null)}
+      />
+      <LeaveReviewSheet
+        open={!!reviewOrderId}
+        orderId={reviewOrderId}
+        onClose={() => setReviewOrderId(null)}
+        onSubmitted={() => {
+          if (reviewOrderId) setReviewedIds((prev) => new Set([...prev, reviewOrderId]));
+          void reload();
+        }}
       />
     </View>
   );

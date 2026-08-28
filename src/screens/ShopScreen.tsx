@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Tag, Users, Video } from "lucide-react-native";
+import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Star, Tag, Users, Video } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -36,6 +36,10 @@ import {
 import { countSellerLives, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
 import { countVitrinePostsByUser, fetchVitrinePostsByUser, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { fetchSellerPublic, uploadBanner, type SellerPublic } from "../lib/seller";
+import { VerifiedBadge } from "../components/VerifiedBadge";
+import { ReferredBadge } from "../components/ReferredBadge";
+import { ReportSheet } from "../components/moderation/ReportSheet";
+import { listSellerReviews, type SellerReview } from "../lib/reviews";
 import { useFollow } from "../lib/follows";
 import { GOLD, NAVY, initials } from "../theme";
 import { isHttpUrl } from "../lib/storage";
@@ -43,15 +47,15 @@ import { type ShopItem } from "../mock/account";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
+type FormPhoto = { uri: string; path?: string | null; picked?: PickedImage | null };
+
 type FormState = {
   item: ShopItem | null;
   name: string;
   price: string;
   stock: string;
   description: string;
-  preview: string;
-  path: string | null;
-  picked: PickedImage | null;
+  photos: FormPhoto[];
 };
 
 function emptyForm(): FormState {
@@ -61,9 +65,7 @@ function emptyForm(): FormState {
     price: "",
     stock: "1",
     description: "",
-    preview: "",
-    path: null,
-    picked: null,
+    photos: [],
   };
 }
 
@@ -86,8 +88,10 @@ export function ShopScreen({
   const own = !sellerId || sellerId === user?.id;
   const followTargetId = !own && sellerId ? sellerId : null;
   const follow = useFollow(followTargetId);
-  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine">("boutique");
+  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine" | "avis">("boutique");
   const [seller, setSeller] = useState<SellerPublic | null>(null);
+  const [reviews, setReviews] = useState<SellerReview[]>([]);
+  const [reportOpen, setReportOpen] = useState(false);
   const [lives, setLives] = useState<SellerLiveEntry[]>([]);
   const [vitrinePosts, setVitrinePosts] = useState<VitrineFeedPost[]>([]);
   const [livesCount, setLivesCount] = useState(0);
@@ -103,18 +107,20 @@ export function ShopScreen({
     }
     const rows = own ? await listMyShopProducts(id) : await listSellerActiveShopProducts(id);
     setItems(rows);
-    const [pub, liveRows, vCount, liveCount, vPosts] = await Promise.all([
+    const [pub, liveRows, vCount, liveCount, vPosts, revs] = await Promise.all([
       fetchSellerPublic(id),
       fetchSellerLives(id),
       countVitrinePostsByUser(id),
       countSellerLives(id),
       fetchVitrinePostsByUser(id),
+      listSellerReviews(id),
     ]);
     setSeller(pub);
     setLives(liveRows);
     setVitrineCount(vCount);
     setLivesCount(liveCount);
     setVitrinePosts(vPosts);
+    setReviews(revs);
     setLoading(false);
   };
 
@@ -135,15 +141,18 @@ export function ShopScreen({
   };
 
   const openEdit = (item: ShopItem) => {
+    const paths = item.imagePaths?.length ? item.imagePaths : item.imagePath ? [item.imagePath] : [];
     setForm({
       item,
       name: item.name,
       price: item.priceValue != null ? String(item.priceValue) : "",
       stock: String(item.stock),
       description: item.description ?? "",
-      preview: item.image,
-      path: item.imagePath ?? null,
-      picked: null,
+      photos: paths.length
+        ? paths.map((p, i) => ({ uri: i === 0 ? item.image : p, path: p }))
+        : item.image
+          ? [{ uri: item.image, path: item.imagePath }]
+          : [],
     });
   };
 
@@ -162,7 +171,14 @@ export function ShopScreen({
     } catch {
       /* ignore */
     }
-    setForm((prev) => (prev ? { ...prev, picked, preview: picked.preview, path: null } : prev));
+    setForm((prev) => {
+      if (!prev) return prev;
+      if (prev.photos.length >= 5) {
+        flash(t("shop.maxPhotos", { defaultValue: "5 photos max" }));
+        return prev;
+      }
+      return { ...prev, photos: [...prev.photos, { uri: picked.preview, picked }] };
+    });
   };
 
   const save = async () => {
@@ -181,11 +197,15 @@ export function ShopScreen({
     setSaving(true);
     try {
       if (!user.isSeller) await becomeSeller();
-      let imagePaths = form.path ? [form.path] : form.item?.imagePath ? [form.item.imagePath] : [];
-      if (form.picked) {
-        const path = await uploadShopProductImage(user.id, form.picked);
-        imagePaths = [path];
+      let imagePaths: string[] = [];
+      for (const photo of form.photos) {
+        if (photo.picked) {
+          imagePaths.push(await uploadShopProductImage(user.id, photo.picked));
+        } else if (photo.path) {
+          imagePaths.push(photo.path);
+        }
       }
+      imagePaths = imagePaths.slice(0, 5);
       if (!form.item && imagePaths.length === 0) {
         flash(t("shop.needPhoto"));
         setSaving(false);
@@ -253,6 +273,10 @@ export function ShopScreen({
 
   const featured = useMemo(() => items.filter((p) => p.active).slice(0, 8), [items]);
   const replays = useMemo(() => lives.filter(isReplayPlayable), [lives]);
+  const orderedLives = useMemo(() => {
+    const rank = (s: string) => (s === "live" ? 0 : s === "scheduled" ? 1 : 2);
+    return [...lives].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [lives]);
   const displayName = seller?.displayName || sellerName || user?.displayName || t("shop.title");
   const handle = seller?.handle || user?.handle || "";
   const avatar = seller?.avatarUrl || (own ? user?.avatarUrl : null);
@@ -270,20 +294,33 @@ export function ShopScreen({
         />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <Press onPress={() => void pickPhoto()} style={{ alignItems: "stretch" }}>
-              <Glass tone={dark ? "dark" : "light"} intensity={32} radius={18} elevated={false}>
-                {form.preview ? (
-                  <Image source={{ uri: form.preview }} style={styles.cover} contentFit="cover" />
-                ) : (
-                  <View style={styles.coverEmpty}>
-                    <ImagePlus size={28} color={GOLD} />
-                    <Text style={{ color: colors.mutedForeground, fontWeight: "700", marginTop: 8 }}>
-                      {t("shop.pickPhoto")}
-                    </Text>
-                  </View>
-                )}
-              </Glass>
-            </Press>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {form.photos.map((p, i) => (
+                <Press
+                  key={`${p.uri}-${i}`}
+                  onPress={() =>
+                    setForm((prev) =>
+                      prev ? { ...prev, photos: prev.photos.filter((_, j) => j !== i) } : prev,
+                    )
+                  }
+                  style={{ minHeight: 0 }}
+                >
+                  <Image source={{ uri: p.uri }} style={styles.coverThumb} contentFit="cover" />
+                </Press>
+              ))}
+              {form.photos.length < 5 ? (
+                <Press onPress={() => void pickPhoto()} style={{ minHeight: 0, alignItems: "stretch" }}>
+                  <Glass tone={dark ? "dark" : "light"} intensity={32} radius={18} elevated={false}>
+                    <View style={styles.coverEmptySmall}>
+                      <ImagePlus size={22} color={GOLD} />
+                      <Text style={{ color: colors.mutedForeground, fontWeight: "700", marginTop: 6, fontSize: 12 }}>
+                        {t("shop.pickPhoto")} ({form.photos.length}/5)
+                      </Text>
+                    </View>
+                  </Glass>
+                </Press>
+              ) : null}
+            </View>
             <AuthInput label={t("shop.name")} value={form.name} onChangeText={(name) => setForm({ ...form, name })} />
             <AuthInput
               label={t("shop.price")}
@@ -348,7 +385,11 @@ export function ShopScreen({
                 </View>
               )}
             </View>
-            <Text style={styles.heroTitle}>{displayName} Boutique</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Text style={styles.heroTitle}>{displayName}</Text>
+              {seller?.isVerified ? <VerifiedBadge /> : null}
+              <ReferredBadge referred={seller?.isReferred || (!!own && user?.isReferred)} size={16} />
+            </View>
             {handle ? <Text style={styles.heroHandle}>@{handle}</Text> : null}
             <Text style={styles.heroBio} numberOfLines={3}>
               {bio || "L'élégance, la qualité, pour vos petits trésors. 🤎"}
@@ -357,19 +398,17 @@ export function ShopScreen({
         </View>
 
         <View style={styles.stats}>
-          <Stat icon={<ShoppingBag size={16} color="#C8A24B" />} n={items.length} label="Produits" onPress={() => setShopTab("boutique")} />
-          <Stat icon={<Users size={16} color="#C8A24B" />} n={followers} label="Abonnés" />
+          <Stat icon={<Users size={16} color="#C8A24B" />} n={followers} label={t("profile.stats.followers")} />
           <Stat
-            icon={<Video size={16} color="#C8A24B" />}
-            n={livesCount}
-            label="Lives réalisés"
-            onPress={() => own && setShopTab("lives")}
+            icon={<ShoppingBag size={16} color="#C8A24B" />}
+            n={seller?.salesDelivered ?? 0}
+            label={t("profile.stats.sales")}
           />
           <Stat
-            icon={<Clapperboard size={16} color="#C8A24B" />}
-            n={vitrineCount}
-            label="Vitrine"
-            onPress={() => setShopTab("vitrine")}
+            icon={<Star size={16} color="#C8A24B" />}
+            n={seller?.ratingAvg ? seller.ratingAvg.toFixed(1) : "—"}
+            label={t("search.tabs.reviews", { defaultValue: "Avis" })}
+            onPress={() => setShopTab("avis")}
           />
         </View>
 
@@ -418,19 +457,28 @@ export function ShopScreen({
               <MessageCircle size={15} color="#fff" />
               <Text style={styles.addBtnTxt}>{t("profile.hero.message", { defaultValue: "Message" })}</Text>
             </Press>
+            <Press
+              onPress={() => {
+                if (guestMode || !user) return openAuth();
+                setReportOpen(true);
+              }}
+              style={[styles.liveBtn, { backgroundColor: "#374151" }]}
+            >
+              <Text style={styles.addBtnTxt}>{t("report.action")}</Text>
+            </Press>
           </View>
         )}
 
         <View style={styles.tabStrip}>
           {(
             [
-              ["boutique", "Boutique"],
-              ["vitrine", "Vitrine"],
-              ["lives", "Lives effectués"],
-              ["replays", "Replays"],
+              ["boutique", t("sellerProfile.shop", { defaultValue: "Boutique" })],
+              ["lives", t("sellerProfile.lives", { defaultValue: "Lives" })],
+              ["avis", "Avis"],
+              ["vitrine", t("vitrine.title", { defaultValue: "Vitrine" })],
             ] as const
           )
-            .filter(([k]) => own || k === "boutique" || k === "vitrine")
+            .filter(([k]) => own || k === "boutique" || k === "lives" || k === "avis")
             .map(([k, label]) => (
               <Press key={k} onPress={() => setShopTab(k)} style={styles.tabBtn}>
                 <Text style={[styles.tabTxt, shopTab === k && styles.tabTxtOn]}>{label}</Text>
@@ -506,10 +554,10 @@ export function ShopScreen({
 
         {!loading && shopTab === "lives" ? (
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
-            {lives.length === 0 ? (
+            {orderedLives.length === 0 ? (
               <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>{t("admin.lives.empty", { defaultValue: "Aucun live." })}</Text>
             ) : (
-              lives.map((l) => (
+              orderedLives.map((l) => (
                 <Glass key={l.id} tone="light" intensity={32} radius={16} elevated={false}>
                   <View style={styles.liveRow}>
                     {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
@@ -521,6 +569,28 @@ export function ShopScreen({
                       </Text>
                     </View>
                     {l.status === "live" ? <Radio size={16} color="#E5393F" /> : <Clapperboard size={16} color={GOLD} />}
+                  </View>
+                </Glass>
+              ))
+            )}
+          </View>
+        ) : null}
+
+        {!loading && shopTab === "avis" ? (
+          <View style={{ paddingHorizontal: 16, gap: 10 }}>
+            {reviews.length === 0 ? (
+              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>{t("reviews.empty")}</Text>
+            ) : (
+              reviews.map((r) => (
+                <Glass key={r.id} tone="light" intensity={32} radius={16} elevated={false}>
+                  <View style={{ padding: 12, gap: 4 }}>
+                    <Text style={{ fontWeight: "800", color: NAVY }}>
+                      {r.reviewer?.display_name || r.reviewer?.handle || "Acheteur"} · {"★".repeat(r.rating)}
+                    </Text>
+                    {r.comment ? <Text style={{ color: "#374151", fontSize: 13 }}>{r.comment}</Text> : null}
+                    <Text style={{ color: "#6B7289", fontSize: 11 }}>
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </Text>
                   </View>
                 </Glass>
               ))
@@ -579,6 +649,15 @@ export function ShopScreen({
       </ScrollView>
       <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
       <MockBanner text={toast} />
+      {sellerId ? (
+        <ReportSheet
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetType="user"
+          targetId={sellerId}
+          defaultNote={displayName}
+        />
+      ) : null}
     </View>
   );
 }
@@ -589,12 +668,17 @@ function Stat({
   onPress,
   icon,
 }: {
-  n: number;
+  n: number | string;
   label: string;
   onPress?: () => void;
   icon?: React.ReactNode;
 }) {
-  const value = n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(".0", "")}k` : String(n);
+  const value =
+    typeof n === "string"
+      ? n
+      : n >= 1000
+        ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(".0", "")}k`
+        : String(n);
   return (
     <Press onPress={onPress} style={styles.stat}>
       {icon}
@@ -737,7 +821,9 @@ const styles = StyleSheet.create({
   gridAct: { flex: 1, height: 32, minHeight: 32, borderRadius: 8, backgroundColor: "#F2F3F7" },
   availableHint: { paddingHorizontal: 8, marginTop: 4, fontSize: 10, color: "#6B7289" },
   cover: { width: "100%", height: 180, borderRadius: 18, backgroundColor: "#E8EAF1" },
+  coverThumb: { width: 88, height: 88, borderRadius: 14, backgroundColor: "#E8EAF1" },
   coverEmpty: { height: 180, alignItems: "center", justifyContent: "center" },
+  coverEmptySmall: { width: 88, height: 88, alignItems: "center", justifyContent: "center" },
   liveRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10 },
   liveCover: { width: 56, height: 56, borderRadius: 12, backgroundColor: "#E8EAF1" },
   vitrineGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 14, gap: 6 },

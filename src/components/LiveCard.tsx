@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { CalendarClock, Clock, Eye } from "lucide-react-native";
+import { CalendarClock, Clock, Eye, BadgeCheck } from "lucide-react-native";
 import { Press } from "./Press";
 import { Glass } from "./Glass";
 import { formatMin, formatViewers, initials, LIVE_RED, NAVY } from "../theme";
@@ -73,7 +73,7 @@ export function LiveCard({
           ) : null}
         </View>
         <View style={styles.bottom}>
-          <View style={styles.sellerRow}>
+            <View style={styles.sellerRow}>
             {stream.avatar ? (
               <Image source={{ uri: stream.avatar }} style={styles.avatar} contentFit="cover" />
             ) : (
@@ -82,9 +82,14 @@ export function LiveCard({
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={styles.seller}>
-                {stream.seller}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text numberOfLines={1} style={styles.seller}>
+                  {stream.seller}
+                </Text>
+                {stream.isVerified ? (
+                  <BadgeCheck size={12} color="#3b82f6" />
+                ) : null}
+              </View>
               <Text numberOfLines={2} style={styles.title}>
                 {stream.title}
               </Text>

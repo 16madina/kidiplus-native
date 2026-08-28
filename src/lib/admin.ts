@@ -287,3 +287,12 @@ export function firstCurrency(map: CurrencyMap | undefined): { amount: number; c
   const [currency, amount] = Object.entries(map)[0] ?? ["EUR", 0];
   return { amount: Number(amount) || 0, currency };
 }
+
+/** Approve or revoke the public verified badge. Server-side RPC only. */
+export async function adminSetVerified(userId: string, verified: boolean): Promise<boolean> {
+  const data = await rpc<{ ok?: boolean }>("admin_set_verified", {
+    _user: userId,
+    _verified: verified,
+  });
+  return !!data?.ok;
+}

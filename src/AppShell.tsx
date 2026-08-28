@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabBar } from "./components/BottomTabBar";
 import { PushScreen } from "./components/PushScreen";
@@ -36,6 +36,7 @@ import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
 import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
 import { GOLD, NAVY } from "./theme";
+import { CONTENT_MAX_WIDTH } from "./lib/layout";
 
 const BroadcastLiveScreen = lazy(async () => {
   try {
@@ -79,6 +80,8 @@ export function AppShell() {
   const { tab, setTab, closeOverlay, isOverlayOpen } = useNav();
   const { authOverlay, closeAuth } = useAuth();
   const { dark, colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const tabletColumn = width >= 768 ? { maxWidth: CONTENT_MAX_WIDTH, width: "100%" as const, alignSelf: "center" as const } : null;
 
   const activity = useCachedOverlay("activity");
   const dmChat = useCachedOverlay("dm-chat");
@@ -99,19 +102,27 @@ export function AppShell() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar style={statusLight ? "light" : "dark"} />
       <View style={[styles.pane, tab === "home" ? styles.shown : styles.hidden]}>
-        <HomeScreen />
+        <View style={[{ flex: 1 }, tabletColumn]}>
+          <HomeScreen />
+        </View>
       </View>
       <View style={[styles.pane, tab === "search" ? styles.shown : styles.hidden]}>
-        <SearchScreen />
+        <View style={[{ flex: 1 }, tabletColumn]}>
+          <SearchScreen />
+        </View>
       </View>
       <View style={[styles.pane, tab === "live" ? styles.shown : styles.hidden]}>
-        <LiveTabScreen />
+        <View style={[{ flex: 1 }, tabletColumn]}>
+          <LiveTabScreen />
+        </View>
       </View>
       <View style={[styles.pane, tab === "vitrine" ? styles.shown : styles.hidden]}>
         <VitrineScreen />
       </View>
       <View style={[styles.pane, tab === "profile" ? styles.shown : styles.hidden]}>
-        <ProfileScreen />
+        <View style={[{ flex: 1 }, tabletColumn]}>
+          <ProfileScreen />
+        </View>
       </View>
       <BottomTabBar active={tab} onChange={setTab} hidden={hideTabs} />
 

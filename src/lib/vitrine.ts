@@ -108,13 +108,14 @@ async function mapRow(row: VitrineRow, likedIds: Set<string>): Promise<VitrineFe
   };
 }
 
-async function fetchPostRows(limit: number): Promise<VitrineRow[]> {
+async function fetchPostRows(limit: number, offset = 0): Promise<VitrineRow[]> {
+  const to = offset + Math.max(1, limit) - 1;
   const withSeller = await supabase
     .from("vitrine_posts")
     .select(POST_SELECT)
     .eq("active", true)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(offset, to);
   if (!withSeller.error && withSeller.data) return withSeller.data as unknown as VitrineRow[];
 
   const plain = await supabase
@@ -124,7 +125,7 @@ async function fetchPostRows(limit: number): Promise<VitrineRow[]> {
     )
     .eq("active", true)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(offset, to);
   if (plain.error || !plain.data) return [];
   const rows = plain.data as unknown as VitrineRow[];
   const ids = [...new Set(rows.map((r) => r.user_id).filter((id): id is string => !!id))];
@@ -145,8 +146,8 @@ async function fetchPostRows(limit: number): Promise<VitrineRow[]> {
   }));
 }
 
-export async function fetchVitrinePosts(limit = 30): Promise<VitrineFeedPost[]> {
-  const data = await fetchPostRows(limit);
+export async function fetchVitrinePosts(limit = 12, offset = 0): Promise<VitrineFeedPost[]> {
+  const data = await fetchPostRows(limit, offset);
   if (data.length === 0) return [];
 
   const uid = (await supabase.auth.getUser()).data.user?.id ?? null;
@@ -403,4 +404,45 @@ export async function createVitrinePost(input: {
     .maybeSingle();
   if (error || !data) return { ok: false, error: error?.message ?? "failed" };
   return { ok: true, id: data.id as string };
+}
+
+function storagePathFromPublicUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(/\/storage\/v1\/object\/(?:public|sign)\/vitrine-media\/([^?]+)/);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
+
+async function removeVitrineFiles(urls: (string | null | undefined)[]) {
+  const paths = urls.map(storagePathFromPublicUrl).filter((p): p is string => !!p);
+  if (paths.length === 0) return;
+  try {
+    await supabase.storage.from("vitrine-media").remove(paths);
+  } catch {
+    /* best-effort cleanup */
+  }
+}
+
+/** Deletes the DB row and storage files. Soft-archives if hard delete is denied. */
+export async function deleteVitrinePost(postId: string): Promise<boolean> {
+  if (!postId || postId.startsWith("demo-")) return false;
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  if (!uid) return false;
+  const { data: row } = await supabase
+    .from("vitrine_posts")
+    .select("media_urls, poster_url")
+    .eq("id", postId)
+    .eq("user_id", uid)
+    .maybeSingle();
+  const { error } = await supabase.from("vitrine_posts").delete().eq("id", postId).eq("user_id", uid);
+  if (!error) {
+    const urls = Array.isArray(row?.media_urls) ? (row!.media_urls as string[]) : [];
+    void removeVitrineFiles([...urls, row?.poster_url as string | null]);
+    return true;
+  }
+  const { error: soft } = await supabase
+    .from("vitrine_posts")
+    .update({ active: false })
+    .eq("id", postId)
+    .eq("user_id", uid);
+  return !soft;
 }

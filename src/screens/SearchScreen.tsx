@@ -7,23 +7,26 @@ import { Image } from "expo-image";
 import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
 import { Glass } from "../components/Glass";
+import { VerifiedBadge } from "../components/VerifiedBadge";
+import { ReferredBadge } from "../components/ReferredBadge";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import { followUser, unfollowUser } from "../lib/follows";
+import { searchSellers, type SellerSearchHit } from "../lib/search";
 import { searchActiveShopProducts, type ShopSearchHit } from "../lib/shop";
-import { BROWSE_CATEGORIES, TRENDS, formatViewersFr } from "../mock/browse";
-import { GOLD, LIVE_RED } from "../theme";
+import { BROWSE_CATEGORIES, formatViewersFr } from "../mock/browse";
+import { GOLD, LIVE_RED, initials } from "../theme";
 
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
-  const { openList } = useNav();
+  const { openList, openOverlay } = useNav();
   const { user, guestMode, openAuth } = useAuth();
-  const { active, loading: livesLoading } = useLivesFeed();
+  const { active, upcoming, loading: livesLoading } = useLivesFeed();
   const [raw, setRaw] = useState("");
   const [focused, setFocused] = useState(false);
   const [tab, setTab] = useState(0);
@@ -32,6 +35,8 @@ export function SearchScreen() {
   const [recent, setRecent] = useState(["jordan 4", "chanel", "iphone", "pokémon", "ysl"]);
   const [products, setProducts] = useState<ShopSearchHit[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [sellerHits, setSellerHits] = useState<SellerSearchHit[]>([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
   const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
   const query = raw.trim();
   const searching = query.length > 0;
@@ -54,13 +59,37 @@ export function SearchScreen() {
 
   const liveResults = useMemo(() => {
     const q = query.toLowerCase();
-    return active.filter(
-      (s) =>
-        s.seller.toLowerCase().includes(q) ||
-        s.title.toLowerCase().includes(q) ||
-        s.category.toLowerCase() === q,
-    );
-  }, [active, query]);
+    const match = (s: (typeof active)[number]) =>
+      s.seller.toLowerCase().includes(q) ||
+      s.title.toLowerCase().includes(q) ||
+      s.category.toLowerCase() === q ||
+      (s.handle ?? "").toLowerCase().includes(q);
+    const liveNow = active.filter(match);
+    const scheduled = upcoming.filter(match);
+    return [...liveNow, ...scheduled];
+  }, [active, upcoming, query]);
+
+  const liveSellerIds = useMemo(
+    () => new Set(active.filter((s) => !s.scheduled && s.sellerId).map((s) => s.sellerId as string)),
+    [active],
+  );
+
+  const trends = useMemo(() => {
+    const byCat = new Map<string, { viewers: number; image: string }>();
+    for (const l of active) {
+      if (l.scheduled) continue;
+      const key = l.category || "Autres";
+      const prev = byCat.get(key);
+      byCat.set(key, {
+        viewers: (prev?.viewers ?? 0) + (l.viewers || 0),
+        image: prev?.image || l.thumbnail,
+      });
+    }
+    return Array.from(byCat.entries())
+      .map(([name, v]) => ({ id: name, name, viewers: v.viewers, image: v.image }))
+      .sort((a, b) => b.viewers - a.viewers)
+      .slice(0, 8);
+  }, [active]);
 
   useEffect(() => {
     if (!searching || tab !== 2) {
@@ -80,6 +109,23 @@ export function SearchScreen() {
     };
   }, [query, searching, tab]);
 
+  useEffect(() => {
+    if (!searching || tab !== 1) {
+      setSellerHits([]);
+      return;
+    }
+    let cancelled = false;
+    setSellersLoading(true);
+    void searchSellers(query).then((rows) => {
+      if (cancelled) return;
+      setSellerHits(rows.map((r) => ({ ...r, live: liveSellerIds.has(r.id) })));
+      setSellersLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, searching, tab, liveSellerIds]);
+
   const cats = useMemo(() => {
     const list = [...BROWSE_CATEGORIES];
     if (sort === "popular") list.sort((a, b) => b.viewers - a.viewers);
@@ -88,23 +134,8 @@ export function SearchScreen() {
   }, [sort]);
 
   const sellers = useMemo(() => {
-    const q = query.toLowerCase();
-    const seen = new Set<string>();
-    return active
-      .filter((s) => sellerScope === "all" || !s.scheduled)
-      .filter(
-        (s) =>
-          !searching ||
-          s.seller.toLowerCase().includes(q) ||
-          (s.sellerId ?? "").toLowerCase().includes(q),
-      )
-      .flatMap((s) => {
-        const id = s.sellerId || s.seller;
-        if (seen.has(id)) return [];
-        seen.add(id);
-        return [{ id, name: s.seller, handle: s.handle ?? "", avatar: s.avatar, live: !s.scheduled, viewers: s.viewers }];
-      });
-  }, [active, query, searching, sellerScope]);
+    return sellerHits.filter((s) => sellerScope === "all" || s.live);
+  }, [sellerHits, sellerScope]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -205,17 +236,31 @@ export function SearchScreen() {
                     </Press>
                   ))}
                 </View>
-                {sellers.length === 0 ? (
+                {sellersLoading ? (
+                  <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
+                ) : sellers.length === 0 ? (
                   <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 24 }}>
                     {t("search.emptyResults", { query })}
                   </Text>
                 ) : (
                   sellers.map((s) => (
-                  <View key={s.id} style={styles.seller}>
-                    <Image source={{ uri: s.avatar }} style={styles.av} />
+                  <Press
+                    key={s.id}
+                    onPress={() => openOverlay({ kind: "seller-profile", sellerId: s.id })}
+                    style={styles.seller}
+                  >
+                    {s.avatar ? (
+                      <Image source={{ uri: s.avatar }} style={styles.av} />
+                    ) : (
+                      <View style={[styles.av, { backgroundColor: colors.muted, alignItems: "center", justifyContent: "center" }]}>
+                        <Text style={{ fontWeight: "800", color: colors.foreground }}>{initials(s.name)}</Text>
+                      </View>
+                    )}
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={{ fontWeight: "800", color: colors.foreground }}>{s.name}</Text>
+                        {s.isVerified ? <VerifiedBadge size={14} /> : null}
+                        <ReferredBadge referred={s.isReferred} size={13} />
                         {s.live ? (
                           <View style={styles.livePill}>
                             <Radio size={10} color="#fff" />
@@ -225,7 +270,8 @@ export function SearchScreen() {
                       </View>
                       <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
                         {s.handle ? `@${s.handle}` : s.name}
-                        {s.viewers ? ` · ${formatViewersFr(s.viewers)}` : ""}
+                        {` · ${s.followers} ${t("profile.stats.followers")}`}
+                        {s.ratingAvg != null ? ` · ${s.ratingAvg.toFixed(1)}★` : ""}
                       </Text>
                     </View>
                     <Glass tone={dark ? "dark" : "light"} intensity={32} radius={999} elevated={false}>
@@ -240,7 +286,7 @@ export function SearchScreen() {
                         </Text>
                       </Press>
                     </Glass>
-                  </View>
+                  </Press>
                 ))
                 )}
               </View>
@@ -270,15 +316,17 @@ export function SearchScreen() {
           </View>
         ) : (
           <View>
+            {trends.length > 0 ? (
+              <>
             <Text style={[styles.h, { color: colors.foreground, paddingHorizontal: 16 }]}>{t("search.trending")}</Text>
             <View style={styles.trends}>
-              {TRENDS.map((tr) => (
+              {trends.map((tr) => (
                 <Press key={tr.id} onPress={() => setRaw(tr.name)} style={styles.trendPress}>
                   <Glass tone={dark ? "dark" : "light"} intensity={32} radius={14} elevated={false}>
                     <View style={styles.trend}>
                       <Image source={{ uri: tr.image }} style={styles.trendImg} contentFit="cover" />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 13 }}>{t(tr.nameKey)}</Text>
+                        <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 13 }}>{tr.name}</Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LIVE_RED }} />
                           <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{formatViewersFr(tr.viewers)}</Text>
@@ -289,6 +337,8 @@ export function SearchScreen() {
                 </Press>
               ))}
             </View>
+              </>
+            ) : null}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 18 }}>
               <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("search.categories")}</Text>
             </View>

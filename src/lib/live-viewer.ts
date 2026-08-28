@@ -42,6 +42,7 @@ export type ViewerRoomState = {
   viewers: number;
   lastReveal: AuctionEndReveal | null;
   lastGift: { id?: string; giftKey: GiftKey; fromName: string; at: number } | null;
+  heartPulse: number;
   loading: boolean;
   error: string | null;
 };
@@ -78,6 +79,7 @@ export function useViewerLiveRoom(
   const [viewers, setViewers] = useState(0);
   const [lastReveal, setLastReveal] = useState<AuctionEndReveal | null>(null);
   const [lastGift, setLastGift] = useState<ViewerRoomState["lastGift"]>(null);
+  const [heartPulse, setHeartPulse] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
@@ -101,7 +103,7 @@ export function useViewerLiveRoom(
     setChat((prev) => {
       if (prev.some((m) => m.id === msg.id)) return prev;
       const next = [...prev, msg];
-      return next.length > 80 ? next.slice(next.length - 80) : next;
+      return next.length > 150 ? next.slice(next.length - 150) : next;
     });
   }, []);
 
@@ -205,7 +207,7 @@ export function useViewerLiveRoom(
         pushChat(p);
       })
       .on("broadcast", { event: "heart" }, () => {
-        /* hearts are visual-only on host; ignore count here */
+        setHeartPulse((n) => n + 1);
       })
       .on("broadcast", { event: "join" }, ({ payload }) => {
         const p = payload as { name?: string };
@@ -449,6 +451,7 @@ export function useViewerLiveRoom(
   }, [pushChat]);
 
   const sendHeart = useCallback(() => {
+    setHeartPulse((n) => n + 1);
     void channelRef.current?.send({
       type: "broadcast",
       event: "heart",
@@ -564,6 +567,7 @@ export function useViewerLiveRoom(
     viewers,
     lastReveal,
     lastGift,
+    heartPulse,
     loading,
     error,
     sendChat,

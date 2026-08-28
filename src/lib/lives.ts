@@ -7,12 +7,12 @@ import { normalizeCurrency } from "./money";
 
 const LIVE_SELECT = `
   id, seller_id, title, category, cover_url, room_name, viewer_count, started_at, currency,
-  seller:profiles!lives_seller_id_fkey(display_name, handle, avatar_url)
+  seller:profiles!lives_seller_id_fkey(display_name, handle, avatar_url, is_verified, is_referred)
 `;
 
 const SCHEDULED_SELECT = `
   id, seller_id, title, category, cover_url, scheduled_at, currency, status,
-  seller:profiles!lives_seller_id_fkey(display_name, handle, avatar_url)
+  seller:profiles!lives_seller_id_fkey(display_name, handle, avatar_url, is_verified, is_referred)
 `;
 
 const FALLBACK_COVER =
@@ -40,6 +40,8 @@ type SellerEmbed = {
   display_name?: string | null;
   handle?: string | null;
   avatar_url?: string | null;
+  is_verified?: boolean | null;
+  is_referred?: boolean | null;
 };
 
 type LiveRow = {
@@ -136,6 +138,8 @@ async function rowToStream(row: LiveRow, scheduled = false): Promise<LiveStream>
     scheduled,
     startsInMin: scheduled ? minutesUntil(row.scheduled_at) : undefined,
     fictitious: false,
+    isVerified: !!seller.is_verified,
+    isReferred: !!seller.is_referred,
   };
 }
 

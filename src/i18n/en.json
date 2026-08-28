@@ -19,7 +19,7 @@
   },
   "gifts": {
     "title": "Send a gift",
-    "subtitle": "The seller keeps 70% of the amount",
+    "subtitle": "The seller keeps 80% (KiDi+ 20%)",
     "open": "Gifts",
     "short": "Gifts 🎁",
     "walletBalance": "Balance",
@@ -112,7 +112,7 @@
     "submit": "Submit",
     "thanks": "Thanks for your review!",
     "empty": "No reviews yet.",
-    "rateOrder": "Rate this order",
+    "rateOrder": "Leave a review ⭐",
     "left": "Review submitted"
   },
   "sellerProfile": {
@@ -274,7 +274,7 @@
       "shop": "My shop"
     },
     "demo": {
-      "badge": "🎬 DEMO",
+      "badge": "🎬 DEMO — How to use KiDi+",
       "title": "How to use KiDi+",
       "subtitle": "Watch the demo · 1 min",
       "close": "Close"
@@ -1027,6 +1027,9 @@
       "promoHint": "If you have a partner’s code, enter it here. That activates referral: 10% of each of your purchases and sales goes to their referral card, instead of KiDi+.",
       "promoValid": "✓ Code {{code}} — referral activated"
     },
+    "guest": {
+      "participate": "Create an account to join in 🎉"
+    },
     "emailConfirm": {
       "banner": "Confirm your email address",
       "bannerRestricted": "Confirm your email to sell and withdraw",
@@ -1494,7 +1497,9 @@
       "recentLives": "Recent lives",
       "walletTx": "Wallet transactions",
       "earnings": "Earnings",
-      "moderationSoon": "Moderation (block / warn / message) — coming soon."
+      "moderationSoon": "Moderation (block / warn / message) — coming soon.",
+      "grantVerify": "Certify ✓",
+      "revokeVerify": "Revoke ✓"
     },
     "orders": {
       "title": "Recent orders",
@@ -1683,6 +1688,8 @@
   },
   "consent": {
     "checkbox": "I have read and accept the <t>Terms of Use</t> and the <p>Privacy Policy</p>",
+    "checkboxPrefix": "I have read and accept the ",
+    "checkboxMid": " and the ",
     "ageCheckbox": "I confirm I am at least 18 years old",
     "required": "You must accept the terms and confirm you are 18+ to continue."
   },

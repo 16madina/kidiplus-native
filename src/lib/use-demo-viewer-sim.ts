@@ -98,6 +98,7 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
   const [lastBid, setLastBid] = useState<ViewerRoomState["lastBid"]>(null);
   const [lastReveal, setLastReveal] = useState<ViewerRoomState["lastReveal"]>(null);
   const [lastGift, setLastGift] = useState<ViewerRoomState["lastGift"]>(null);
+  const [heartPulse, setHeartPulse] = useState(0);
   const [timeLeft, setTimeLeft] = useState(AUCTION_SECONDS);
   const [suddenDeathTick, setSuddenDeathTick] = useState(0);
   const deadlineRef = useRef(Date.now() + AUCTION_SECONDS * 1000);
@@ -239,6 +240,7 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
   };
 
   const sendHeart = () => {
+    setHeartPulse((n) => n + 1);
     pushChat("Moi", "❤️");
   };
 
@@ -280,6 +282,7 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
     viewers,
     lastReveal,
     lastGift,
+    heartPulse,
     loading: false,
     error: null,
     sendChat,

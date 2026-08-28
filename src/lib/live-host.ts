@@ -365,7 +365,7 @@ export function useHostLiveSession(args: {
     setChat((prev) => {
       if (prev.some((m) => m.id === msg.id)) return prev;
       const next = [...prev, msg];
-      return next.length > 80 ? next.slice(next.length - 80) : next;
+      return next.length > 150 ? next.slice(next.length - 150) : next;
     });
   }, []);
 

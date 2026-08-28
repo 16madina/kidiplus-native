@@ -6,6 +6,7 @@ import { Frown } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import * as Haptics from "expo-haptics";
 import { Logo } from "../Logo";
+import { VerifiedBadge } from "../VerifiedBadge";
 import { supabase } from "../../lib/supabase";
 import { resolveAvatarUrl } from "../../lib/storage";
 import { GOLD, NAVY } from "../../theme";
@@ -37,6 +38,7 @@ export function WinnerReveal({
   const { t } = useTranslation();
   const [phase, setPhase] = useState<"logo" | "card">("logo");
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [verified, setVerified] = useState(false);
 
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
@@ -45,10 +47,12 @@ export function WinnerReveal({
     if (!reveal) {
       setPhase("logo");
       setAvatar(null);
+      setVerified(false);
       return;
     }
     setPhase("logo");
     setAvatar(null);
+    setVerified(false);
     const unsold = !reveal.winnerName || !reveal.winnerId;
     void Haptics.notificationAsync(
       unsold ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success,
@@ -67,10 +71,12 @@ export function WinnerReveal({
     void (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("avatar_url")
+        .select("avatar_url, is_verified")
         .eq("id", reveal.winnerId!)
         .maybeSingle();
-      if (cancelled || !data?.avatar_url) return;
+      if (cancelled || !data) return;
+      if ((data as { is_verified?: boolean }).is_verified) setVerified(true);
+      if (!data.avatar_url) return;
       const url = await resolveAvatarUrl(data.avatar_url);
       if (url && !cancelled) setAvatar(url);
     })();
@@ -113,9 +119,12 @@ export function WinnerReveal({
           <View style={styles.badge}>
             <Text style={styles.badgeTxt}>{t("auction.winner.badge", "Gagnant")}</Text>
           </View>
-          <Text numberOfLines={1} style={styles.winnerName}>
-            {shown}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Text numberOfLines={1} style={styles.winnerName}>
+              {shown}
+            </Text>
+            {verified ? <VerifiedBadge size={22} /> : null}
+          </View>
           {productLabel ? (
             <Text numberOfLines={1} style={styles.productWin}>
               {productLabel}

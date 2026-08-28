@@ -31,6 +31,7 @@ export type ShopItem = {
   currency?: string;
   description?: string | null;
   imagePath?: string | null;
+  imagePaths?: string[];
 };
 
 export const MOCK_SHOP_ITEMS: ShopItem[] = [

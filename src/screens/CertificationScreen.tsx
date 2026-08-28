@@ -144,7 +144,7 @@ export function CertificationScreen() {
                 <GoldButton
                   label={busy ? t("common.loading") : t("verify.submit")}
                   onPress={() => void submit()}
-                  disabled={busy}
+                  disabled={busy || !elig?.all_ok}
                 />
               </>
             )}

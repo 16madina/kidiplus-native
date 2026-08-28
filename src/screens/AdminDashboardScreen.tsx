@@ -54,6 +54,7 @@ import {
   reviewVerification,
   setAdminRiskRestricted,
   verificationHandle,
+  adminSetVerified,
   type AdminLiveRow,
   type AdminPayoutRow,
   type AdminRiskAlertRow,
@@ -363,6 +364,19 @@ function UsersTab({ flash }: { flash: (s: string) => void }) {
             <View style={styles.rowBtns}>
               <ActionPill label={t("moderation.userDetail.warn")} onPress={() => sanction(u, "warning")} />
               <ActionPill label={t("moderation.userDetail.ban")} danger onPress={() => sanction(u, "ban")} />
+              <ActionPill
+                label={t("admin.users.grantVerify")}
+                onPress={() => {
+                  void adminSetVerified(u.id, true).then((ok) => flash(ok ? "✓" : t("common.error", "Erreur")));
+                }}
+              />
+              <ActionPill
+                label={t("admin.users.revokeVerify")}
+                danger
+                onPress={() => {
+                  void adminSetVerified(u.id, false).then((ok) => flash(ok ? "OK" : t("common.error", "Erreur")));
+                }}
+              />
             </View>
           </SurfaceCard>
         );

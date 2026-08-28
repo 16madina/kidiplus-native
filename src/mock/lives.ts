@@ -53,6 +53,8 @@ export type LiveStream = {
   endsInMin?: number;
   /** ISO start time — used to keep newest lives at the top of the home feed. */
   startedAt?: string;
+  isVerified?: boolean;
+  isReferred?: boolean;
 };
 
 export function isFictitiousSellerId(id: string | null | undefined): boolean {

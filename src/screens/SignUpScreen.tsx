@@ -133,7 +133,22 @@ export function SignUpScreen() {
       ) : null}
       <Press onPress={() => setAcceptTerms((v) => !v)} style={styles.row} haptic="none">
         <View style={[styles.box, acceptTerms && { backgroundColor: GOLD }]} />
-        <Text style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}>{t("consent.checkbox").replace(/<[^>]+>/g, "")}</Text>
+        <Text style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}>
+          {t("consent.checkboxPrefix", { defaultValue: "J'ai lu et j'accepte les " })}
+          <Text
+            onPress={() => setLegal("terms")}
+            style={{ color: GOLD, fontWeight: "800", textDecorationLine: "underline" }}
+          >
+            {t("legal.terms")}
+          </Text>
+          {t("consent.checkboxMid", { defaultValue: " et la " })}
+          <Text
+            onPress={() => setLegal("privacy")}
+            style={{ color: GOLD, fontWeight: "800", textDecorationLine: "underline" }}
+          >
+            {t("legal.privacy")}
+          </Text>
+        </Text>
       </Press>
       <Press onPress={() => setConfirmAge((v) => !v)} style={styles.row} haptic="none">
         <View style={[styles.box, confirmAge && { backgroundColor: GOLD }]} />

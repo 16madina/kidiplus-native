@@ -7,13 +7,14 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Gavel, Gift, Heart, MoreVertical, Send, ShoppingBag, X } from "lucide-react-native";
+import { Gavel, Gift, Heart, MoreVertical, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
@@ -23,11 +24,16 @@ import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { AuctionFinalCountdown } from "../components/live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
+import { GiftAnimationOverlay } from "../components/live/GiftAnimationOverlay";
+import { FloatingHearts } from "../components/live/FloatingHearts";
+import { VerifiedBadge } from "../components/VerifiedBadge";
+import { ReferredBadge } from "../components/ReferredBadge";
 import { ReportSheet } from "../components/moderation/ReportSheet";
 import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { TopUpSheet } from "../components/wallet/TopUpSheet";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
+import { useFollow } from "../lib/follows";
 import { fetchDefaultAddress } from "../lib/addresses";
 import { canDeliver, fetchDeliverySettings } from "../lib/delivery";
 import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
@@ -63,7 +69,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
-  const { closeOverlay } = useNav();
+  const { closeOverlay, openOverlay } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
@@ -99,7 +105,16 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const [payOrder, setPayOrder] = useState<OrderView | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [reportMsg, setReportMsg] = useState<{ id: string; text: string } | null>(null);
   const blockedIds = useBlockedIds();
+  const follow = useFollow(s.sellerId && !s.fictitious ? s.sellerId : null);
+
+  const requireAccount = () => {
+    if (user) return true;
+    setToast(t("auth.guest.participate", { defaultValue: "Crée un compte pour participer 🎉" }));
+    openAuth("signup");
+    return false;
+  };
   const [buyerCountry, setBuyerCountry] = useState<string | null>(null);
   const [sellerCountry, setSellerCountry] = useState<string | null>(null);
   const [sellerSettings, setSellerSettings] = useState<Awaited<
@@ -147,7 +162,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   }, [blockedIds, s.sellerId, s.fictitious, closeOverlay, t]);
 
   const openMore = () => {
-    if (!user) return openAuth();
+    if (!requireAccount()) return;
     Alert.alert(s.seller, undefined, [
       {
         text: t("report.action"),
@@ -182,17 +197,18 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           ]);
         },
       },
+      { text: t("common.share", { defaultValue: "Partager" }), onPress: shareLive },
       { text: t("common.cancel"), style: "cancel" },
     ]);
   };
 
-  const [giftFlash, setGiftFlash] = useState<typeof room.lastGift>(null);
-  useEffect(() => {
-    if (!room.lastGift) return;
-    setGiftFlash(room.lastGift);
-    const id = setTimeout(() => setGiftFlash(null), 2800);
-    return () => clearTimeout(id);
-  }, [room.lastGift?.at]);
+  const shareLive = () => {
+    const id = liveId || s.liveId || s.id;
+    void Share.share({
+      message: `https://kidiplus.com/live/${id}`,
+      title: s.title || "KiDi+",
+    });
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -287,7 +303,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     }
     if (!liveId) return;
     if (!user) {
-      openAuth();
+      requireAccount();
       return;
     }
     if (!auctionLive || !featured) {
@@ -342,7 +358,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     }
     if (!liveId || !featured) return;
     if (!user) {
-      openAuth();
+      requireAccount();
       return;
     }
     if (featured.mode !== "fixed" || featured.status !== "active") {
@@ -376,7 +392,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     const text = draft.trim();
     if (!text) return;
     if (!user) {
-      openAuth();
+      requireAccount();
       return;
     }
     setDraft("");
@@ -395,7 +411,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     }
     if (!liveId) return;
     if (!user) {
-      openAuth();
+      requireAccount();
       return;
     }
     const price = giftPrice(key, walletCurrency);
@@ -488,18 +504,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
         />
       </View>
       <WinnerReveal reveal={room.lastReveal} onDone={room.clearReveal} />
-
-      {giftFlash ? (
-        <View
-          pointerEvents="none"
-          style={[styles.giftFlash, { top: insets.top + layout.vs(64) }]}
-        >
-          <Text style={[styles.giftFlashTxt, { fontSize: layout.s(14) }]}>
-            {GIFT_CATALOG.find((g) => g.key === giftFlash.giftKey)?.emoji ?? "🎁"}{" "}
-            {giftFlash.fromName}
-          </Text>
-        </View>
-      ) : null}
+      <GiftAnimationOverlay trigger={room.lastGift} />
+      <FloatingHearts pulse={room.heartPulse ?? 0} />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <Glass tone="dark" intensity={42} radius={999}>
@@ -509,9 +515,13 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
               style={[styles.av, layout.narrow && { width: 32, height: 32, borderRadius: 16 }]}
             />
             <View style={{ maxWidth: layout.narrow ? 140 : 180 }}>
-              <Text style={[styles.name, { fontSize: layout.s(14) }]} numberOfLines={1}>
-                {s.seller}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text style={[styles.name, { fontSize: layout.s(14) }]} numberOfLines={1}>
+                  {s.seller}
+                </Text>
+                {s.isVerified ? <VerifiedBadge size={13} /> : null}
+                <ReferredBadge referred={s.isReferred} size={12} />
+              </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <View style={[styles.live, ended && { backgroundColor: "rgba(255,255,255,0.25)" }]}>
                   {!ended ? <View style={styles.dot} /> : null}
@@ -522,7 +532,40 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             </View>
           </View>
         </Glass>
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          {user ? (
+            <Press
+              onPress={() => openOverlay({ kind: "wallet" })}
+              style={{ minHeight: 0, minWidth: 0 }}
+            >
+              <Glass tone="dark" intensity={42} radius={999}>
+                <View style={styles.walletPill}>
+                  <Wallet size={13} color={GOLD} />
+                  <Text style={styles.walletTxt} numberOfLines={1}>
+                    {formatMoney(user.walletBalance, walletCurrency, i18n.language)}
+                  </Text>
+                </View>
+              </Glass>
+            </Press>
+          ) : null}
+          {!follow.isSelf && s.sellerId && !s.fictitious ? (
+            <Press
+              onPress={() => {
+                if (!requireAccount()) return;
+                void follow.toggle();
+              }}
+              style={{ minHeight: 0, minWidth: 0 }}
+            >
+              <Glass tone={follow.following ? "dark" : "gold"} intensity={42} radius={999}>
+                <View style={styles.followPill}>
+                  <UserPlus size={13} color={follow.following ? "#fff" : NAVY} />
+                  <Text style={[styles.followTxt, follow.following && { color: "#fff" }]}>
+                    {follow.following ? t("follow.following") : t("follow.follow")}
+                  </Text>
+                </View>
+              </Glass>
+            </Press>
+          ) : null}
           <GlassIconButton size={layout.icon} tone="dark" onPress={openMore}>
             <MoreVertical size={18} color="#fff" />
           </GlassIconButton>
@@ -546,47 +589,64 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           pointerEvents="box-none"
         >
           {room.chat.length > 0 ? (
-            <View style={styles.chatList} pointerEvents="none">
+            <View style={styles.chatList}>
               {room.chat.slice(layout.compact ? -3 : -6).map((m) => (
-                <View key={m.id} style={styles.chatBubble}>
-                  {m.system ? (
-                    <Text style={styles.chatSystem}>{m.text}</Text>
-                  ) : (
-                    <Text style={styles.chatLine}>
-                      <Text style={styles.chatUser}>{m.user} </Text>
-                      {m.text}
-                    </Text>
-                  )}
-                </View>
+                <Press
+                  key={m.id}
+                  onLongPress={() => {
+                    if (m.system) return;
+                    if (!requireAccount()) return;
+                    setReportMsg({ id: m.id, text: `${m.user}: ${m.text}` });
+                  }}
+                  style={{ minHeight: 0, alignItems: "flex-start" }}
+                >
+                  <View style={styles.chatBubble}>
+                    {m.system ? (
+                      <Text style={styles.chatSystem}>{m.text}</Text>
+                    ) : (
+                      <Text style={styles.chatLine}>
+                        <Text style={styles.chatUser}>{m.user} </Text>
+                        {m.text}
+                      </Text>
+                    )}
+                  </View>
+                </Press>
               ))}
             </View>
           ) : null}
 
-          {featured ? (
+          {auctionLive || (featured?.mode === "fixed" && featured.status === "active") ? (
             <Glass tone="gold" intensity={46} radius={20} padded>
               <Text style={styles.productEyebrow}>
                 {auctionLive
                   ? t("live.currentBid")
-                  : featured.mode === "fixed" && featured.status === "active"
-                    ? t("live.buyNow")
-                    : t("live.featured")}
+                  : t("live.buyNow")}
               </Text>
               <Text style={styles.productTitle} numberOfLines={1}>
-                {featured.name}
+                {featured!.name}
               </Text>
               <View style={styles.priceRow}>
-                <Text style={styles.price}>{fmt(Number(featured.price ?? featured.start_price))}</Text>
+                <Text style={styles.price}>{fmt(Number(featured!.price ?? featured!.start_price))}</Text>
                 {auctionLive && room.timeLeft > 0 ? (
                   <Text style={styles.timer}>{room.timeLeft}s</Text>
                 ) : null}
               </View>
-              {room.lastBid && room.lastBid.productId === featured.id ? (
+              {room.lastBid && room.lastBid.productId === featured!.id ? (
                 <Text style={styles.bidder}>{room.lastBid.bidderName}</Text>
               ) : null}
             </Glass>
-          ) : liveId && room.products.length > 0 ? (
+          ) : featured || room.products.length > 0 ? (
             <Glass tone="dark" intensity={40} radius={16} padded>
-              <Text style={styles.waitTxt}>{t("live.waitingForSeller")}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                {featured?.image_url ? (
+                  <Image source={{ uri: featured.image_url }} style={{ width: 44, height: 44, borderRadius: 8 }} contentFit="cover" />
+                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.waitTxt}>
+                    {t("live.nextItemSoon", { name: featured?.name ? `${featured.name} ⏳` : "⏳" })}
+                  </Text>
+                </View>
+              </View>
             </Glass>
           ) : null}
 
@@ -602,11 +662,25 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
                 returnKeyType="send"
               />
             </Glass>
-            <GlassIconButton size={layout.icon} tone="dark" onPress={() => room.sendHeart()}>
+            <GlassIconButton
+              size={layout.icon}
+              tone="dark"
+              onPress={() => {
+                if (!requireAccount()) return;
+                room.sendHeart();
+              }}
+            >
               <Heart size={18} color="#fff" />
             </GlassIconButton>
             {liveId || s.fictitious ? (
-              <GlassIconButton size={layout.icon} tone="dark" onPress={() => setGiftsOpen(true)}>
+              <GlassIconButton
+                size={layout.icon}
+                tone="dark"
+                onPress={() => {
+                  if (!requireAccount()) return;
+                  setGiftsOpen(true);
+                }}
+              >
                 <Gift size={18} color={GOLD} />
               </GlassIconButton>
             ) : null}
@@ -708,11 +782,14 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
         }}
       />
       <ReportSheet
-        open={reportOpen}
-        onClose={() => setReportOpen(false)}
-        targetType="live"
-        targetId={liveId || s.id || s.sellerId || ""}
-        defaultNote={s.seller ? `Live host: ${s.seller}` : undefined}
+        open={reportOpen || !!reportMsg}
+        onClose={() => {
+          setReportOpen(false);
+          setReportMsg(null);
+        }}
+        targetType={reportMsg ? "message" : "live"}
+        targetId={reportMsg?.id || liveId || s.id || s.sellerId || ""}
+        defaultNote={reportMsg?.text || (s.seller ? `Live host: ${s.seller}` : undefined)}
       />
     </View>
   );
@@ -743,6 +820,10 @@ const styles = StyleSheet.create({
   liveText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
   viewers: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "700" },
+  walletPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
+  walletTxt: { color: "#fff", fontSize: 11, fontWeight: "800", maxWidth: 88 },
+  followPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
+  followTxt: { color: NAVY, fontSize: 11, fontWeight: "800" },
   bottom: { position: "absolute", left: 12, right: 12, bottom: 0, gap: 10, zIndex: 40 },
   chatList: { gap: 4, marginBottom: 4 },
   chatBubble: {

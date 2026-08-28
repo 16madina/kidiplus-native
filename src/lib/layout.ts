@@ -35,6 +35,13 @@ export function isNarrow(width = windowSize().width) {
   return width < 375;
 }
 
+export function isTablet(width = windowSize().width) {
+  return width >= 768;
+}
+
+/** Phone-column max width on iPad / large tablets. */
+export const CONTENT_MAX_WIDTH = 430;
+
 /** Hook: live dimensions + precomputed flags for HUD layouts. */
 export function useLayout() {
   const { width, height } = useWindowDimensions();
@@ -45,6 +52,7 @@ export function useLayout() {
     height,
     compact,
     narrow,
+    tablet: width >= 768,
     s: (n: number) => s(n, width),
     vs: (n: number) => vs(n, height),
     /** Icon / rail button edge length. */

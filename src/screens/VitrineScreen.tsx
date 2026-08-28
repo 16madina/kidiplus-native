@@ -32,6 +32,7 @@ import { GOLD, LIVE_RED, initials } from "../theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import { useLayout } from "../lib/layout";
 import {
+  deleteVitrinePost,
   fetchVitrinePostById,
   fetchVitrinePosts,
   looksLikeVideo,
@@ -66,6 +67,7 @@ export function VitrineScreen() {
   const [posts, setPosts] = useState<VitrineFeedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [activeSoonId, setActiveSoonId] = useState<string | null>(null);
@@ -103,10 +105,14 @@ export function VitrineScreen() {
   }, [lives]);
   const tabVisible = tab === "vitrine";
 
+  const PAGE = 12;
+  const loadingMore = useRef(false);
+
   const load = useCallback(async (soft = false) => {
     if (!soft) setLoading(true);
-    const rows = await fetchVitrinePosts();
+    const rows = await fetchVitrinePosts(PAGE, 0);
     setPosts(rows);
+    setHasMore(rows.length >= PAGE);
     setActiveId((prev) => {
       if (prev && rows.some((p) => p.id === prev)) return prev;
       return rows[0]?.id ?? null;
@@ -114,6 +120,18 @@ export function VitrineScreen() {
     setLoading(false);
     setRefreshing(false);
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore.current || loading) return;
+    loadingMore.current = true;
+    const rows = await fetchVitrinePosts(PAGE, posts.length);
+    setPosts((prev) => {
+      const seen = new Set(prev.map((p) => p.id));
+      return [...prev, ...rows.filter((r) => !seen.has(r.id))];
+    });
+    setHasMore(rows.length >= PAGE);
+    loadingMore.current = false;
+  }, [hasMore, loading, posts.length]);
 
   useEffect(() => {
     void load();
@@ -259,6 +277,8 @@ export function VitrineScreen() {
                 listRef.current?.scrollToIndex({ index: info.index, animated: true });
               }, 120);
             }}
+            onEndReached={() => void loadMore()}
+            onEndReachedThreshold={0.6}
             refreshControl={
               <RefreshControl refreshing={refreshing} tintColor={GOLD} onRefresh={() => {
                 setRefreshing(true);
@@ -303,6 +323,9 @@ export function VitrineScreen() {
                 onBlocked={() => {
                   if (!item.userId) return;
                   setPosts((prev) => prev.filter((p) => p.userId !== item.userId));
+                }}
+                onDeleted={() => {
+                  setPosts((prev) => prev.filter((p) => p.id !== item.id));
                 }}
               />
               );
@@ -417,6 +440,7 @@ function VitrinePostSlide({
   onComments,
   onLikeChange,
   onBlocked,
+  onDeleted,
   sellerLive,
 }: {
   post: VitrineFeedPost;
@@ -430,11 +454,14 @@ function VitrinePostSlide({
   onComments: () => void;
   onLikeChange: (liked: boolean, likes: number) => void;
   onBlocked?: () => void;
+  onDeleted?: () => void;
   sellerLive: { id: string } | null;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const layout = useLayout();
+  const { user } = useAuth();
+  const mine = !!user && !!post.userId && post.userId === user.id;
   const [liked, setLiked] = useState(post.likedByMe);
   const [likes, setLikes] = useState(post.likes);
   const [comments, setComments] = useState(post.comments);
@@ -473,6 +500,31 @@ function VitrinePostSlide({
   const openModeration = () => {
     if (guest) return onAuth();
     if (!post.userId) return;
+    if (mine) {
+      Alert.alert(t("vitrine.manageTitle"), t("vitrine.deleteOwnHint"), [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("vitrine.delete"),
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(t("vitrine.deleteConfirm"), t("vitrine.deleteOwnHint"), [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("vitrine.deleteConfirm"),
+                style: "destructive",
+                onPress: () => {
+                  void deleteVitrinePost(post.id).then((ok) => {
+                    if (ok) onDeleted?.();
+                    else Alert.alert("KiDi+", t("vitrine.deleteFail"));
+                  });
+                },
+              },
+            ]);
+          },
+        },
+      ]);
+      return;
+    }
     Alert.alert(`@${post.handle}`, undefined, [
       {
         text: t("report.action"),
@@ -579,12 +631,50 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
   const video = looksLikeVideo(first, post.mediaType);
   if (video) {
     if (!active) {
-      if (post.posterUrl) return <Image source={{ uri: post.posterUrl }} style={FILL} contentFit="cover" />;
+      if (post.posterUrl) return <VitrineStill uri={post.posterUrl} />;
       return <View style={[FILL, { backgroundColor: "#111" }]} />;
     }
     return <VitrineVideo uri={first} poster={post.posterUrl} active={active} />;
   }
-  return <Image source={{ uri: first }} style={FILL} contentFit="cover" />;
+  return <VitrineStill uri={first} />;
+}
+
+function VitrineStill({ uri }: { uri: string }) {
+  const { t } = useTranslation();
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setReady(false);
+    setFailed(false);
+    const id = setTimeout(() => setFailed(true), 8000);
+    return () => clearTimeout(id);
+  }, [uri]);
+
+  if (failed && !ready) {
+    return (
+      <View style={[FILL, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontWeight: "700" }}>{t("vitrine.mediaUnavailable")}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={FILL}>
+      {!ready ? (
+        <View style={[FILL, { alignItems: "center", justifyContent: "center" }]}>
+          <ActivityIndicator color={GOLD} />
+        </View>
+      ) : null}
+      <Image
+        source={{ uri }}
+        style={FILL}
+        contentFit="cover"
+        onLoad={() => setReady(true)}
+        onError={() => setFailed(true)}
+      />
+    </View>
+  );
 }
 
 function VitrineVideo({

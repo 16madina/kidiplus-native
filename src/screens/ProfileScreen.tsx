@@ -57,6 +57,7 @@ function GuestProfile() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { openAuth } = useAuth();
+  const { openOverlay } = useNav();
   return (
     <View style={styles.guestRoot}>
       <Image source={guestBg} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -102,6 +103,17 @@ function GuestProfile() {
         <View style={[styles.featGrid, { marginTop: 8 }]}>
           <Feat icon={<MapPin size={17} color={NAVY} />} label={t("address.title")} onPress={() => openAuth()} wide />
           <Feat icon={<Settings size={17} color={NAVY} />} label={t("settings.title")} onPress={() => openAuth()} wide />
+        </View>
+        <View style={{ marginTop: 20, alignItems: "center", gap: 10 }}>
+          <Press onPress={() => openOverlay({ kind: "legal", page: "terms" })} style={{ minHeight: 0 }}>
+            <Text style={{ color: `${NAVY}99`, fontSize: 12 }}>{t("legal.terms")}</Text>
+          </Press>
+          <Press onPress={() => openOverlay({ kind: "legal", page: "privacy" })} style={{ minHeight: 0 }}>
+            <Text style={{ color: `${NAVY}99`, fontSize: 12 }}>{t("legal.privacy")}</Text>
+          </Press>
+          <Press onPress={() => openOverlay({ kind: "legal", page: "community" })} style={{ minHeight: 0 }}>
+            <Text style={{ color: `${NAVY}99`, fontSize: 12 }}>{t("legal.community")}</Text>
+          </Press>
         </View>
       </ScrollView>
     </View>
@@ -246,6 +258,17 @@ function AuthedProfile() {
         <Row icon={<HelpCircle size={18} color={colors.foreground} />} label={t("profile.menu.help")} onPress={() => openOverlay({ kind: "help" })} />
         <Row icon={<LogOut size={18} color="#C0392B" />} label={t("profile.signOut")} danger onPress={signOut} />
       </Section>
+      <View style={{ paddingHorizontal: 24, paddingTop: 22, alignItems: "center", gap: 10 }}>
+        <Press onPress={() => openOverlay({ kind: "legal", page: "terms" })} style={{ minHeight: 0 }}>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{t("legal.terms")}</Text>
+        </Press>
+        <Press onPress={() => openOverlay({ kind: "legal", page: "privacy" })} style={{ minHeight: 0 }}>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{t("legal.privacy")}</Text>
+        </Press>
+        <Press onPress={() => openOverlay({ kind: "legal", page: "community" })} style={{ minHeight: 0 }}>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{t("legal.community")}</Text>
+        </Press>
+      </View>
     </ScrollView>
   );
 }

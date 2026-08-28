@@ -56,12 +56,20 @@ export function BottomTabBar({
   };
 
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          paddingBottom: Math.max(insets.bottom, 8),
+          backgroundColor: dark ? "#0C1122" : "#F8F9FC",
+        },
+      ]}
+    >
       <LinearGradient
         colors={
           dark
-            ? ["rgba(12,17,34,0)", "rgba(12,17,34,0.72)", "rgba(12,17,34,0.96)"]
-            : ["rgba(255,255,255,0)", "rgba(255,255,255,0.55)", "rgba(248,249,252,0.92)"]
+            ? ["rgba(12,17,34,0.0)", "rgba(12,17,34,1)"]
+            : ["rgba(248,249,252,0.0)", "rgba(248,249,252,1)"]
         }
         style={styles.fade}
         pointerEvents="none"

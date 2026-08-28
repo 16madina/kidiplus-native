@@ -19,7 +19,7 @@
   },
   "gifts": {
     "title": "Envoyer un cadeau",
-    "subtitle": "Le vendeur reçoit 70% du montant",
+    "subtitle": "Le vendeur reçoit 80% du montant (KiDi+ 20%)",
     "open": "Cadeaux",
     "short": "Cadeaux 🎁",
     "walletBalance": "Solde",
@@ -112,7 +112,7 @@
     "submit": "Envoyer",
     "thanks": "Merci pour ton avis !",
     "empty": "Aucun avis pour le moment.",
-    "rateOrder": "Noter cette commande",
+    "rateOrder": "Laisser un avis ⭐",
     "left": "Avis laissé"
   },
   "sellerProfile": {
@@ -274,7 +274,7 @@
       "shop": "Ma boutique"
     },
     "demo": {
-      "badge": "🎬 DÉMO",
+      "badge": "🎬 DÉMO — Comment utiliser KiDi+",
       "title": "Comment utiliser KiDi+",
       "subtitle": "Regarde la démo · 1 min",
       "close": "Fermer"
@@ -1027,6 +1027,9 @@
       "promoHint": "Si tu as le code d’un partenaire, entre-le ici. Tu actives le parrainage : 10 % de chacun de tes achats et de tes ventes iront sur sa carte parrainage, au lieu de KiDi+.",
       "promoValid": "✓ Code {{code}} — parrainage activé"
     },
+    "guest": {
+      "participate": "Crée un compte pour participer 🎉"
+    },
     "emailConfirm": {
       "banner": "Confirme ton adresse email",
       "bannerRestricted": "Confirme ton email pour vendre et retirer",
@@ -1495,7 +1498,9 @@
       "recentLives": "Lives récents",
       "walletTx": "Transactions portefeuille",
       "earnings": "Gains",
-      "moderationSoon": "Modération (bloquer / avertir / message) — arrive bientôt."
+      "moderationSoon": "Modération (bloquer / avertir / message) — arrive bientôt.",
+      "grantVerify": "Certifier ✓",
+      "revokeVerify": "Révoquer ✓"
     },
     "orders": {
       "title": "Commandes récentes",
@@ -1684,6 +1689,8 @@
   },
   "consent": {
     "checkbox": "J'ai lu et j'accepte les <t>Conditions d'utilisation</t> et la <p>Politique de confidentialité</p>",
+    "checkboxPrefix": "J'ai lu et j'accepte les ",
+    "checkboxMid": " et la ",
     "ageCheckbox": "Je confirme avoir au moins 18 ans",
     "required": "Tu dois accepter les conditions et confirmer avoir 18 ans pour continuer."
   },
