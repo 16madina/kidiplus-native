@@ -73,11 +73,22 @@ export function fictionalUpcomingLives(): LiveStream[] {
   });
 }
 
-/** Real scheduled first, then demos — always at least the demo set. */
+function startMs(s: LiveStream): number {
+  if (s.startedAt) {
+    const t = new Date(s.startedAt).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  if (s.startsInMin != null) return Date.now() + s.startsInMin * 60_000;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Real scheduled merged with demos — always at least the demo set.
+ * Sorted soonest-first so swiping goes further and further into the future.
+ */
 export function mergeUpcomingWithDemos(real: LiveStream[]): LiveStream[] {
   const demos = fictionalUpcomingLives();
-  if (real.length === 0) return demos;
   const realIds = new Set(real.map((s) => s.seller.toLowerCase()));
   const extra = demos.filter((d) => !realIds.has(d.seller.toLowerCase()));
-  return [...real, ...extra].slice(0, 12);
+  return [...real, ...extra].sort((a, b) => startMs(a) - startMs(b)).slice(0, 12);
 }

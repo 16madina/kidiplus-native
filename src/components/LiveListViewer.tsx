@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Dimensions, FlatList, StyleSheet, View } from "react-native";
 import { LiveViewerScreen } from "../screens/LiveViewerScreen";
+import { ScheduledLivePoster } from "./ScheduledLivePoster";
 import type { LiveStream } from "../mock/lives";
 
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -32,7 +33,11 @@ export function LiveListViewer({
       keyExtractor={(item) => item.id}
       renderItem={({ item, index }) => (
         <View style={{ width: "100%", height: SCREEN_H }}>
-          <LiveViewerScreen stream={item} active={index === activeIndex} />
+          {item.scheduled ? (
+            <ScheduledLivePoster stream={item} active={index === activeIndex} />
+          ) : (
+            <LiveViewerScreen stream={item} active={index === activeIndex} />
+          )}
         </View>
       )}
       pagingEnabled

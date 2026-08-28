@@ -22,10 +22,9 @@ import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostS
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
 import { StoriesRow, type StoryItem } from "../components/vitrine/StoriesRow";
 import { StoryViewer } from "../components/vitrine/StoryViewer";
-import {
-  VitrineLiveSlide,
-  VitrineSoonSlide,
-} from "../components/vitrine/VitrineLiveSlides";
+import { VitrineLiveSlide } from "../components/vitrine/VitrineLiveSlides";
+import { ScheduledLivePoster } from "../components/ScheduledLivePoster";
+import { mergeUpcomingWithDemos } from "../mock/upcoming-demos";
 import { ReportSheet } from "../components/moderation/ReportSheet";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -82,8 +81,9 @@ export function VitrineScreen() {
     () => active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
     [active, blockedIds],
   );
+  // Réels + démos, triés du plus proche au plus lointain (comme la Home).
   const soon = useMemo(
-    () => upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
+    () => mergeUpcomingWithDemos(upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId))),
     [upcoming, blockedIds],
   );
   const visiblePosts = useMemo(
@@ -370,7 +370,9 @@ export function VitrineScreen() {
             onViewableItemsChanged={onSoonViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             renderItem={({ item }) => (
-              <VitrineSoonSlide stream={item} width={width} height={height} />
+              <View style={{ width, height }}>
+                <ScheduledLivePoster stream={item} showClose={false} active={item.id === activeSoonId} />
+              </View>
             )}
           />
         )
