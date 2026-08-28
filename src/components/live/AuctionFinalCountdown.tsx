@@ -4,35 +4,35 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { NAVY } from "../../theme";
 
-/** Gros 10 → 1 des 10 dernières secondes (kidiplus.com). Mort subite = reprend à 10. */
+/** Gros 3 → 1 des 3 dernières secondes. Mort subite = reprend à 3. */
 export function AuctionFinalCountdown({
   secondsLeft,
   active,
+  embedded,
 }: {
   secondsLeft: number;
   active: boolean;
+  /** When true, no absolute positioning (parent stacks with mort subite / bid). */
+  embedded?: boolean;
 }) {
-  const show = active && secondsLeft > 0 && secondsLeft <= 10;
-  const urgent = secondsLeft <= 5;
+  const show = active && secondsLeft > 0 && secondsLeft <= 3;
 
   useEffect(() => {
     if (!show) return;
-    void Haptics.impactAsync(
-      urgent ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium,
-    ).catch(() => undefined);
-  }, [show, secondsLeft, urgent]);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+  }, [show, secondsLeft]);
 
   if (!show) return null;
 
   return (
-    <View pointerEvents="none" style={styles.wrap}>
+    <View pointerEvents="none" style={embedded ? styles.embed : styles.wrap}>
       <LinearGradient
-        colors={urgent ? ["#E24B4B", "#9B1C1C"] : ["#F7CE5A", "#D9A73A"]}
+        colors={["#E24B4B", "#9B1C1C"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.pill, urgent && styles.pillUrgent]}
+        style={[styles.pill, styles.pillUrgent]}
       >
-        <Text style={[styles.num, urgent && styles.numUrgent]}>{secondsLeft}</Text>
+        <Text style={[styles.num, styles.numUrgent]}>{secondsLeft}</Text>
       </LinearGradient>
     </View>
   );
@@ -41,16 +41,19 @@ export function AuctionFinalCountdown({
 const styles = StyleSheet.create({
   wrap: {
     position: "absolute",
-    top: "26%",
+    top: "22%",
     left: 0,
     right: 0,
     zIndex: 55,
     alignItems: "center",
   },
+  embed: {
+    alignItems: "center",
+  },
   pill: {
-    minWidth: 56,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
+    minWidth: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: "rgba(16,22,43,0.12)",
@@ -62,10 +65,10 @@ const styles = StyleSheet.create({
   },
   num: {
     color: NAVY,
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
-    lineHeight: 38,
+    lineHeight: 36,
   },
   numUrgent: {
     color: "#fff",

@@ -429,16 +429,24 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
         pointerEvents="none"
       />
 
-      <AuctionFinalCountdown secondsLeft={room.timeLeft} active={!!auctionLive && !ended} />
+      <View pointerEvents="none" style={[styles.auctionStack, { top: insets.top + 120 }]}>
+        <AuctionFinalCountdown
+          secondsLeft={room.timeLeft}
+          active={!!auctionLive && !ended}
+          embedded
+        />
+        <BidPulseFlash
+          text={
+            room.lastBid && featured && room.lastBid.productId === featured.id
+              ? `${room.lastBid.bidderName} · ${fmt(room.lastBid.amount)}`
+              : null
+          }
+          pulseKey={room.lastBid?.ts ?? 0}
+          embedded
+          lower={!(auctionLive && room.timeLeft > 0 && room.timeLeft <= 3)}
+        />
+      </View>
       <WinnerReveal reveal={room.lastReveal} onDone={room.clearReveal} />
-      <BidPulseFlash
-        text={
-          room.lastBid && featured && room.lastBid.productId === featured.id
-            ? `${room.lastBid.bidderName} · ${fmt(room.lastBid.amount)}`
-            : null
-        }
-        pulseKey={room.lastBid?.ts ?? 0}
-      />
 
       {giftFlash ? (
         <View pointerEvents="none" style={[styles.giftFlash, { top: insets.top + 72 }]}>
@@ -727,6 +735,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   toastTxt: { color: "#fff", textAlign: "center", fontWeight: "700", fontSize: 13 },
+  auctionStack: {
+    position: "absolute",
+    left: 0,
+    right: 72,
+    zIndex: 55,
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+  },
   giftFlash: {
     position: "absolute",
     alignSelf: "center",

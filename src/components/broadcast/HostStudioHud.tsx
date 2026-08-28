@@ -105,6 +105,10 @@ export function HostStudioHud({
   const auctionOnFeatured = session.auction && featured && session.auction.productId === featured.id;
   const currency = session.currency || user?.walletCurrency || "EUR";
   const fmt = (n: number) => formatMoney(n, currency, i18n.language);
+  const countdownOn =
+    !!session.auction && !reveal && session.timeLeft > 0 && session.timeLeft <= 3;
+  /** After mort subite leaves, a simultaneous bid sits a bit lower. */
+  const bidLower = !flash && !countdownOn;
 
   useEffect(() => {
     if (!toast) return;
@@ -270,7 +274,7 @@ export function HostStudioHud({
               <Text style={styles.featuredMeta}>{t("live.currentBid")}</Text>
               <View style={styles.featuredPriceRow}>
                 <Text style={styles.featuredPrice}>{fmt(featured.price)}</Text>
-                <Text style={[styles.featuredTimer, session.timeLeft <= 10 && { color: "#ff6b6b" }]}>
+                <Text style={[styles.featuredTimer, session.timeLeft <= 3 && { color: "#ff6b6b" }]}>
                   {String(session.timeLeft).padStart(2, "0")}s
                 </Text>
               </View>
@@ -318,24 +322,29 @@ export function HostStudioHud({
         </Press>
       </View>
 
-      <AuctionFinalCountdown secondsLeft={session.timeLeft} active={!!session.auction && !reveal} />
-      <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
-      <BidPulseFlash
-        text={
-          session.lastBid
-            ? `${session.lastBid.bidderName} · ${fmt(session.lastBid.amount)}`
-            : null
-        }
-        pulseKey={session.lastBid?.ts ?? 0}
-      />
-
-      {flash ? (
-        <View pointerEvents="none" style={[styles.sdFlash, { top: insets.top + 118 }]}>
+      <View pointerEvents="none" style={[styles.auctionStack, { top: insets.top + 168 }]}>
+        <AuctionFinalCountdown
+          secondsLeft={session.timeLeft}
+          active={!!session.auction && !reveal}
+          embedded
+        />
+        {flash ? (
           <View style={styles.sdPill}>
             <Text style={styles.sdTxt}>{t("auction.suddenDeath.flash")}</Text>
           </View>
-        </View>
-      ) : null}
+        ) : null}
+        <BidPulseFlash
+          text={
+            session.lastBid
+              ? `${session.lastBid.bidderName} · ${fmt(session.lastBid.amount)}`
+              : null
+          }
+          pulseKey={session.lastBid?.ts ?? 0}
+          embedded
+          lower={bidLower}
+        />
+      </View>
+      <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
 
       {toast ? (
         <View pointerEvents="none" style={[styles.toast, { top: insets.top + 118 }]}>
@@ -740,23 +749,24 @@ const styles = StyleSheet.create({
     backgroundColor: GOLD,
     marginTop: 4,
   },
-  sdFlash: {
+  auctionStack: {
     position: "absolute",
     left: 0,
-    right: 0,
-    zIndex: 40,
+    right: 64,
+    zIndex: 55,
     alignItems: "center",
-    paddingHorizontal: 36,
+    gap: 8,
+    paddingHorizontal: 24,
   },
   sdPill: {
-    maxWidth: "100%",
+    maxWidth: "92%",
     borderRadius: 999,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    backgroundColor: GOLD,
+    backgroundColor: "#E5393F",
     alignItems: "center",
   },
-  sdTxt: { color: NAVY, fontWeight: "900", fontSize: 13, textAlign: "center" },
+  sdTxt: { color: "#fff", fontWeight: "900", fontSize: 13, textAlign: "center" },
   toast: {
     position: "absolute",
     left: 24,
