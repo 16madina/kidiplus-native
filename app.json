@@ -94,6 +94,7 @@
       "./plugins/withLiveKitIos.js",
       "./plugins/withStatusBarPlist.js",
       "./plugins/withCameraKit.js",
+      "./plugins/withPictureInPicture.js",
       [
         "@stripe/stripe-react-native",
         {

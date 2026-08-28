@@ -17,6 +17,7 @@ import {
   Eye,
   Mic,
   MicOff,
+  Minimize2,
   Package,
   Plus,
   Radio,
@@ -75,6 +76,7 @@ export function HostStudioHud({
   onToggleCam,
   onFlip,
   onEnd,
+  onMinimize,
   onBattleAccepted,
   cameraFacing = "front",
 }: {
@@ -88,6 +90,8 @@ export function HostStudioHud({
   onToggleCam: () => void;
   onFlip: () => void;
   onEnd: () => void;
+  /** Leave the studio without ending the live (reconnect banner + 5 min expiry). */
+  onMinimize?: () => void;
   onBattleAccepted?: () => void | Promise<void>;
   cameraFacing?: "front" | "back";
 }) {
@@ -255,6 +259,15 @@ export function HostStudioHud({
               </View>
             ) : null}
           </Press>
+          {onMinimize ? (
+            <Press
+              onPress={onMinimize}
+              style={[styles.circleBtn, { width: layout.iconSm, height: layout.iconSm, borderRadius: layout.iconSm / 2 }]}
+              accessibilityLabel={t("live.minimize")}
+            >
+              <Minimize2 size={layout.compact ? 14 : 16} color="#fff" />
+            </Press>
+          ) : null}
           <Press
             onPress={onEnd}
             style={[styles.endBtn, layout.narrow && { paddingHorizontal: 8 }]}

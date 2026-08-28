@@ -35,6 +35,7 @@ import { DmChatScreen } from "./screens/DmChatScreen";
 import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
 import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
+import { HostResumeListener } from "./components/home/HostResumeListener";
 import { GOLD, NAVY } from "./theme";
 import { CONTENT_MAX_WIDTH } from "./lib/layout";
 
@@ -100,6 +101,7 @@ export function AppShell() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <HostResumeListener />
       <StatusBar style={statusLight ? "light" : "dark"} />
       <View style={[styles.pane, tab === "home" ? styles.shown : styles.hidden]}>
         <View style={[{ flex: 1 }, tabletColumn]}>

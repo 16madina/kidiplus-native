@@ -4,6 +4,10 @@ import { supabase } from "./supabase";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { minutesUntil } from "./time";
 import { normalizeCurrency } from "./money";
+import { HOST_ABSENT_EXPIRE_MINUTES, HOST_ABSENT_WARN_MINUTES, isAbandonedLive } from "./host-absent";
+import type { OpenLiveRow } from "./open-live";
+
+export type { OpenLiveRow } from "./open-live";
 
 const LIVE_SELECT = `
   id, seller_id, title, category, cover_url, room_name, viewer_count, started_at, currency,
@@ -144,6 +148,8 @@ async function rowToStream(row: LiveRow, scheduled = false): Promise<LiveStream>
 }
 
 export async function fetchActiveLives(limit = 60): Promise<LiveStream[]> {
+  void notifyAbsentHostLivesInDb().catch(() => 0);
+  void expireAbandonedLivesInDb(null).catch(() => 0);
   const { data, error } = await supabase
     .from("lives")
     .select(LIVE_SELECT)
@@ -362,6 +368,17 @@ export async function endLiveInDb(liveId: string): Promise<{ ok: boolean; error?
   return { ok: true };
 }
 
+export async function markLiveActiveInDb(liveId: string): Promise<void> {
+  await supabase
+    .from("lives")
+    .update({
+      ended_at: null,
+      host_last_seen_at: new Date().toISOString(),
+    })
+    .eq("id", liveId)
+    .eq("status", "live");
+}
+
 export async function touchLiveHostInDb(liveId: string): Promise<void> {
   const { error } = await supabase.rpc("touch_live_host", { _live_id: liveId });
   if (error) {
@@ -371,6 +388,55 @@ export async function touchLiveHostInDb(liveId: string): Promise<void> {
       .eq("id", liveId)
       .eq("status", "live");
   }
+}
+
+const OPEN_LIVE_SELECT =
+  "id, title, started_at, room_name, cover_url, category, currency, host_last_seen_at, broadcast_mode, ingress_id, allow_gifts";
+
+/** Currently-open lives for this seller (reconnect banner). */
+export async function findOpenLives(sellerId: string): Promise<OpenLiveRow[]> {
+  const { data } = await supabase
+    .from("lives")
+    .select(OPEN_LIVE_SELECT)
+    .eq("seller_id", sellerId)
+    .eq("status", "live")
+    .order("started_at", { ascending: false });
+  return ((data ?? []) as OpenLiveRow[]).filter((r) => r.started_at !== null);
+}
+
+/** End seller lives with no host heartbeat for `_maxAgeMinutes` (default 5). */
+export async function expireAbandonedLivesInDb(
+  sellerId?: string | null,
+  maxAgeMinutes = HOST_ABSENT_EXPIRE_MINUTES,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("expire_abandoned_lives", {
+    _seller_id: sellerId ?? null,
+    _max_age_minutes: maxAgeMinutes,
+  });
+  if (!error) {
+    const r = (data ?? {}) as { expired?: number };
+    return Number(r.expired ?? 0);
+  }
+
+  if (!sellerId) return 0;
+  const open = await findOpenLives(sellerId);
+  const stale = open.filter((r) => isAbandonedLive(r, maxAgeMinutes));
+  await Promise.all(stale.map((r) => endLiveInDb(r.id)));
+  return stale.length;
+}
+
+/** Warn hosts absent ~2 min via push (remaining minutes before the 5 min close). */
+export async function notifyAbsentHostLivesInDb(
+  warnAfterMinutes = HOST_ABSENT_WARN_MINUTES,
+  maxAgeMinutes = HOST_ABSENT_EXPIRE_MINUTES,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("notify_absent_host_lives", {
+    _warn_after_minutes: warnAfterMinutes,
+    _max_age_minutes: maxAgeMinutes,
+  });
+  if (error) return 0;
+  const r = (data ?? {}) as { notified?: number };
+  return Number(r.notified ?? 0);
 }
 
 export async function createScheduledLiveInDb(input: {

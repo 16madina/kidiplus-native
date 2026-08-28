@@ -12,6 +12,7 @@ import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, GOLD_GO_LIVE, GOLD_GUEST, GUEST_CREAM, NAVY } from "../theme";
+import { HostOpenLiveBanner } from "../components/home/HostOpenLiveBanner";
 import { cancelScheduledLiveInDb, fetchMyScheduledLives, type ScheduledLiveRow } from "../lib/lives";
 
 const guestHero = require("../../assets/guest/guest-live-hero.jpg");
@@ -185,6 +186,7 @@ function GoLiveEntry() {
         <View style={{ width: 44 }} />
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: TAB_SAFE_PADDING + insets.bottom }}>
+        <HostOpenLiveBanner variant="entry" style={{ marginHorizontal: 16, marginTop: 12 }} />
         <Text style={styles.goTitle}>{t("golive.entry.title")}</Text>
         <Text style={styles.goSub}>{t("golive.entry.subtitle")}</Text>
         <View style={styles.choiceRow}>

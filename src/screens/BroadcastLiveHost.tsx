@@ -30,6 +30,7 @@ import {
 import { fetchLiveKitSession } from "../lib/livekit";
 import { startLiveReplay, stopLiveReplay } from "../lib/live-replay";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
+import { notifyHostLiveEnded } from "../lib/host-open-live";
 import { supabase } from "../lib/supabase";
 import { GOLD } from "../theme";
 import type { CameraType } from "expo-camera";
@@ -189,6 +190,7 @@ function HostStage({
   onEnded: (stats: LiveSummaryStats) => void;
 }) {
   const { t } = useTranslation();
+  const { closeOverlay } = useNav();
   const room = useRoomContext();
   const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
@@ -305,6 +307,7 @@ function HostStage({
       return;
     }
     await stopLiveReplay(liveId).catch(() => undefined);
+    notifyHostLiveEnded(liveId);
 
     try {
       await localParticipant.setCameraEnabled(false);
@@ -415,6 +418,7 @@ function HostStage({
         onToggleCam={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
         onFlip={() => void flip()}
         onEnd={finish}
+        onMinimize={closeOverlay}
         onBattleAccepted={onBattleAccepted}
         cameraFacing={facing}
       />

@@ -376,6 +376,8 @@
     "danglingReconnected": "Reconnected to live",
     "danglingEndAll": "End all",
     "danglingEnded": "Previous lives ended",
+    "danglingEndPartial": "Some lives couldn't be ended",
+    "danglingEndFailed": "Couldn't end the lives",
     "homeOpenTitle": "Your live is still open",
     "homeOpenBody": "“{{title}}” — resume before it closes (~{{minutes}} min).",
     "viewers_one": "viewer",

@@ -45,6 +45,7 @@ import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
 import { fetchOrderById, type OrderView } from "../lib/orders";
 import { isExpoGo } from "../lib/expo-go";
+import { useViewerSystemPip } from "../lib/live-pip";
 import { useLayout } from "../lib/layout";
 import { supabase } from "../lib/supabase";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
@@ -74,6 +75,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
   const liveVideo = Boolean(s.roomName && !s.fictitious) && !isExpoGo();
+  const pip = useViewerSystemPip(!!liveVideo && active, closeOverlay);
   const identity = useMemo(
     () => user?.id ?? guestLiveKitIdentity(),
     [user?.id],
@@ -475,6 +477,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       ) : (
         <Image source={{ uri: s.thumbnail }} style={FILL} contentFit="cover" />
       )}
+      {pip.active ? null : (
+      <>
       <LinearGradient
         colors={["rgba(0,0,0,0.45)", "transparent", "rgba(0,0,0,0.75)"]}
         style={FILL}
@@ -730,6 +734,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             </View>
           ) : null}
         </KeyboardAvoidingView>
+      )}
+      </>
       )}
 
       <Modal visible={giftsOpen} animationType="slide" transparent onRequestClose={() => setGiftsOpen(false)}>
