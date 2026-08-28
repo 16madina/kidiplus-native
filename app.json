@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kidiplus.native",
+      "bundleIdentifier": "com.kidiplus.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "bitcode": false,
       "infoPlist": {
         "CFBundleDisplayName": "KiDi+",
@@ -24,8 +25,9 @@
         "UIBackgroundModes": ["audio", "voip", "remote-notification"]
       }
     },
-      "android": {
-      "package": "com.kidiplus.native",
+    "android": {
+      "package": "com.kidiplus.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#10162B",
         "foregroundImage": "./assets/icon.png"
@@ -90,7 +92,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.kidiplus.native",
+          "merchantIdentifier": "merchant.com.kidiplus.app",
           "enableGooglePay": false
         }
       ],

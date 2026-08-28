@@ -20,7 +20,7 @@ export function LegalScreen({
   const title = page === "terms" ? t("profile.menu.terms") : t("profile.menu.privacy");
   const body =
     page === "terms"
-      ? "KiDi+ est une application de live shopping et d'enchères en direct. En utilisant l'application, tu acceptes de respecter la communauté, de ne pas proposer de produits illicites, et d'avoir au moins 18 ans.\n\nLes enchères sont engageantes. Les paiements, livraisons et litiges seront branchés au backend existant de kidiplus.com dans une prochaine itération native.\n\nCette copie native (com.kidiplus.native) est une recréation UI. Elle n'est pas le listing App Store / Play Store actuel."
+      ? "KiDi+ est une application de live shopping et d'enchères en direct. En utilisant l'application, tu acceptes de respecter la communauté, de ne pas proposer de produits illicites, et d'avoir au moins 18 ans.\n\nLes enchères sont engageantes. Les paiements, livraisons et litiges seront branchés au backend existant de kidiplus.com dans une prochaine itération native.\n\nCette application native (com.kidiplus.app) remplace progressivement la version Capacitor sur le même listing store."
       : "KiDi+ collecte les informations nécessaires au compte (email, nom, téléphone, pays) pour te permettre d'acheter et de vendre en live.\n\nCette version native utilise uniquement des données mock. Aucun secret, aucun backend et aucun identifiant store n'est branché pour l'instant.";
 
   return (

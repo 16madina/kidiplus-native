@@ -2,17 +2,21 @@
 
 Version **native** de [KiDi+](https://kidiplus.com) (React Native / Expo).
 
-Bundle temporaire : `com.kidiplus.native`.
+Bundle ID store : `com.kidiplus.app` (même listing App Store / Play Store que Capacitor — mise à jour, pas une 2ᵉ app).
 
-Cette app recrée le UI de KiDi+ avec **auth Superbase réelle** (même projet que le site : email / mot de passe, session persistée). Lives, portefeuille, commandes, studio restent **mock**.
-
-L’app Capacitor existante (`com.kidiplus.app`, repo `16madina/kidiplus`) n’est **pas** modifiée.
+Firebase : réutiliser les configs du projet `kidiplus-a079a` (`GoogleService-Info.plist` / `google-services.json`).
 
 ## Lancer
 
 ```bash
 npm install
 npx expo start
+```
+
+Build device (push / LiveKit / Stripe) :
+
+```bash
+npx expo run:ios --device
 ```
 
 Optionnel : copie `.env.example` vers `.env` si tu changes d’URL / clé anon.
