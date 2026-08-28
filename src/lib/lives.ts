@@ -208,16 +208,28 @@ export async function fetchMyScheduledLives(sellerId: string): Promise<Scheduled
 }
 
 export async function cancelScheduledLiveInDb(liveId: string): Promise<void> {
-  // Soft-delete: update to 'cancelled' (more reliable with RLS than DELETE)
-  const { error: updateErr } = await supabase
+  // Soft-delete first (RLS-friendly). IMPORTANT: with RLS a blocked UPDATE
+  // affects 0 rows WITHOUT any error — always verify the affected rows,
+  // otherwise the cancel silently fails and the live "comes back" on reload.
+  const { data: updated, error: updateErr } = await supabase
     .from("lives")
     .update({ status: "cancelled" })
     .eq("id", liveId)
-    .eq("status", "scheduled");
-  if (updateErr) {
-    // Fallback: try hard delete
-    const { error } = await supabase.from("lives").delete().eq("id", liveId).eq("status", "scheduled");
-    if (error) throw error;
+    .eq("status", "scheduled")
+    .select("id");
+  if (!updateErr && (updated?.length ?? 0) > 0) return;
+
+  // Fallback: hard delete, also verified.
+  const { data: deleted, error: delErr } = await supabase
+    .from("lives")
+    .delete()
+    .eq("id", liveId)
+    .select("id");
+  if (delErr) throw delErr;
+  if ((deleted?.length ?? 0) === 0) {
+    throw new Error(
+      updateErr?.message ?? "Suppression refusée — vérifie que tu es bien le créateur du live.",
+    );
   }
 }
 

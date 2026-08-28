@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell, Check, Moon, Store, Sun } from "lucide-react-native";
@@ -35,8 +35,14 @@ export function HomeScreen() {
   const { t } = useTranslation();
   const { colors, dark, setDark } = useAppTheme();
   const { user, openAuth } = useAuth();
-  const { openList, openOverlay } = useNav();
-  const { active, upcoming, loading } = useLivesFeed();
+  const { openList, openOverlay, tab } = useNav();
+  const { active, upcoming, loading, refresh } = useLivesFeed();
+
+  // Tabs stay mounted: re-fetch lives whenever Home becomes the active tab,
+  // so a live cancelled from the Live tab disappears here immediately.
+  useEffect(() => {
+    if (tab === "home") void refresh();
+  }, [tab, refresh]);
   const blockedIds = useBlockedIds();
   const [category, setCategory] = useState<HomeCategory>("Pour toi");
   const [filter, setFilter] = useState<HomeFilter>("Recommandés");
