@@ -119,7 +119,7 @@ export function TopUpSheet({
         setError(
           sheet.error === "stripe_module_missing"
             ? mapPayError("stripe_module_missing", t)
-            : (sheet.error ?? t("pay.errors.cardDeclined")),
+            : mapPayError(sheet.error, t, sheet.error),
         );
       }
       return;

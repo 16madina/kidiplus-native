@@ -64,8 +64,12 @@ export async function presentStripePayment(args: {
   if (!stripe) {
     return { ok: false, cancelled: false, error: "stripe_module_missing" };
   }
+  const pk = String(args.publishableKey ?? "").trim();
+  if (!pk.startsWith("pk_")) {
+    return { ok: false, cancelled: false, error: "Invalid API key provided" };
+  }
   try {
-    await stripe.initStripe({ publishableKey: args.publishableKey });
+    await stripe.initStripe({ publishableKey: pk });
     const init = await stripe.initPaymentSheet({
       paymentIntentClientSecret: args.clientSecret,
       merchantDisplayName: args.merchantName ?? "KiDi+",

@@ -28,6 +28,7 @@ const CODE_TO_KEY: Record<string, string> = {
   paypal_oauth_failed: "pay.errors.generic",
   paypal_cancelled: "wallet.topup.paypalCancelled",
   stripe_module_missing: "pay.rebuildForCard",
+  stripe_invalid_key: "pay.errors.invalidStripeKey",
 };
 
 export function mapPayError(
@@ -40,6 +41,12 @@ export function mapPayError(
   const key = CODE_TO_KEY[c];
   if (key) return t(key, { defaultValue: fallbackMessage || undefined });
   if (fallbackMessage) return fallbackMessage;
+  if (/invalid api key/i.test(c)) {
+    return t("pay.errors.invalidStripeKey", {
+      defaultValue:
+        "Clé Stripe invalide. Sur kidiplus.com (Lovable), vérifie que STRIPE_PUBLISHABLE_KEY commence par pk_live_ ou pk_test_.",
+    });
+  }
   // Prefer a readable code over a blank "network" lie.
   if (c.startsWith("http_")) return t("pay.errors.network");
   return t("pay.errors.generic");

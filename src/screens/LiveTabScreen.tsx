@@ -161,7 +161,7 @@ function GoLiveEntry() {
         onPress: () => {
           void (async () => {
             try {
-              await cancelScheduledLiveInDb(row.id);
+              await cancelScheduledLiveInDb(row.id, row.seller_id);
               setScheduled((prev) => prev.filter((r) => r.id !== row.id));
             } catch (e) {
               Alert.alert("Erreur", "Impossible d'annuler ce live. Réessaie.");

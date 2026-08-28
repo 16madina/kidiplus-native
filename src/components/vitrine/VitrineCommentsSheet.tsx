@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -110,100 +111,98 @@ export function VitrineCommentsSheet({
   };
 
   const grouped = groupReplies(rows);
+  const sheetH = Math.round(Dimensions.get("window").height * 0.55);
 
   return (
-    <Modal
-      visible={open}
-      animationType="slide"
-      presentationStyle={Platform.OS === "ios" ? "pageSheet" : undefined}
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
-        <View style={styles.head}>
-          <View style={styles.handle} />
-          <View style={styles.headRow}>
-            <Text style={[styles.title, { color: colors.foreground }]}>
-              {t("vitrine.comments", "Commentaires")} {rows.length > 0 ? `(${rows.length})` : ""}
-            </Text>
-            <Press onPress={onClose} style={styles.close}>
-              <X size={18} color={colors.foreground} />
-            </Press>
-          </View>
-        </View>
+    <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Press haptic="none" onPress={onClose} style={styles.dim} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={[styles.sheet, { height: sheetH, backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
+            <View style={styles.head}>
+              <View style={styles.handle} />
+              <View style={styles.headRow}>
+                <Text style={[styles.title, { color: colors.foreground }]}>
+                  {t("vitrine.comments", "Commentaires")} {rows.length > 0 ? `(${rows.length})` : ""}
+                </Text>
+                <Press onPress={onClose} style={styles.close}>
+                  <X size={18} color={colors.foreground} />
+                </Press>
+              </View>
+            </View>
 
-        {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={GOLD} />
-          </View>
-        ) : (
-          <FlatList
-            data={grouped}
-            keyExtractor={(c) => c.id}
-            style={styles.list}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 16, paddingBottom: 16, paddingTop: 8 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32 }}>
-                {t("vitrine.noComments", "Aucun commentaire.")}
-              </Text>
-            }
-            renderItem={({ item }) => (
-              <CommentRow
-                comment={item}
-                liked={likedIds.has(item.id)}
-                onLike={() => void toggleLike(item.id)}
-                onReply={() => handleReply(item)}
-                colors={colors}
-                indent={!!item.parentId}
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={GOLD} />
+              </View>
+            ) : (
+              <FlatList
+                data={grouped}
+                keyExtractor={(c) => c.id}
+                style={styles.list}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 16, paddingBottom: 16, paddingTop: 8 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32 }}>
+                    {t("vitrine.noComments", "Aucun commentaire.")}
+                  </Text>
+                }
+                renderItem={({ item }) => (
+                  <CommentRow
+                    comment={item}
+                    liked={likedIds.has(item.id)}
+                    onLike={() => void toggleLike(item.id)}
+                    onReply={() => handleReply(item)}
+                    colors={colors}
+                    indent={!!item.parentId}
+                  />
+                )}
               />
             )}
-          />
-        )}
 
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 8, borderTopColor: colors.border }]}>
-          {replyTo ? (
-            <View style={[styles.replyBanner, { backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.mutedForeground, fontSize: 12, flex: 1 }} numberOfLines={1}>
-                ↪ {t("vitrine.replyingTo", "Réponse à")} {replyTo.authorName}
-              </Text>
-              <Press onPress={() => { setReplyTo(null); setBody(""); }} style={{ minHeight: 24, minWidth: 24 }}>
-                <X size={12} color={colors.mutedForeground} />
-              </Press>
+            <View style={[styles.footer, { borderTopColor: colors.border }]}>
+              {replyTo ? (
+                <View style={[styles.replyBanner, { backgroundColor: colors.card }]}>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, flex: 1 }} numberOfLines={1}>
+                    ↪ {t("vitrine.replyingTo", "Réponse à")} {replyTo.authorName}
+                  </Text>
+                  <Press onPress={() => { setReplyTo(null); setBody(""); }} style={{ minHeight: 24, minWidth: 24 }}>
+                    <X size={12} color={colors.mutedForeground} />
+                  </Press>
+                </View>
+              ) : null}
+              <View style={styles.emojiRow}>
+                {QUICK_EMOJIS.map((e) => (
+                  <Press key={e} onPress={() => insertEmoji(e)} style={styles.emojiBtn}>
+                    <Text style={{ fontSize: 18 }}>{e}</Text>
+                  </Press>
+                ))}
+              </View>
+              <View style={styles.composer}>
+                <TextInput
+                  ref={inputRef}
+                  value={body}
+                  onChangeText={setBody}
+                  placeholder={replyTo
+                    ? t("vitrine.replyPlaceholder", "Répondre…")
+                    : t("vitrine.commentPlaceholder", "Ajouter un commentaire…")}
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
+                  maxLength={1000}
+                  returnKeyType="send"
+                  onSubmitEditing={() => void send()}
+                  autoFocus={false}
+                  blurOnSubmit={false}
+                />
+                <Press onPress={() => void send()} disabled={sending || !body.trim()} style={[styles.send, { opacity: body.trim() ? 1 : 0.4 }]}>
+                  {sending ? <ActivityIndicator color={NAVY} /> : <Send size={16} color={NAVY} />}
+                </Press>
+              </View>
             </View>
-          ) : null}
-          <View style={styles.emojiRow}>
-            {QUICK_EMOJIS.map((e) => (
-              <Press key={e} onPress={() => insertEmoji(e)} style={styles.emojiBtn}>
-                <Text style={{ fontSize: 18 }}>{e}</Text>
-              </Press>
-            ))}
           </View>
-          <View style={styles.composer}>
-            <TextInput
-              ref={inputRef}
-              value={body}
-              onChangeText={setBody}
-              placeholder={replyTo
-                ? t("vitrine.replyPlaceholder", "Répondre…")
-                : t("vitrine.commentPlaceholder", "Ajouter un commentaire…")}
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-              maxLength={1000}
-              returnKeyType="send"
-              onSubmitEditing={() => void send()}
-              autoFocus={false}
-              blurOnSubmit={false}
-            />
-            <Press onPress={() => void send()} disabled={sending || !body.trim()} style={[styles.send, { opacity: body.trim() ? 1 : 0.4 }]}>
-              {sending ? <ActivityIndicator color={NAVY} /> : <Send size={16} color={NAVY} />}
-            </Press>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -291,7 +290,20 @@ export async function shareVitrinePost(postId: string, caption: string) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  overlay: { flex: 1, justifyContent: "flex-end" },
+  dim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  sheet: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    overflow: "hidden",
+  },
   head: { paddingTop: 8 },
   handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(100,100,100,0.35)", marginBottom: 12 },
   headRow: {
@@ -309,6 +321,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingTop: 8,
     paddingHorizontal: 12,
+    paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   replyBanner: {

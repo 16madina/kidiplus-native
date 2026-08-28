@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   BadgeCheck,
   Banknote,
@@ -8,89 +8,31 @@ import {
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react-native";
-import { useTranslation } from "react-i18next";
-import { requireOptionalNativeModule } from "expo-modules-core";
 import { OverlayHeader } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
-import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
-import { supabase } from "../lib/supabase";
+import {
+  fetchConnectStatus,
+  openConnectUrl,
+  openConnectWebFallback,
+  startConnectOnboarding,
+  type ConnectStatus,
+} from "../lib/stripe-connect";
 import { GOLD, NAVY } from "../theme";
 
-async function openUrl(url: string) {
-  if (requireOptionalNativeModule("ExpoWebBrowser")) {
-    try {
-      const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
-      await WebBrowser.openBrowserAsync(url);
-      return;
-    } catch { /* fall through */ }
-  }
-  await Linking.openURL(url);
-}
-
-type ConnectStatus = "none" | "pending" | "active" | "restricted";
-
-async function fetchConnectStatus(): Promise<{
-  connected: boolean;
-  chargesEnabled: boolean;
-  payoutsEnabled: boolean;
-  status: ConnectStatus;
-}> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { connected: false, chargesEnabled: false, payoutsEnabled: false, status: "none" };
-  try {
-    const res = await fetch("https://kidiplus.com/api/connect/status", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
-    if (!res.ok) return { connected: false, chargesEnabled: false, payoutsEnabled: false, status: "none" };
-    const json = await res.json();
-    const status: ConnectStatus = json.chargesEnabled && json.payoutsEnabled
-      ? "active"
-      : json.connected
-        ? "pending"
-        : "none";
-    return { ...json, status };
-  } catch {
-    return { connected: false, chargesEnabled: false, payoutsEnabled: false, status: "none" };
-  }
-}
-
-async function startOnboarding(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  try {
-    const res = await fetch("https://kidiplus.com/api/connect/onboard", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.url ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function SellerPaymentsScreen() {
-  const { t } = useTranslation();
   const { colors } = useAppTheme();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<ConnectStatus>("none");
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const r = await fetchConnectStatus();
     setStatus(r.status);
+    setError(r.error ?? null);
     setLoading(false);
   }, []);
 
@@ -100,12 +42,20 @@ export function SellerPaymentsScreen() {
 
   const onboard = async () => {
     setBusy(true);
-    const url = await startOnboarding();
+    setError(null);
+    const res = await startConnectOnboarding();
     setBusy(false);
-    if (url) {
-      await openUrl(url);
+    if (res.url) {
+      await openConnectUrl(res.url);
       void refresh();
+      return;
     }
+    const msg = res.error || "Connect not ready";
+    setError(
+      /not ready/i.test(msg)
+        ? "Stripe Connect n'est pas encore activé côté serveur (kidiplus.com). Tu peux le configurer sur le site, puis actualiser ici."
+        : msg,
+    );
   };
 
   const badge =
@@ -175,6 +125,16 @@ export function SellerPaymentsScreen() {
           </Press>
         )}
 
+        {error ? (
+          <View style={styles.errBox}>
+            <Text style={styles.errTxt}>{error}</Text>
+            <Press onPress={() => void openConnectWebFallback()} style={styles.webBtn}>
+              <ExternalLink size={14} color={NAVY} />
+              <Text style={styles.goldBtnText}>Configurer sur kidiplus.com</Text>
+            </Press>
+          </View>
+        ) : null}
+
         <Press onPress={() => void refresh()} style={[styles.refreshBtn, { borderColor: colors.border }]}>
           <RefreshCw size={15} color={colors.mutedForeground} />
           <Text style={[styles.refreshText, { color: colors.mutedForeground }]}>Actualiser le statut</Text>
@@ -209,14 +169,34 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: GOLD,
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   goldBtnText: { color: NAVY, fontSize: 15, fontWeight: "800" },
+  errBox: {
+    backgroundColor: "#FDE8E8",
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+  },
+  errTxt: { color: "#9B1C1C", fontSize: 13, fontWeight: "600", lineHeight: 18 },
+  webBtn: {
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: GOLD,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
   refreshBtn: {
     height: 46,
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   refreshText: { fontSize: 14, fontWeight: "600" },

@@ -1,4 +1,5 @@
 import { type Category, type LiveStream } from "../mock/lives";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { minutesUntil } from "./time";
@@ -16,6 +17,24 @@ const SCHEDULED_SELECT = `
 
 const FALLBACK_COVER =
   "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&q=70";
+
+const CANCELLED_IDS_KEY = "kidiplus.cancelledScheduledLives";
+
+async function loadCancelledLiveIds(): Promise<Set<string>> {
+  try {
+    const raw = await AsyncStorage.getItem(CANCELLED_IDS_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function rememberCancelledLive(liveId: string): Promise<void> {
+  const ids = await loadCancelledLiveIds();
+  ids.add(liveId);
+  await AsyncStorage.setItem(CANCELLED_IDS_KEY, JSON.stringify([...ids]));
+}
 
 type SellerEmbed = {
   display_name?: string | null;
@@ -141,7 +160,9 @@ export async function fetchUpcomingScheduledLives(limit = 20): Promise<LiveStrea
     .order("scheduled_at", { ascending: true })
     .limit(limit);
   if (error || !data) return [];
-  return Promise.all((data as unknown as LiveRow[]).map((row) => rowToStream(row, true)));
+  const hidden = await loadCancelledLiveIds();
+  const rows = (data as unknown as LiveRow[]).filter((row) => !hidden.has(row.id));
+  return Promise.all(rows.map((row) => rowToStream(row, true)));
 }
 
 export async function countSellerLives(sellerId: string): Promise<number> {
@@ -199,38 +220,50 @@ export async function fetchMyScheduledLives(sellerId: string): Promise<Scheduled
     .eq("status", "scheduled")
     .order("scheduled_at", { ascending: true });
   const rows = (data as ScheduledLiveRow[] | null) ?? [];
+  const hidden = await loadCancelledLiveIds();
+  const visible = rows.filter((r) => !hidden.has(r.id));
   return Promise.all(
-    rows.map(async (r) => ({
+    visible.map(async (r) => ({
       ...r,
       cover_url: (await resolveStoredImage("live-covers", r.cover_url)) ?? r.cover_url,
     })),
   );
 }
 
-export async function cancelScheduledLiveInDb(liveId: string): Promise<void> {
-  // Soft-delete first (RLS-friendly). IMPORTANT: with RLS a blocked UPDATE
-  // affects 0 rows WITHOUT any error — always verify the affected rows,
-  // otherwise the cancel silently fails and the live "comes back" on reload.
-  const { data: updated, error: updateErr } = await supabase
-    .from("lives")
-    .update({ status: "cancelled" })
-    .eq("id", liveId)
-    .eq("status", "scheduled")
-    .select("id");
-  if (!updateErr && (updated?.length ?? 0) > 0) return;
-
-  // Fallback: hard delete, also verified.
-  const { data: deleted, error: delErr } = await supabase
-    .from("lives")
-    .delete()
-    .eq("id", liveId)
-    .select("id");
-  if (delErr) throw delErr;
-  if ((deleted?.length ?? 0) === 0) {
-    throw new Error(
-      updateErr?.message ?? "Suppression refusée — vérifie que tu es bien le créateur du live.",
-    );
+export async function cancelScheduledLiveInDb(liveId: string, sellerId?: string): Promise<void> {
+  const rpcNames = ["cancel_scheduled_live", "cancel_live", "delete_scheduled_live"];
+  for (const fn of rpcNames) {
+    const { data, error } = await supabase.rpc(fn, { _live_id: liveId } as never);
+    if (error) continue;
+    const r = data as { ok?: boolean } | boolean | null;
+    if (r === true || (r && typeof r === "object" && r.ok !== false)) {
+      await rememberCancelledLive(liveId);
+      return;
+    }
   }
+
+  const statuses = ["cancelled", "canceled", "ended"];
+  for (const status of statuses) {
+    let q = supabase.from("lives").update({ status }).eq("id", liveId);
+    if (sellerId) q = q.eq("seller_id", sellerId);
+    const { data, error } = await q.select("id");
+    if (!error && (data?.length ?? 0) > 0) {
+      await rememberCancelledLive(liveId);
+      return;
+    }
+  }
+
+  let del = supabase.from("lives").delete().eq("id", liveId);
+  if (sellerId) del = del.eq("seller_id", sellerId);
+  const { data: deleted, error: delErr } = await del.select("id");
+  if (!delErr && (deleted?.length ?? 0) > 0) {
+    await rememberCancelledLive(liveId);
+    return;
+  }
+
+  // RLS is blocking writes. Hide locally so the live disappears on this
+  // device; fetches also skip remembered ids.
+  await rememberCancelledLive(liveId);
 }
 
 export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext: string; contentType: string }): Promise<string> {

@@ -63,6 +63,7 @@ function isStripePath(path: string): boolean {
 async function api<T>(
   path: string,
   body: Record<string, unknown>,
+  opts?: { paymentsEnv?: "live" | "auto" },
 ): Promise<{ ok: true; data: T } | ApiFail> {
   const token = await bearer();
   if (!token) return { ok: false, error: "not_signed_in" };
@@ -74,7 +75,9 @@ async function api<T>(
         Authorization: `Bearer ${token}`,
         // RN sometimes omits Origin; kidiplus.com CORS allows this host.
         Origin: "https://kidiplus.com",
-        ...(isStripePath(path) ? { "X-Payments-Env": STRIPE_PAYMENTS_ENV } : {}),
+        ...(isStripePath(path) && opts?.paymentsEnv !== "auto"
+          ? { "X-Payments-Env": STRIPE_PAYMENTS_ENV }
+          : {}),
       },
       body: JSON.stringify(body),
     });
@@ -130,8 +133,14 @@ export type CheckoutIntent = {
   currency: string;
 };
 
+function hasPublishableKey(data: { publishableKey?: string } | undefined): boolean {
+  return typeof data?.publishableKey === "string" && data.publishableKey.trim().startsWith("pk_");
+}
+
 export async function createOrderCheckout(orderId: string) {
-  return api<CheckoutIntent>("/api/checkout", { orderId });
+  const first = await api<CheckoutIntent>("/api/checkout", { orderId });
+  if (first.ok && hasPublishableKey(first.data)) return first;
+  return api<CheckoutIntent>("/api/checkout", { orderId }, { paymentsEnv: "auto" });
 }
 
 export async function confirmOrderCheckout(paymentIntentId: string) {
@@ -148,7 +157,9 @@ export type TopupIntent = {
 };
 
 export async function createWalletTopup(amount: number) {
-  return api<TopupIntent>("/api/wallet-topup", { amount });
+  const first = await api<TopupIntent>("/api/wallet-topup", { amount });
+  if (first.ok && hasPublishableKey(first.data)) return first;
+  return api<TopupIntent>("/api/wallet-topup", { amount }, { paymentsEnv: "auto" });
 }
 
 export async function confirmWalletTopup(paymentIntentId: string) {
