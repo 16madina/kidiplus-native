@@ -805,6 +805,10 @@
     "explore": "Explorer",
     "refresh": "Actualiser",
     "followShops": "Suivre des boutiques",
+    "badge": {
+      "demo": "Démo",
+      "scheduled": "Programmé"
+    },
     "cta": {
       "join": "Rejoindre",
       "remind": "Me rappeler",
@@ -852,7 +856,11 @@
     "replySent": "Réponse publiée",
     "videoUnsupported": "Vidéo illisible sur cet appareil (format non supporté)",
     "videoLoadFailed": "La vidéo met du temps à charger",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "badge": {
+      "demo": "Démo",
+      "scheduled": "Programmé"
+    }
   },
   "publish": {
     "title": "Publier",

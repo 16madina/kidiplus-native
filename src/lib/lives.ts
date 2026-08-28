@@ -111,7 +111,9 @@ async function rowToStream(row: LiveRow, scheduled = false): Promise<LiveStream>
     sellerId: row.seller_id,
     handle: seller.handle ?? undefined,
     currency: cur,
-    startedAt: row.started_at ?? undefined,
+    startedAt: scheduled
+      ? (row.scheduled_at ?? row.started_at ?? undefined)
+      : (row.started_at ?? undefined),
     scheduled,
     startsInMin: scheduled ? minutesUntil(row.scheduled_at) : undefined,
     fictitious: false,

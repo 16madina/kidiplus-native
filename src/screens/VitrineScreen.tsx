@@ -18,9 +18,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
-import { LiveCard } from "../components/LiveCard";
 import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
 import { VitrineCommentsSheet } from "../components/vitrine/VitrineCommentsSheet";
+import {
+  VitrineLiveSlide,
+  VitrineSoonSlide,
+} from "../components/vitrine/VitrineLiveSlides";
 import { ReportSheet } from "../components/moderation/ReportSheet";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -37,6 +40,7 @@ import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
 import { sampleLivesForCategory } from "../mock/home-categories";
+import type { LiveStream } from "../mock/lives";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -60,9 +64,13 @@ export function VitrineScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
+  const [activeSoonId, setActiveSoonId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const listRef = useRef<FlatList<VitrineFeedPost>>(null);
+  const liveListRef = useRef<FlatList<LiveStream>>(null);
+  const soonListRef = useRef<FlatList<LiveStream>>(null);
   const lives = useMemo(
     () => active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
     [active, blockedIds],
@@ -143,7 +151,25 @@ export function VitrineScreen() {
     if (first?.id) setActiveId(first.id);
   }).current;
 
+  const onLiveViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems.find((v) => v.isViewable)?.item as LiveStream | undefined;
+    if (first?.id) setActiveLiveId(first.id);
+  }).current;
+
+  const onSoonViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems.find((v) => v.isViewable)?.item as LiveStream | undefined;
+    if (first?.id) setActiveSoonId(first.id);
+  }).current;
+
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 45, minimumViewTime: 40 }).current;
+
+  useEffect(() => {
+    if (liveCards[0] && !activeLiveId) setActiveLiveId(liveCards[0].id);
+  }, [liveCards, activeLiveId]);
+
+  useEffect(() => {
+    if (soon[0] && !activeSoonId) setActiveSoonId(soon[0].id);
+  }, [soon, activeSoonId]);
 
   return (
     <View style={styles.root}>
@@ -263,35 +289,68 @@ export function VitrineScreen() {
       ) : null}
 
       {cat === "live" ? (
-        <View style={{ flex: 1, paddingTop: insets.top + 56, paddingHorizontal: 8 }}>
-          {liveCards.length === 0 ? (
-            <Empty onExplore={() => setTab("search")} />
-          ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {liveCards.map((s, i) => (
-                <View key={s.id} style={{ width: "48.5%" }}>
-                  <LiveCard stream={s} onPress={() => openList(liveCards, i)} />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+        liveCards.length === 0 ? (
+          <View style={{ flex: 1, paddingTop: insets.top + 56 }}>
+            <Empty onExplore={() => setTab("search")} labelKey="vitrine.emptyLive" />
+          </View>
+        ) : (
+          <FlatList
+            ref={liveListRef}
+            data={liveCards}
+            keyExtractor={(s) => s.id}
+            style={{ flex: 1 }}
+            pagingEnabled
+            showsVerticalScrollIndicator={false}
+            snapToInterval={height}
+            decelerationRate="fast"
+            extraData={activeLiveId}
+            windowSize={2}
+            maxToRenderPerBatch={1}
+            initialNumToRender={1}
+            removeClippedSubviews
+            getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
+            onViewableItemsChanged={onLiveViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            renderItem={({ item, index }) => (
+              <VitrineLiveSlide
+                stream={item}
+                width={width}
+                height={height}
+                onJoin={() => openList(liveCards, index)}
+              />
+            )}
+          />
+        )
       ) : null}
 
       {cat === "soon" ? (
-        <View style={{ flex: 1, paddingTop: insets.top + 56, paddingHorizontal: 8 }}>
-          {soon.length === 0 ? (
+        soon.length === 0 ? (
+          <View style={{ flex: 1, paddingTop: insets.top + 56 }}>
             <Empty onExplore={() => setTab("search")} labelKey="vitrine.emptySoon" />
-          ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {soon.map((s, i) => (
-                <View key={s.id} style={{ width: "48.5%" }}>
-                  <LiveCard stream={s} onPress={() => openList(soon, i)} />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <FlatList
+            ref={soonListRef}
+            data={soon}
+            keyExtractor={(s) => s.id}
+            style={{ flex: 1 }}
+            pagingEnabled
+            showsVerticalScrollIndicator={false}
+            snapToInterval={height}
+            decelerationRate="fast"
+            extraData={activeSoonId}
+            windowSize={2}
+            maxToRenderPerBatch={1}
+            initialNumToRender={1}
+            removeClippedSubviews
+            getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
+            onViewableItemsChanged={onSoonViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            renderItem={({ item }) => (
+              <VitrineSoonSlide stream={item} width={width} height={height} />
+            )}
+          />
+        )
       ) : null}
 
       <CreateVitrinePostSheet
