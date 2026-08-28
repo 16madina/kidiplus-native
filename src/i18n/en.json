@@ -852,7 +852,11 @@
     "replySent": "Reply sent",
     "videoUnsupported": "This video can't be played on this device (unsupported format)",
     "videoLoadFailed": "This video is taking a while to load",
-    "retry": "Retry"
+    "retry": "Retry",
+    "badge": {
+      "demo": "Demo",
+      "scheduled": "Scheduled"
+    }
   },
   "publish": {
     "title": "Publish",
