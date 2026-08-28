@@ -1,4 +1,5 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
@@ -73,10 +74,17 @@ export function BottomTabBar({
             {RIGHT.map(renderTab)}
           </View>
         </Glass>
-        <View style={styles.liveWrap}>
+        <View style={styles.liveWrap} pointerEvents="box-none">
           <Press accessibilityLabel={t("tabs.live")} onPress={() => onChange("live")} style={styles.liveBtn} haptic="light">
-            <View style={styles.liveGlow} />
-            <Image source={liveBadge} style={styles.liveImg} resizeMode="contain" />
+            <View style={styles.badgeSlot}>
+              <View style={styles.liveGlow} pointerEvents="none" />
+              <Image
+                source={liveBadge}
+                style={styles.liveImg}
+                contentFit="contain"
+                accessibilityLabel="KiDi+"
+              />
+            </View>
             <Text
               style={[
                 styles.label,
@@ -89,6 +97,11 @@ export function BottomTabBar({
             >
               {t("tabs.live")}
             </Text>
+            {active === "live" ? (
+              <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+            ) : (
+              <View style={styles.dotSpacer} />
+            )}
           </Press>
         </View>
       </View>
@@ -116,6 +129,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 4,
     height: 64,
+    overflow: "visible",
   },
   pill: {
     height: 64,
@@ -142,28 +156,36 @@ const styles = StyleSheet.create({
     width: 88,
     marginLeft: -44,
     alignItems: "center",
+    zIndex: 60,
+    elevation: 60,
   },
   liveBtn: {
     minHeight: 0,
     minWidth: 0,
     alignItems: "center",
   },
+  badgeSlot: {
+    width: LIVE_BADGE,
+    height: LIVE_BADGE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   liveGlow: {
     position: "absolute",
-    width: LIVE_BADGE - 6,
-    height: LIVE_BADGE - 6,
+    width: LIVE_BADGE - 8,
+    height: LIVE_BADGE - 8,
     borderRadius: 18,
-    top: 3,
-    backgroundColor: "rgba(232,185,59,0.18)",
+    backgroundColor: "rgba(232,185,59,0.22)",
     shadowColor: GOLD,
-    shadowOpacity: 0.65,
-    shadowRadius: 16,
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 10,
+    // No Android elevation — it was painting over the logo.
   },
   liveImg: {
     width: LIVE_BADGE,
     height: LIVE_BADGE,
+    zIndex: 2,
   },
 });
 
