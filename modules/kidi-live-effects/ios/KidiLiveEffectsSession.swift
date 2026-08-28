@@ -89,12 +89,17 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   }
 
   func warmup(completion: @escaping (Bool) -> Void) {
-    DispatchQueue.main.async { completion(!self.disabled) }
+    DispatchQueue.main.async { completion(true) }
   }
 
   func start(config: [String: Any], completion: @escaping (Bool) -> Void) {
     applyConfig(config)
     didEmitFirstFrame = false
+    disabled = false
+    ladderIndex = 0
+    slowFrames = 0
+    fastFrames = 0
+    lastTs = 0
     queue.async {
       self.configureSession()
       if !self.session.isRunning {
@@ -117,6 +122,9 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   func stop(completion: @escaping () -> Void) {
     queue.async {
       self.running = false
+      self.disabled = false
+      self.ladderIndex = 0
+      self.slowFrames = 0
       if self.session.isRunning {
         self.session.stopRunning()
       }

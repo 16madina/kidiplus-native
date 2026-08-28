@@ -35,7 +35,7 @@ export class LiveEffectsVideoProcessor {
     }
     const ok = await warmupNativeLiveEffects();
     if (!ok) {
-      this.config.onUnavailable?.();
+      console.warn("[live-effects] warmup failed — starting anyway");
     }
     await startNativeLiveEffects(toNative(this.config));
     this.running = true;

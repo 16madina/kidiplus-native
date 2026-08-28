@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Linking,
@@ -72,8 +72,35 @@ function GoLiveSetup() {
   const { tint, cameraKitReady } = useFilter();
   const { backgroundMode } = useLiveEffects();
   const currency = user?.walletCurrency ?? "EUR";
-  const useEffectsPreview = backgroundMode !== "none" && isNativeLiveEffectsSupported();
-  const useSnapPreview = !useEffectsPreview && isCameraKitSupported() && cameraKitReady;
+  const wantEffectsCamera = backgroundMode !== "none" && isNativeLiveEffectsSupported();
+  const [effectsCameraOn, setEffectsCameraOn] = useState(false);
+  const [snapAllowed, setSnapAllowed] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (wantEffectsCamera) {
+      setSnapAllowed(false);
+      const id = setTimeout(() => {
+        if (!cancelled) setEffectsCameraOn(true);
+      }, 700);
+      return () => {
+        cancelled = true;
+        clearTimeout(id);
+      };
+    }
+    setEffectsCameraOn(false);
+    const id = setTimeout(() => {
+      if (!cancelled) setSnapAllowed(true);
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [wantEffectsCamera]);
+
+  const useEffectsPreview = effectsCameraOn && wantEffectsCamera;
+  const useSnapPreview =
+    snapAllowed && !useEffectsPreview && isCameraKitSupported() && cameraKitReady;
 
   const [title, setTitle] = useState(user?.displayName?.trim() || "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");
@@ -194,6 +221,8 @@ function GoLiveSetup() {
         <LiveEffectsPreview facing={facing} />
       ) : useSnapPreview ? (
         <SnapCameraPreview facing={facing} />
+      ) : wantEffectsCamera || !snapAllowed ? (
+        <View style={[FILL, { backgroundColor: "#05060a" }]} />
       ) : (
         <SetupCamera facing={facing} tint={tint} />
       )}

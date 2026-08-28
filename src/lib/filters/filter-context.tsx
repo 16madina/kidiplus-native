@@ -45,10 +45,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const runLoad = useCallback((force: boolean) => {
     if (!force && loadStartedRef.current) return;
     if (!isCameraKitSupported()) {
-      setSnapLenses([]);
-      setLensesError(
-        "Module Snap AR absent — lance npm run rebuild:ios sur ton Mac.",
-      );
+      if (snapLenses.length === 0) {
+        setLensesError(
+          "Module Snap AR absent — lance npm run rebuild:ios sur ton Mac.",
+        );
+      }
       return;
     }
     loadStartedRef.current = true;
@@ -71,11 +72,10 @@ export function FilterProvider({ children }: { children: ReactNode }) {
           setLensesError("Aucune lens Snap dans le groupe — vérifie my-lenses.snapchat.com");
         }
       })
-      .catch((e) => {
-        console.warn("[filters] snap lenses load failed", e);
+      .catch(() => {
+        console.warn("[filters] snap lenses load failed");
         loadStartedRef.current = false;
-        const msg = e instanceof Error ? e.message : String(e);
-        setLensesError(msg || "Impossible de charger les filtres AR");
+        setLensesError("Impossible de charger les filtres AR. Réessaie.");
       })
       .finally(() => setLensesLoading(false));
   }, []);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { View } from "react-native";
 import { KidiLiveEffectsPreviewNative } from "../../../modules/kidi-live-effects/src";
 import { LiveEffectsVideoProcessor } from "../../lib/filters/live-effects-processor";
 import { useLiveEffects } from "../../lib/filters/live-effects-context";
@@ -7,13 +7,12 @@ import {
   isNativeLiveEffectsSupported,
   subscribeNativeLiveEffectsFirstFrame,
 } from "../../lib/filters/live-effects-native-bridge";
-import { GOLD } from "../../theme";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
 /**
- * Full-bleed native compositor preview (person mask + blur / green screen + poster).
- * Requires a native rebuild that links `kidi-live-effects`.
+ * Full-bleed native compositor preview (person mask + blur / green screen).
+ * Poster stays a RN overlay. Never covers the camera with a "rebuild" screen.
  */
 export function LiveEffectsPreview({
   facing,
@@ -76,16 +75,7 @@ export function LiveEffectsPreview({
   }, []);
 
   if (!isNativeLiveEffectsSupported() || !NativePreview) {
-    if (revealWhenReady) return null;
-    return (
-      <View style={[FILL, styles.fallback]}>
-        <Text style={styles.title}>Fond virtuel</Text>
-        <Text style={styles.body}>
-          Rebuild natif requis :{"\n"}
-          npm run rebuild:ios
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   if (revealWhenReady && !ready) return null;
@@ -96,21 +86,3 @@ export function LiveEffectsPreview({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  fallback: {
-    backgroundColor: "#05060a",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
-    gap: 12,
-  },
-  title: { color: GOLD, fontWeight: "900", fontSize: 18 },
-  body: {
-    color: "rgba(255,255,255,0.75)",
-    textAlign: "center",
-    fontWeight: "600",
-    lineHeight: 22,
-    fontSize: 13,
-  },
-});

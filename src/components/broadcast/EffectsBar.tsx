@@ -15,7 +15,7 @@ export function EffectsBar() {
       <Text style={styles.title}>{t("broadcast.effects.title", "Fond & poster")}</Text>
       {effects.backgroundUnavailable ? (
         <Text style={styles.unavailable}>
-          {t("broadcast.effects.unavailable", "Arrière-plan indisponible sur cet appareil")}
+          {t("broadcast.effects.unavailable", "Arrière-plan indisponible — retouche pour réessayer")}
         </Text>
       ) : null}
       <ScrollView
@@ -23,26 +23,22 @@ export function EffectsBar() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        {!effects.backgroundUnavailable ? (
-          <EffectTile
-            label={t("broadcast.effects.blur", "Flou du fond")}
-            active={effects.backgroundMode === "blur"}
-            icon={<Aperture size={20} color="#fff" />}
-            onPress={() => effects.setBackgroundBlur(effects.backgroundMode !== "blur")}
-          />
-        ) : null}
-        {!effects.backgroundUnavailable ? (
-          <EffectTile
-            label={t("broadcast.effects.greenScreen", "Écran vert")}
-            active={effects.backgroundMode === "image"}
-            thumb={effects.backgroundMode === "image" ? effects.backgroundUrl : null}
-            icon={<ImagePlus size={20} color="#fff" />}
-            onPress={() => {
-              if (effects.backgroundMode === "image") effects.clearBackground();
-              else void effects.setBackgroundFromPicker();
-            }}
-          />
-        ) : null}
+        <EffectTile
+          label={t("broadcast.effects.blur", "Flou du fond")}
+          active={effects.backgroundMode === "blur"}
+          icon={<Aperture size={20} color="#fff" />}
+          onPress={() => effects.setBackgroundBlur(effects.backgroundMode !== "blur")}
+        />
+        <EffectTile
+          label={t("broadcast.effects.greenScreen", "Écran vert")}
+          active={effects.backgroundMode === "image"}
+          thumb={effects.backgroundMode === "image" ? effects.backgroundUrl : null}
+          icon={<ImagePlus size={20} color="#fff" />}
+          onPress={() => {
+            if (effects.backgroundMode === "image") effects.clearBackground();
+            else void effects.setBackgroundFromPicker();
+          }}
+        />
         <EffectTile
           label={t("broadcast.effects.posterFace", "Ajouter image")}
           active={!!effects.posterUrl && effects.posterMode === "cover"}

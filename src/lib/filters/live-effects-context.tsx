@@ -19,7 +19,6 @@ import {
 import {
   isNativeLiveEffectsSupported,
   subscribeNativeLiveEffectsUnavailable,
-  warmupNativeLiveEffects,
 } from "./live-effects-native-bridge";
 
 export type { BackgroundMode, PosterMode, PosterTransform };
@@ -56,9 +55,11 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   );
 
   const markBackgroundUnavailable = useCallback(() => {
-    setBackgroundUnavailable(true);
+    // Turn off the current background, but do not lock the UI forever.
+    // The next tap on Flou / Écran vert retries.
     setBackgroundMode("none");
     setBackgroundUrl(null);
+    setBackgroundUnavailable(true);
   }, []);
 
   useEffect(() => subscribeNativeLiveEffectsUnavailable(markBackgroundUnavailable), [
@@ -67,18 +68,10 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
 
   const ensureNativeReady = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === "web") return true;
-    if (backgroundUnavailable) return false;
-    if (!isNativeLiveEffectsSupported()) {
-      markBackgroundUnavailable();
-      return false;
-    }
-    const ok = await warmupNativeLiveEffects();
-    if (!ok) {
-      markBackgroundUnavailable();
-      return false;
-    }
+    if (!isNativeLiveEffectsSupported()) return false;
+    setBackgroundUnavailable(false);
     return true;
-  }, [backgroundUnavailable, markBackgroundUnavailable]);
+  }, []);
 
   const setBackgroundFromPicker = useCallback(async () => {
     if (!(await ensureNativeReady())) return;

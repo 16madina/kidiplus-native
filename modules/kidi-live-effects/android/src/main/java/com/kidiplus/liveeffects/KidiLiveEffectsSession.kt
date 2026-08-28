@@ -139,7 +139,6 @@ class KidiLiveEffectsSession(
     }
 
     fun warmup(): Boolean {
-        if (disabled) return false
         return try {
             ensureSegmenter()
             true
@@ -159,6 +158,11 @@ class KidiLiveEffectsSession(
             return false
         }
         running = true
+        disabled = false
+        ladderIndex = 0
+        slowFrames = 0
+        fastFrames = 0
+        lastTs = 0L
         emittedFirstFrame = false
         bindRetries = 0
         bindCamera(act)
@@ -175,6 +179,7 @@ class KidiLiveEffectsSession(
 
     fun stop() {
         running = false
+        disabled = false
         boundFacingFront = null
         runCatching { cameraProvider?.unbindAll() }
         runOnUi {
