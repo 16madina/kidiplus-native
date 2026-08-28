@@ -94,7 +94,7 @@ export function ScheduleLiveScreen() {
   const currency = user?.walletCurrency ?? "EUR";
   const locale = i18n.language || "fr";
 
-  const [title, setTitle] = useState(user?.displayName?.trim() ? `${user.displayName} 💎 KiDi+` : "");
+  const [title, setTitle] = useState(user?.displayName?.trim() || "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");
   const [showCat, setShowCat] = useState(false);
   const [cover, setCover] = useState<PickedImage | null>(null);

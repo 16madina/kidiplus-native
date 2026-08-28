@@ -69,7 +69,7 @@ function GoLiveSetup() {
   const currency = user?.walletCurrency ?? "EUR";
   const useSnapPreview = isCameraKitSupported() && cameraKitReady;
 
-  const [title, setTitle] = useState(user?.displayName?.trim() ? `${user.displayName} 💎 KiDi+` : "");
+  const [title, setTitle] = useState(user?.displayName?.trim() || "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");
   const [cover, setCover] = useState<PickedImage | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(user?.avatarUrl ?? null);
