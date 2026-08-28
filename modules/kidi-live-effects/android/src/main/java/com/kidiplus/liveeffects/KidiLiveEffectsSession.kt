@@ -556,7 +556,7 @@ class KidiLiveEffectsSession(
             backgroundBmp = null
         } else if (bgUrl != loadedBgUrl) {
             loadedBgUrl = bgUrl
-            backgroundBmp = loadBitmap(bgUrl)
+            backgroundBmp = downsample(loadBitmap(bgUrl))
         }
         val posterUrl = config["posterUrl"] as? String
         if (posterUrl.isNullOrEmpty()) {
@@ -564,8 +564,18 @@ class KidiLiveEffectsSession(
             posterBmp = null
         } else if (posterUrl != loadedPosterUrl) {
             loadedPosterUrl = posterUrl
-            posterBmp = loadBitmap(posterUrl)
+            posterBmp = downsample(loadBitmap(posterUrl))
         }
+    }
+
+    private fun downsample(src: Bitmap?): Bitmap? {
+        if (src == null) return null
+        val edge = max(src.width, src.height)
+        if (edge <= 1280) return src
+        val scale = 1280f / edge
+        val w = max(2, (src.width * scale).roundToInt())
+        val h = max(2, (src.height * scale).roundToInt())
+        return Bitmap.createScaledBitmap(src, w, h, true)
     }
 
     private fun loadBitmap(urlString: String): Bitmap? {

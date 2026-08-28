@@ -96,8 +96,8 @@ export function HostStudioHud({
   const layout = useLayout();
   const { user } = useAuth();
   const { activeLens, cameraKitReady } = useFilter();
-  const { hasEffects } = useLiveEffects();
-  const useEffectsPreview = hasEffects && isNativeLiveEffectsSupported();
+  const { backgroundMode } = useLiveEffects();
+  const useEffectsPreview = backgroundMode !== "none" && isNativeLiveEffectsSupported();
   const session = useHostLiveSession({ liveId, identity, displayName });
   const [draft, setDraft] = useState("");
   const [toast, setToast] = useState<string | null>(null);

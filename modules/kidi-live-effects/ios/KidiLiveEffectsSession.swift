@@ -136,7 +136,14 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     if let url = config["backgroundUrl"] as? String, !url.isEmpty {
       if url != backgroundUrl {
         backgroundUrl = url
-        backgroundImage = Self.loadCIImage(url)
+        let captured = url
+        DispatchQueue.global(qos: .userInitiated).async {
+          let img = Self.loadCIImage(captured)
+          self.queue.async {
+            guard self.backgroundUrl == captured else { return }
+            self.backgroundImage = img
+          }
+        }
       }
     } else {
       backgroundUrl = nil
@@ -145,13 +152,22 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     if let url = config["posterUrl"] as? String, !url.isEmpty {
       if url != posterUrl {
         posterUrl = url
-        posterImage = Self.loadCIImage(url)
+        let captured = url
+        DispatchQueue.global(qos: .userInitiated).async {
+          let img = Self.loadCIImage(captured)
+          self.queue.async {
+            guard self.posterUrl == captured else { return }
+            self.posterImage = img
+          }
+        }
       }
     } else {
       posterUrl = nil
       posterImage = nil
     }
   }
+
+  private static let maxImageEdge: CGFloat = 1280
 
   private static func loadCIImage(_ urlString: String) -> CIImage? {
     let url: URL?
@@ -165,7 +181,18 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     guard let url, let data = try? Data(contentsOf: url), let ui = UIImage(data: data) else {
       return nil
     }
-    return CIImage(image: ui)
+    return CIImage(image: Self.downsampled(ui, maxEdge: maxImageEdge))
+  }
+
+  private static func downsampled(_ image: UIImage, maxEdge: CGFloat) -> UIImage {
+    let w = image.size.width
+    let h = image.size.height
+    let edge = max(w, h)
+    guard edge > maxEdge, w > 0, h > 0 else { return image }
+    let scale = maxEdge / edge
+    let size = CGSize(width: w * scale, height: h * scale)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
   }
 
   private func configureSession() {

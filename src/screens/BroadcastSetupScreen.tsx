@@ -70,9 +70,9 @@ function GoLiveSetup() {
   const { closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
   const { tint, cameraKitReady } = useFilter();
-  const { hasEffects } = useLiveEffects();
+  const { backgroundMode } = useLiveEffects();
   const currency = user?.walletCurrency ?? "EUR";
-  const useEffectsPreview = hasEffects && isNativeLiveEffectsSupported();
+  const useEffectsPreview = backgroundMode !== "none" && isNativeLiveEffectsSupported();
   const useSnapPreview = !useEffectsPreview && isCameraKitSupported() && cameraKitReady;
 
   const [title, setTitle] = useState(user?.displayName?.trim() || "");

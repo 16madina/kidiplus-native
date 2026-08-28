@@ -33,7 +33,9 @@ export function LiveEffectsPreview({
   useEffect(() => subscribeNativeLiveEffectsFirstFrame(() => setReady(true)), []);
 
   useEffect(() => {
-    if (!isNativeLiveEffectsSupported() || !effects.hasEffects) {
+    const wantsNativeBg =
+      isNativeLiveEffectsSupported() && effects.backgroundMode !== "none";
+    if (!wantsNativeBg) {
       void processorRef.current?.destroy();
       processorRef.current = null;
       if (revealWhenReady) setReady(false);
@@ -42,11 +44,11 @@ export function LiveEffectsPreview({
     const cfg = {
       backgroundUrl: effects.backgroundUrl,
       backgroundMode: effects.backgroundMode,
-      posterUrl: effects.posterUrl,
-      posterMode: effects.posterMode,
-      posterX: effects.posterTransform.x,
-      posterY: effects.posterTransform.y,
-      posterScale: effects.posterTransform.scale,
+      posterUrl: null,
+      posterMode: "off" as const,
+      posterX: 0.5,
+      posterY: 0.4,
+      posterScale: 1,
       mirror: facingNorm !== "environment",
       facing: facingNorm,
       onUnavailable: effects.markBackgroundUnavailable,
@@ -59,14 +61,8 @@ export function LiveEffectsPreview({
       void processorRef.current.setConfig(cfg);
     }
   }, [
-    effects.hasEffects,
     effects.backgroundUrl,
     effects.backgroundMode,
-    effects.posterUrl,
-    effects.posterMode,
-    effects.posterTransform.x,
-    effects.posterTransform.y,
-    effects.posterTransform.scale,
     effects.markBackgroundUnavailable,
     facingNorm,
     revealWhenReady,
@@ -95,8 +91,8 @@ export function LiveEffectsPreview({
   if (revealWhenReady && !ready) return null;
 
   return (
-    <View style={FILL}>
-      <NativePreview style={FILL} />
+    <View style={FILL} pointerEvents="none">
+      <NativePreview style={FILL} pointerEvents="none" />
     </View>
   );
 }
