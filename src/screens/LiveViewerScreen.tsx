@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -57,7 +58,7 @@ const LiveKitRemoteVideo = lazy(async () => {
   }
 });
 
-export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
+export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream; active?: boolean }) {
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
@@ -355,6 +356,7 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
       return;
     }
     setDraft("");
+    Keyboard.dismiss();
     await room.sendChat(text);
   };
 

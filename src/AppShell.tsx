@@ -13,6 +13,7 @@ import { LiveTabScreen } from "./screens/LiveTabScreen";
 import { VitrineScreen } from "./screens/VitrineScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { LiveViewerScreen } from "./screens/LiveViewerScreen";
+import { LiveListViewer } from "./components/LiveListViewer";
 import { ActivityScreen } from "./screens/ActivityScreen";
 import { LegalScreen } from "./screens/LegalScreen";
 import { WalletScreen } from "./screens/WalletScreen";
@@ -184,7 +185,9 @@ export function AppShell() {
         <AdminDashboardScreen />
       </PushScreen>
       <PushScreen open={live.open} onClose={closeOverlay} zIndex={80}>
-        {live.entry ? <LiveViewerScreen stream={live.entry.stream} /> : null}
+        {live.entry ? (
+          <LiveListViewer list={live.entry.list} initialIndex={live.entry.index} />
+        ) : null}
       </PushScreen>
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />
