@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Modal,
   Platform,
   Share,
   StyleSheet,
@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Heart, Reply, Send, SmilePlus, X } from "lucide-react-native";
+import { Heart, Reply, Send, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Press } from "../Press";
@@ -53,12 +53,13 @@ export function VitrineCommentsSheet({
     if (!open) return;
     setLoading(true);
     setReplyTo(null);
+    setBody("");
     void fetchVitrineComments(postId).then((r) => {
       setRows(r);
       setLoading(false);
       onCountChange?.(r.length);
     });
-    void loadLikedComments(postId).then(setLikedIds);
+    void loadLikedComments().then(setLikedIds);
   }, [open, postId, onCountChange]);
 
   const send = async () => {
@@ -94,80 +95,84 @@ export function VitrineCommentsSheet({
   const handleReply = (comment: VitrineComment) => {
     setReplyTo(comment);
     setBody(`@${comment.authorName} `);
-    inputRef.current?.focus();
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const insertEmoji = (emoji: string) => {
     setBody((prev) => prev + emoji);
-    inputRef.current?.focus();
   };
-
-  if (!open) return null;
 
   const grouped = groupReplies(rows);
 
   return (
-    <View style={styles.root}>
-      <Press haptic="none" onPress={onClose} style={styles.dim} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-        style={styles.kavWrap}
-      >
-        <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 8 }]}>
+    <Modal
+      visible={open}
+      animationType="slide"
+      presentationStyle={Platform.OS === "ios" ? "pageSheet" : undefined}
+      onRequestClose={onClose}
+    >
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.head}>
           <View style={styles.handle} />
-          <View style={styles.head}>
+          <View style={styles.headRow}>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              {t("vitrine.comments", "Commentaires")}
+              {t("vitrine.comments", "Commentaires")} {rows.length > 0 ? `(${rows.length})` : ""}
             </Text>
             <Press onPress={onClose} style={styles.close}>
               <X size={18} color={colors.foreground} />
             </Press>
           </View>
-          {loading ? (
-            <ActivityIndicator color={GOLD} style={{ marginVertical: 24 }} />
-          ) : (
-            <FlatList
-              data={grouped}
-              keyExtractor={(c) => c.id}
-              style={{ maxHeight: 380 }}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 14, paddingBottom: 8 }}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 20 }}>
-                  {t("vitrine.noComments", "Aucun commentaire.")}
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <CommentRow
-                  comment={item}
-                  liked={likedIds.has(item.id)}
-                  onLike={() => void toggleLike(item.id)}
-                  onReply={() => handleReply(item)}
-                  colors={colors}
-                  indent={!!item.parentId}
-                />
-              )}
-            />
-          )}
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={GOLD} />
+          </View>
+        ) : (
+          <FlatList
+            data={grouped}
+            keyExtractor={(c) => c.id}
+            style={styles.list}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 16, paddingBottom: 16, paddingTop: 8 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 32 }}>
+                {t("vitrine.noComments", "Aucun commentaire.")}
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <CommentRow
+                comment={item}
+                liked={likedIds.has(item.id)}
+                onLike={() => void toggleLike(item.id)}
+                onReply={() => handleReply(item)}
+                colors={colors}
+                indent={!!item.parentId}
+              />
+            )}
+          />
+        )}
+
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 8, borderTopColor: colors.border }]}>
           {replyTo ? (
             <View style={[styles.replyBanner, { backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.mutedForeground, fontSize: 12, flex: 1 }}>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, flex: 1 }} numberOfLines={1}>
                 ↪ {t("vitrine.replyingTo", "Réponse à")} {replyTo.authorName}
               </Text>
-              <Press onPress={() => { setReplyTo(null); setBody(""); }} style={{ minHeight: 28, minWidth: 28 }}>
-                <X size={14} color={colors.mutedForeground} />
+              <Press onPress={() => { setReplyTo(null); setBody(""); }} style={{ minHeight: 24, minWidth: 24 }}>
+                <X size={12} color={colors.mutedForeground} />
               </Press>
             </View>
           ) : null}
           <View style={styles.emojiRow}>
             {QUICK_EMOJIS.map((e) => (
               <Press key={e} onPress={() => insertEmoji(e)} style={styles.emojiBtn}>
-                <Text style={{ fontSize: 20 }}>{e}</Text>
+                <Text style={{ fontSize: 18 }}>{e}</Text>
               </Press>
             ))}
           </View>
-          <View style={[styles.composer, { borderTopColor: colors.border }]}>
+          <View style={styles.composer}>
             <TextInput
               ref={inputRef}
               value={body}
@@ -180,14 +185,16 @@ export function VitrineCommentsSheet({
               maxLength={1000}
               returnKeyType="send"
               onSubmitEditing={() => void send()}
+              autoFocus={false}
+              blurOnSubmit={false}
             />
             <Press onPress={() => void send()} disabled={sending || !body.trim()} style={[styles.send, { opacity: body.trim() ? 1 : 0.4 }]}>
               {sending ? <ActivityIndicator color={NAVY} /> : <Send size={16} color={NAVY} />}
             </Press>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -207,7 +214,7 @@ function CommentRow({
   indent: boolean;
 }) {
   return (
-    <View style={[{ flexDirection: "row", gap: 10 }, indent && { marginLeft: 36 }]}>
+    <View style={[{ flexDirection: "row", gap: 10 }, indent && { marginLeft: 38 }]}>
       {isHttpUrl(comment.authorAvatar) ? (
         <Image source={{ uri: comment.authorAvatar }} style={styles.av} />
       ) : (
@@ -217,7 +224,7 @@ function CommentRow({
       )}
       <View style={{ flex: 1 }}>
         <Text style={{ fontWeight: "800", color: colors.foreground, fontSize: 13 }}>{comment.authorName}</Text>
-        <Text style={{ color: colors.foreground, marginTop: 2, fontSize: 13, lineHeight: 18 }}>{comment.body}</Text>
+        <Text style={{ color: colors.foreground, marginTop: 2, fontSize: 14, lineHeight: 20 }}>{comment.body}</Text>
         <View style={styles.cmtActions}>
           <Press onPress={onReply} style={styles.cmtBtn}>
             <Reply size={13} color={colors.mutedForeground} />
@@ -251,7 +258,7 @@ function groupReplies(rows: VitrineComment[]): VitrineComment[] {
   return result;
 }
 
-async function loadLikedComments(postId: string): Promise<Set<string>> {
+async function loadLikedComments(): Promise<Set<string>> {
   const uid = (await supabase.auth.getUser()).data.user?.id;
   if (!uid) return new Set();
   const { data } = await supabase
@@ -274,72 +281,64 @@ export async function shareVitrinePost(postId: string, caption: string) {
 }
 
 const styles = StyleSheet.create({
-  root: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 },
-  dim: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  kavWrap: { flex: 1, justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 6, maxHeight: "80%" },
-  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(100,100,100,0.4)", marginBottom: 8 },
-  head: {
+  container: { flex: 1 },
+  head: { paddingTop: 8 },
+  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(100,100,100,0.35)", marginBottom: 12 },
+  headRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  title: { fontSize: 17, fontWeight: "800" },
+  title: { fontSize: 18, fontWeight: "800" },
   close: { width: 36, height: 36, minWidth: 36, minHeight: 36 },
-  av: { width: 30, height: 30, borderRadius: 15 },
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  list: { flex: 1 },
+  av: { width: 32, height: 32, borderRadius: 16 },
+  footer: {
+    paddingTop: 8,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   replyBanner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    marginHorizontal: 12,
     borderRadius: 8,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   emojiRow: {
     flexDirection: "row",
-    gap: 4,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    marginTop: 4,
+    gap: 6,
+    marginBottom: 10,
   },
-  emojiBtn: { minHeight: 32, minWidth: 32, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(100,100,100,0.12)" },
+  emojiBtn: { minHeight: 34, minWidth: 34, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(100,100,100,0.1)" },
   composer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: 14,
-    paddingHorizontal: 12,
-    fontSize: 14,
+    paddingHorizontal: 14,
+    fontSize: 15,
   },
   send: {
-    width: 40,
-    height: 40,
-    minWidth: 40,
-    minHeight: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    minWidth: 42,
+    minHeight: 42,
+    borderRadius: 21,
     backgroundColor: GOLD,
     alignItems: "center",
     justifyContent: "center",
   },
-  cmtActions: { flexDirection: "row", gap: 12, marginTop: 6, alignItems: "center" },
-  cmtBtn: { flexDirection: "row", gap: 4, minHeight: 24, minWidth: 24 },
-  cmtBtnTxt: { fontSize: 11, fontWeight: "600" },
+  cmtActions: { flexDirection: "row", gap: 14, marginTop: 6, alignItems: "center" },
+  cmtBtn: { flexDirection: "row", gap: 4, minHeight: 28, minWidth: 28 },
+  cmtBtnTxt: { fontSize: 12, fontWeight: "600" },
 });
