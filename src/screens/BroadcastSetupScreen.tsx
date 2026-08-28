@@ -27,10 +27,12 @@ import { Press } from "../components/Press";
 import { GlassIconButton } from "../components/Glass";
 import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
-import { SetupCamera, SETUP_FILTERS, type SetupFilterId } from "../components/broadcast/SetupCamera";
+import { SetupCamera } from "../components/broadcast/SetupCamera";
+import { FiltersCarousel } from "../components/broadcast/FiltersCarousel";
 import { ScheduleLiveScreen } from "./ScheduleLiveScreen";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
+import { useFilter } from "../lib/filters/filter-context";
 import {
   BROADCAST_CATEGORY_FR,
   BROADCAST_CATEGORY_KEYS,
@@ -59,6 +61,7 @@ function GoLiveSetup() {
   const insets = useSafeAreaInsets();
   const { closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
+  const { tint } = useFilter();
   const currency = user?.walletCurrency ?? "EUR";
 
   const [title, setTitle] = useState(user?.displayName?.trim() ? `${user.displayName} 💎 KiDi+` : "");
@@ -70,7 +73,6 @@ function GoLiveSetup() {
   const [showShop, setShowShop] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showTiktok, setShowTiktok] = useState(false);
-  const [filter, setFilter] = useState<SetupFilterId>("naturel");
   const [rtmp, setRtmp] = useState(false);
   const [facing, setFacing] = useState<CameraType>("front");
   const [busy, setBusy] = useState(false);
@@ -178,7 +180,7 @@ function GoLiveSetup() {
           </View>
         </View>
       ) : (
-        <SetupCamera facing={facing} filterId={filter} />
+        <SetupCamera facing={facing} tint={tint} />
       )}
       {!showFilters ? <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" /> : null}
 
@@ -350,27 +352,12 @@ function GoLiveSetup() {
         </View>
       </KeyboardAvoidingView>
       ) : (
-        <View style={[styles.filterBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.72)"]} style={FILL} pointerEvents="none" />
-          <Text style={styles.filterHint}>{t("broadcast.setup.filtersHint")}</Text>
-          <View style={styles.filterHead}>
-            <Text style={styles.filterTitle}>Filtres</Text>
-            <Press onPress={() => setShowFilters(false)} style={styles.filterDone}>
-              <Text style={styles.filterDoneTxt}>{t("broadcast.setup.filtersDone")}</Text>
-            </Press>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {SETUP_FILTERS.map((f) => {
-              const on = filter === f.id;
-              return (
-                <Press key={f.id} onPress={() => setFilter(f.id)} style={styles.filterPick}>
-                  <View style={[styles.filterSwatch, { backgroundColor: f.tint === "transparent" ? "#222" : f.tint }, on && styles.filterSwatchOn]} />
-                  <Text style={[styles.filterName, on && { color: GOLD }]}>{f.label}</Text>
-                </Press>
-              );
-            })}
-          </ScrollView>
-        </View>
+        <FiltersCarousel
+          open={showFilters}
+          onClose={() => setShowFilters(false)}
+          doneLabel={t("broadcast.setup.filtersDone")}
+          hint={t("broadcast.setup.filtersHint")}
+        />
       )}
 
       <AddProductSheet

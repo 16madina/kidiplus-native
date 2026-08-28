@@ -7,6 +7,7 @@ import { GOLD, NAVY } from "../../theme";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
+/** @deprecated Prefer FilterProvider + FiltersCarousel; kept for tint overlay. */
 export const SETUP_FILTERS = [
   { id: "naturel", label: "Naturel", tint: "transparent" },
   { id: "glow", label: "Glow", tint: "rgba(255,230,180,0.22)" },
@@ -20,14 +21,14 @@ export type SetupFilterId = (typeof SETUP_FILTERS)[number]["id"];
 
 export function SetupCamera({
   facing,
-  filterId,
+  tint = "transparent",
 }: {
   facing: CameraType;
-  filterId: SetupFilterId;
+  /** Color overlay while Snap Camera Kit native module is not publishing. */
+  tint?: string;
 }) {
   const { t } = useTranslation();
   const [permission, requestPermission] = useCameraPermissions();
-  const tint = SETUP_FILTERS.find((f) => f.id === filterId)?.tint ?? "transparent";
 
   useEffect(() => {
     if (permission && !permission.granted && permission.canAskAgain) {
@@ -43,8 +44,8 @@ export function SetupCamera({
     return (
       <View style={[FILL, styles.denied]}>
         <Text style={styles.deniedTxt}>{t("broadcast.setup.cameraDenied")}</Text>
-        <Press onPress={() => void requestPermission()} style={styles.allow}>
-          <Text style={styles.allowTxt}>{t("broadcast.setup.cameraAllow")}</Text>
+        <Press onPress={() => void requestPermission()} style={styles.permBtn}>
+          <Text style={styles.permTxt}>{t("common.allow")}</Text>
         </Press>
       </View>
     );
@@ -55,10 +56,9 @@ export function SetupCamera({
       <CameraView
         style={FILL}
         facing={facing}
-        mute
-        mirror={Platform.OS !== "web" && facing === "front"}
+        mirror={facing === "front" && Platform.OS === "ios"}
       />
-      {tint !== "transparent" ? (
+      {tint && tint !== "transparent" ? (
         <View pointerEvents="none" style={[FILL, { backgroundColor: tint }]} />
       ) : null}
     </View>
@@ -66,8 +66,13 @@ export function SetupCamera({
 }
 
 const styles = StyleSheet.create({
-  denied: { alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 14 },
-  deniedTxt: { color: "#fff", textAlign: "center", fontWeight: "700", fontSize: 15 },
-  allow: { minHeight: 44, height: 44, borderRadius: 999, paddingHorizontal: 18, backgroundColor: GOLD },
-  allowTxt: { color: NAVY, fontWeight: "800" },
+  denied: { alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  deniedTxt: { color: "rgba(255,255,255,0.8)", textAlign: "center", fontWeight: "600" },
+  permBtn: {
+    backgroundColor: GOLD,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  permTxt: { color: NAVY, fontWeight: "800" },
 });

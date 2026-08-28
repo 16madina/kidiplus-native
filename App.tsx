@@ -9,6 +9,7 @@ import { ThemeProvider } from "./src/context/theme";
 import { AuthProvider, useAuth } from "./src/context/auth";
 import { NavigationProvider } from "./src/context/navigation";
 import { PushProvider } from "./src/context/push";
+import { FilterProvider } from "./src/lib/filters/filter-context";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthFlow } from "./src/screens/AuthFlow";
 import { AppShell } from "./src/AppShell";
@@ -59,7 +60,9 @@ export default function App() {
           <ThemeProvider>
             <AuthProvider>
               <NavigationProvider>
-                <Root />
+                <FilterProvider>
+                  <Root />
+                </FilterProvider>
               </NavigationProvider>
             </AuthProvider>
           </ThemeProvider>

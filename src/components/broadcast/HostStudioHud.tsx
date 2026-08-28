@@ -33,6 +33,7 @@ import { AddProductSheet } from "./AddProductSheet";
 import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
+import { FiltersCarousel } from "./FiltersCarousel";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
@@ -96,6 +97,7 @@ export function HostStudioHud({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
   const [giftFlash, setGiftFlash] = useState<typeof session.lastGift>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const incoming = usePendingBattleInvite(user?.id ?? null);
 
   // Pre-launch crowd (admin → Simu) : fake viewers, comments and bids.
@@ -325,7 +327,7 @@ export function HostStudioHud({
         <RailBtn onPress={onFlip}>
           <RefreshCw size={19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => soon(t("live.filtersSoon", "Les filtres arrivent bientôt sur l’app"))}>
+        <RailBtn onPress={() => setFiltersOpen(true)}>
           <Sparkles size={19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
         <RailBtn onPress={() => setBattleOpen(true)}>
@@ -531,6 +533,8 @@ export function HostStudioHud({
           />
         </>
       ) : null}
+
+      <FiltersCarousel open={filtersOpen} onClose={() => setFiltersOpen(false)} />
 
       {incoming ? (
         <View style={styles.incomingWrap}>
