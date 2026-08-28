@@ -32,6 +32,9 @@ import { DeleteAccountScreen } from "./screens/DeleteAccountScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
 import { BlockedUsersScreen } from "./screens/BlockedUsersScreen";
 import { DmChatScreen } from "./screens/DmChatScreen";
+import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
+import { SellerProfileScreen } from "./screens/SellerProfileScreen";
+import { DiscoverScreen } from "./screens/DiscoverScreen";
 import { GOLD, NAVY } from "./theme";
 
 const BroadcastLiveScreen = lazy(async () => {
@@ -85,6 +88,7 @@ export function AppShell() {
   const broadcastSetup = useCachedOverlay("broadcast-setup");
   const broadcastLive = useCachedOverlay("broadcast-live");
   const live = useCachedOverlay("live");
+  const sellerProfile = useCachedOverlay("seller-profile");
 
   const hideTabs =
     tab === "vitrine" || isOverlayOpen("live") || isOverlayOpen("broadcast-live");
@@ -187,6 +191,17 @@ export function AppShell() {
       </PushScreen>
       <PushScreen open={isOverlayOpen("admin")} onClose={closeOverlay} zIndex={70}>
         <AdminDashboardScreen />
+      </PushScreen>
+      <PushScreen open={isOverlayOpen("seller-payments")} onClose={closeOverlay} zIndex={70}>
+        <SellerPaymentsScreen />
+      </PushScreen>
+      <PushScreen open={sellerProfile.open} onClose={closeOverlay} zIndex={72}>
+        {sellerProfile.entry ? (
+          <SellerProfileScreen sellerId={sellerProfile.entry.sellerId} />
+        ) : null}
+      </PushScreen>
+      <PushScreen open={isOverlayOpen("discover")} onClose={closeOverlay} zIndex={70}>
+        <DiscoverScreen />
       </PushScreen>
       <PushScreen open={live.open} onClose={closeOverlay} zIndex={80}>
         {live.entry ? (

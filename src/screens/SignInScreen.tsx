@@ -7,6 +7,7 @@ import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
 import { AuthInput } from "../components/AuthInput";
 import { RedButton } from "../components/Buttons";
 import { Press } from "../components/Press";
+import { SocialLoginButtons } from "../components/auth/SocialLoginButtons";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { LegalScreen } from "./LegalScreen";
@@ -84,6 +85,7 @@ export function SignInScreen() {
     <AuthScreenShell title={t("auth.welcome.signIn")} onBack={() => setView("welcome")}>
       <Text style={[styles.h2, { color: colors.foreground }]}>{t("auth.signIn.title")}</Text>
       <Text style={[styles.sub, { color: colors.mutedForeground }]}>{t("auth.signIn.subtitle")}</Text>
+      <SocialLoginButtons />
       <AuthInput
         label={t("auth.signIn.email")}
         autoCapitalize="none"

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Bell, ChevronRight, Moon, ShieldBan, Sun, Trash2 } from "lucide-react-native";
+import { Bell, ChevronRight, Fingerprint, Moon, ShieldBan, Sun, Trash2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
 import { CurrencySheet } from "../components/CurrencySheet";
@@ -11,6 +11,7 @@ import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { usePush } from "../context/push";
 import { useAppTheme } from "../context/theme";
+import { canUseBiometric, isBiometricEnabled, setBiometricEnabled } from "../lib/biometric";
 import { currencySymbol, normalizeCurrency } from "../lib/money";
 import { GOLD } from "../theme";
 import { LegalScreen } from "./LegalScreen";
@@ -25,6 +26,8 @@ export function SettingsScreen() {
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
+  const [biometricAvail, setBiometricAvail] = useState(false);
+  const [biometricOn, setBiometricOn] = useState(false);
 
   const currency = normalizeCurrency(user?.walletCurrency);
   const flash = (msg: string) => {
@@ -35,6 +38,11 @@ export function SettingsScreen() {
   useEffect(() => {
     void push.refresh();
   }, [push]);
+
+  useEffect(() => {
+    void canUseBiometric().then(setBiometricAvail);
+    void isBiometricEnabled().then(setBiometricOn);
+  }, []);
 
   const pushLabel =
     push.status === "granted"
@@ -132,6 +140,21 @@ export function SettingsScreen() {
             </View>
             <ChevronRight size={18} color={colors.mutedForeground} />
           </Press>
+          {biometricAvail && (
+            <Press
+              onPress={() => {
+                const next = !biometricOn;
+                setBiometricOn(next);
+                void setBiometricEnabled(next);
+                flash(next ? "Face ID / Touch ID activé" : "Face ID / Touch ID désactivé");
+              }}
+              style={styles.row}
+            >
+              <Fingerprint size={18} color={colors.foreground} />
+              <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>Face ID / Touch ID</Text>
+              <Text style={{ color: GOLD, fontWeight: "800" }}>{biometricOn ? "ON" : "OFF"}</Text>
+            </Press>
+          )}
         </SurfaceCard>
 
         <Label text={t("settings.account")} color={colors.mutedForeground} />

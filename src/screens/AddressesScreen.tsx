@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -282,6 +282,42 @@ function AddressForm({
     return all.filter((z) => z.toLowerCase().includes(q)).slice(0, 8);
   }, [form.country, form.zone_or_commune]);
 
+  const [autoSuggestions, setAutoSuggestions] = useState<Array<{ display: string; street: string; city: string; postal: string; country: string }>>([]);
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onStreetChange = (text: string) => {
+    setForm({ ...form, street_address: text });
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+    if (text.trim().length < 4) { setAutoSuggestions([]); return; }
+    autoTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=5&addressdetails=1`);
+        const data = await res.json();
+        const items = (data as any[]).map((r: any) => ({
+          display: r.display_name?.split(",").slice(0, 3).join(",") ?? "",
+          street: r.address?.road ?? r.display_name?.split(",")[0] ?? "",
+          city: r.address?.city ?? r.address?.town ?? r.address?.village ?? "",
+          postal: r.address?.postcode ?? "",
+          country: r.address?.country_code?.toUpperCase() ?? "",
+        }));
+        setAutoSuggestions(items);
+      } catch {
+        setAutoSuggestions([]);
+      }
+    }, 350);
+  };
+
+  const pickSuggestion = (s: typeof autoSuggestions[0]) => {
+    setForm({
+      ...form,
+      street_address: s.street,
+      city: s.city,
+      postal_code: s.postal,
+      country: s.country || form.country,
+    });
+    setAutoSuggestions([]);
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader
@@ -371,8 +407,17 @@ function AddressForm({
                 label={t("address.fields.streetAddress")}
                 placeholder={t("address.streetPlaceholder")}
                 value={form.street_address ?? ""}
-                onChangeText={(street_address) => setForm({ ...form, street_address })}
+                onChangeText={onStreetChange}
               />
+              {autoSuggestions.length > 0 && (
+                <View style={[styles.suggestions, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {autoSuggestions.map((s, i) => (
+                    <Press key={i} onPress={() => pickSuggestion(s)} style={styles.sugRow}>
+                      <Text style={{ fontSize: 13, color: colors.foreground }} numberOfLines={1}>{s.display}</Text>
+                    </Press>
+                  ))}
+                </View>
+              )}
               <View style={styles.row2}>
                 <View style={{ flex: 1 }}>
                   <FormField
@@ -461,4 +506,15 @@ const styles = StyleSheet.create({
   row2: { flexDirection: "row", gap: 8 },
   defaultRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24 },
   delete: { minHeight: 44, flexDirection: "row", gap: 8 },
+  suggestions: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginTop: -6,
+    overflow: "hidden",
+  },
+  sugRow: {
+    minHeight: 38,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
 });

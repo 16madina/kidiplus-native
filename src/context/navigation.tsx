@@ -31,7 +31,10 @@ export type OverlayKind =
   | "broadcast-setup"
   | "broadcast-live"
   | "admin"
-  | "blocked-users";
+  | "blocked-users"
+  | "seller-payments"
+  | "seller-profile"
+  | "discover";
 
 export type Overlay =
   | { kind: "none" }
@@ -62,7 +65,10 @@ export type Overlay =
       facing: "front" | "back";
     }
   | { kind: "admin" }
-  | { kind: "blocked-users" };
+  | { kind: "blocked-users" }
+  | { kind: "seller-payments" }
+  | { kind: "seller-profile"; sellerId: string }
+  | { kind: "discover" };
 
 type OverlayEntry = Exclude<Overlay, { kind: "none" }>;
 

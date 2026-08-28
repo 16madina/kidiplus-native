@@ -6,6 +6,7 @@ import { AuthInput } from "../components/AuthInput";
 import { RedButton } from "../components/Buttons";
 import { CountrySelect } from "../components/CountrySelect";
 import { Press } from "../components/Press";
+import { SocialLoginButtons } from "../components/auth/SocialLoginButtons";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD } from "../theme";
@@ -91,6 +92,7 @@ export function SignUpScreen() {
     <AuthScreenShell title={t("auth.welcome.signUp")} onBack={() => setView("welcome")}>
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.title")}</Text>
       <Text style={{ fontSize: 14, color: colors.mutedForeground, marginBottom: 4 }}>{t("auth.signUp.subtitle")}</Text>
+      <SocialLoginButtons />
       <AuthInput label={t("auth.signUp.displayName")} value={displayName} onChangeText={setDisplayName} placeholder={t("auth.signUp.displayNamePlaceholder")} maxLength={40} />
       <AuthInput label={t("auth.signUp.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder={t("auth.signIn.emailPlaceholder")} />
       <AuthInput label={t("auth.signUp.emailConfirm")} autoCapitalize="none" keyboardType="email-address" value={emailConfirm} onChangeText={setEmailConfirm} placeholder={t("auth.signIn.emailPlaceholder")} />

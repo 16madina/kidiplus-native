@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import { FileText } from "lucide-react-native";
 import { Image } from "expo-image";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
+import { OrderTimeline } from "../components/orders/OrderTimeline";
+import { InvoiceSheet } from "../components/orders/InvoiceSheet";
 import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
@@ -50,6 +53,8 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState<OrderView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [detailOrder, setDetailOrder] = useState<OrderView | null>(null);
+  const [invoiceOrder, setInvoiceOrder] = useState<OrderView | null>(null);
   const openedOrderRef = useRef<string | null>(null);
   const list = tab === "purchases" ? purchases : sales;
 
@@ -167,7 +172,8 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
             const busy = busyId === o.id;
             const isBuyer = tab === "purchases";
             return (
-              <SurfaceCard key={o.id} padded={false}>
+              <Press key={o.id} onPress={() => setDetailOrder(o)} style={{ minHeight: 0 }}>
+              <SurfaceCard padded={false}>
                 <View style={styles.card}>
                   {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
                   <View style={{ flex: 1, gap: 3 }}>
@@ -216,6 +222,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
                   </View>
                 ) : null}
               </SurfaceCard>
+              </Press>
             );
           })
         )}
@@ -230,6 +237,44 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
         }}
       />
       <MockBanner text={toast} />
+      {detailOrder && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, zIndex: 90 }]}>
+          <OverlayHeader title={detailOrder.name} onBack={() => setDetailOrder(null)} />
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 48 }}>
+            <SurfaceCard>
+              <Text style={{ fontWeight: "800", fontSize: 16, color: colors.foreground }}>{detailOrder.name}</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>{detailOrder.seller}</Text>
+              <Text style={{ color: GOLD, fontWeight: "800", fontSize: 18, marginTop: 6 }}>{detailOrder.price}</Text>
+            </SurfaceCard>
+            <SurfaceCard>
+              <Text style={{ fontWeight: "700", fontSize: 14, color: colors.foreground, marginBottom: 8 }}>Suivi de commande</Text>
+              <OrderTimeline
+                status={detailOrder.status === "awaitingPayment" ? "created" : detailOrder.status}
+                createdAt={detailOrder.when}
+              />
+            </SurfaceCard>
+            <Press onPress={() => setInvoiceOrder(detailOrder)} style={styles.cta}>
+              <FileText size={16} color={NAVY} />
+              <Text style={{ fontWeight: "800", color: NAVY }}>Voir la facture</Text>
+            </Press>
+          </ScrollView>
+        </View>
+      )}
+      <InvoiceSheet
+        order={invoiceOrder ? {
+          id: invoiceOrder.id,
+          item_name: invoiceOrder.name,
+          amount: parseFloat(invoiceOrder.price.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
+          delivery_fee: 0,
+          total: parseFloat(invoiceOrder.price.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
+          currency: "EUR",
+          status: invoiceOrder.status,
+          created_at: invoiceOrder.when || new Date().toISOString(),
+          seller_name: invoiceOrder.seller,
+        } : null}
+        visible={!!invoiceOrder}
+        onClose={() => setInvoiceOrder(null)}
+      />
     </View>
   );
 }

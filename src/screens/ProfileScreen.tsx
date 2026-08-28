@@ -6,8 +6,10 @@ import {
   Bell,
   ChevronRight,
   Coins,
+  CreditCard,
   HelpCircle,
   HeartHandshake,
+  Lightbulb,
   LogIn,
   LogOut,
   MapPin,
@@ -204,6 +206,7 @@ function AuthedProfile() {
         <Section title={t("profile.sections.boutique")}>
           <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
           <Row icon={<Truck size={18} color={colors.foreground} />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
+          <Row icon={<CreditCard size={18} color={colors.foreground} />} label="Configurer les paiements" onPress={() => openOverlay({ kind: "seller-payments" })} />
           <Row icon={<BadgeCheck size={18} color={colors.foreground} />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
         </Section>
       ) : null}
@@ -232,6 +235,7 @@ function AuthedProfile() {
       <Section title={t("profile.sections.account")}>
         <Row icon={<UserPen size={18} color={colors.foreground} />} label={t("profile.editProfile")} onPress={() => openOverlay({ kind: "edit-profile" })} />
         <Row icon={<Settings size={18} color={colors.foreground} />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />
+        <Row icon={<Lightbulb size={18} color={colors.foreground} />} label="Découvrir" onPress={() => openOverlay({ kind: "discover" })} />
         <Row icon={<Moon size={18} color={colors.foreground} />} label={t("profile.menu.darkMode")} right={<Text style={{ color: GOLD, fontWeight: "700" }}>{dark ? "ON" : "OFF"}</Text>} onPress={() => setDark(!dark)} />
         <Row icon={<HelpCircle size={18} color={colors.foreground} />} label={t("profile.menu.help")} onPress={() => openOverlay({ kind: "help" })} />
         <Row icon={<LogOut size={18} color="#C0392B" />} label={t("profile.signOut")} danger onPress={signOut} />

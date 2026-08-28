@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -16,17 +16,51 @@ import { ModerationGate } from "./src/components/ModerationGate";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthFlow } from "./src/screens/AuthFlow";
 import { AppShell } from "./src/AppShell";
+import { authenticateWithBiometric, isBiometricEnabled } from "./src/lib/biometric";
 import { NAVY } from "./src/theme";
+
+function useTrackingTransparency() {
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    (async () => {
+      try {
+        const { requestTrackingPermissionsAsync } = await import("expo-tracking-transparency");
+        await requestTrackingPermissionsAsync();
+      } catch {}
+    })();
+  }, []);
+}
 
 function Root() {
   const [splashDone, setSplashDone] = useState(false);
+  const [biometricPassed, setBiometricPassed] = useState(false);
   const { user, guestMode, loading } = useAuth();
+
+  useTrackingTransparency();
+
+  useEffect(() => {
+    if (!splashDone) return;
+    (async () => {
+      const enabled = await isBiometricEnabled();
+      if (!enabled) { setBiometricPassed(true); return; }
+      const ok = await authenticateWithBiometric();
+      setBiometricPassed(ok);
+    })();
+  }, [splashDone]);
 
   if (!splashDone) {
     return (
       <View style={styles.fill}>
         <StatusBar style="light" />
         <SplashScreen onDone={() => setSplashDone(true)} />
+      </View>
+    );
+  }
+
+  if (!biometricPassed) {
+    return (
+      <View style={styles.fill}>
+        <StatusBar style="light" />
       </View>
     );
   }

@@ -20,6 +20,8 @@ import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
+import { StoriesRow, type StoryItem } from "../components/vitrine/StoriesRow";
+import { StoryViewer } from "../components/vitrine/StoryViewer";
 import {
   VitrineLiveSlide,
   VitrineSoonSlide,
@@ -70,6 +72,9 @@ export function VitrineScreen() {
   const [activeSoonId, setActiveSoonId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
+  const [storyList, setStoryList] = useState<StoryItem[]>([]);
+  const [storyIndex, setStoryIndex] = useState(0);
   const listRef = useRef<FlatList<VitrineFeedPost>>(null);
   const liveListRef = useRef<FlatList<LiveStream>>(null);
   const soonListRef = useRef<FlatList<LiveStream>>(null);
@@ -213,6 +218,12 @@ export function VitrineScreen() {
           <Plus size={22} color="#fff" />
         </GlassIconButton>
       </LinearGradient>
+
+      {cat === "forYou" && !loading && (
+        <View style={{ position: "absolute", top: insets.top + 52, left: 0, right: 0, zIndex: 10 }}>
+          <StoriesRow onPress={(list, idx) => { setStoryList(list); setStoryIndex(idx); setStoryViewerOpen(true); }} />
+        </View>
+      )}
 
       {cat === "forYou" ? (
         loading ? (
@@ -382,6 +393,12 @@ export function VitrineScreen() {
           }}
         />
       ) : null}
+      <StoryViewer
+        stories={storyList}
+        initialIndex={storyIndex}
+        visible={storyViewerOpen}
+        onClose={() => setStoryViewerOpen(false)}
+      />
     </View>
   );
 }
