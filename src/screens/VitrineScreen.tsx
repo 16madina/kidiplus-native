@@ -29,6 +29,7 @@ import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, LIVE_RED, initials } from "../theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
+import { useLayout } from "../lib/layout";
 import {
   fetchVitrinePostById,
   fetchVitrinePosts,
@@ -47,6 +48,7 @@ const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom:
 export function VitrineScreen() {
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
   const { t } = useTranslation();
   const {
     tab,
@@ -174,24 +176,34 @@ export function VitrineScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent"]} style={[styles.top, { paddingTop: insets.top + 4 }]}>
-        <GlassIconButton tone="dark" onPress={() => setTab("home")}>
+        <GlassIconButton size={layout.icon} tone="dark" onPress={() => setTab("home")}>
           <Home size={20} color="#fff" />
         </GlassIconButton>
-        <Glass tone="dark" intensity={40} radius={999} elevated={false} style={{ flex: 1, marginHorizontal: 8 }}>
-          <View style={styles.cats}>
+        <Glass tone="dark" intensity={40} radius={999} elevated={false} style={{ flex: 1, marginHorizontal: layout.narrow ? 4 : 8 }}>
+          <View style={[styles.cats, layout.narrow && { gap: 4, paddingHorizontal: 4 }]}>
             {([
               ["forYou", "vitrine.tabs.forYou"],
               ["live", "vitrine.tabs.live"],
               ["soon", "vitrine.tabs.soon"],
             ] as const).map(([k, label]) => (
               <Press key={k} onPress={() => setCat(k)} style={styles.catBtn}>
-                <Text style={[styles.catLabel, cat === k && styles.catActive]}>{t(label)}</Text>
+                <Text
+                  style={[
+                    styles.catLabel,
+                    { fontSize: layout.narrow ? 12 : 15 },
+                    cat === k && styles.catActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t(label)}
+                </Text>
                 {cat === k ? <View style={styles.underline} /> : null}
               </Press>
             ))}
           </View>
         </Glass>
         <GlassIconButton
+          size={layout.icon}
           tone="gold"
           onPress={() => {
             if (guestMode) return openAuth();
@@ -403,6 +415,7 @@ function VitrinePostSlide({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
   const [liked, setLiked] = useState(post.likedByMe);
   const [likes, setLikes] = useState(post.likes);
   const [comments, setComments] = useState(post.comments);
@@ -475,7 +488,10 @@ function VitrinePostSlide({
     <View style={{ width, height, backgroundColor: "#000" }}>
       <VitrineMedia post={post} active={active} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} pointerEvents="none" />
-      <View pointerEvents="box-none" style={[styles.side, { bottom: insets.bottom + 28 }]}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.side, { bottom: insets.bottom + 28, gap: layout.compact ? 8 : 12 }]}
+      >
         <Press onPress={onAvatar} style={styles.avatarAction} hitSlop={6}>
           <View style={[styles.avatarRing, isLive ? styles.avatarRingLive : styles.avatarRingGold]}>
             {isHttpUrl(post.avatarUrl) ? (

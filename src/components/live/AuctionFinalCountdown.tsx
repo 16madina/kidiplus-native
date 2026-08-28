@@ -9,11 +9,13 @@ export function AuctionFinalCountdown({
   secondsLeft,
   active,
   embedded,
+  compact,
 }: {
   secondsLeft: number;
   active: boolean;
   /** When true, no absolute positioning (parent stacks with mort subite / bid). */
   embedded?: boolean;
+  compact?: boolean;
 }) {
   const show = active && secondsLeft > 0 && secondsLeft <= 3;
 
@@ -24,15 +26,19 @@ export function AuctionFinalCountdown({
 
   if (!show) return null;
 
+  const numSize = compact ? 26 : 32;
+
   return (
     <View pointerEvents="none" style={embedded ? styles.embed : styles.wrap}>
       <LinearGradient
         colors={["#E24B4B", "#9B1C1C"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.pill, styles.pillUrgent]}
+        style={[styles.pill, styles.pillUrgent, compact && { minWidth: 44, paddingVertical: 2 }]}
       >
-        <Text style={[styles.num, styles.numUrgent]}>{secondsLeft}</Text>
+        <Text style={[styles.num, styles.numUrgent, { fontSize: numSize, lineHeight: numSize + 4 }]}>
+          {secondsLeft}
+        </Text>
       </LinearGradient>
     </View>
   );

@@ -37,6 +37,7 @@ import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
 import { fetchOrderById, type OrderView } from "../lib/orders";
 import { isExpoGo } from "../lib/expo-go";
+import { useLayout } from "../lib/layout";
 import { supabase } from "../lib/supabase";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
 import type { LiveStream } from "../mock/lives";
@@ -58,6 +59,7 @@ const LiveKitRemoteVideo = lazy(async () => {
 
 export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
   const { t, i18n } = useTranslation();
   const { closeOverlay } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
@@ -429,11 +431,15 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
         pointerEvents="none"
       />
 
-      <View pointerEvents="none" style={[styles.auctionStack, { top: insets.top + 120 }]}>
+      <View
+        pointerEvents="none"
+        style={[styles.auctionStack, { top: insets.top + layout.vs(96) }]}
+      >
         <AuctionFinalCountdown
           secondsLeft={room.timeLeft}
           active={!!auctionLive && !ended}
           embedded
+          compact={layout.compact}
         />
         <BidPulseFlash
           text={
@@ -449,8 +455,11 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
       <WinnerReveal reveal={room.lastReveal} onDone={room.clearReveal} />
 
       {giftFlash ? (
-        <View pointerEvents="none" style={[styles.giftFlash, { top: insets.top + 72 }]}>
-          <Text style={styles.giftFlashTxt}>
+        <View
+          pointerEvents="none"
+          style={[styles.giftFlash, { top: insets.top + layout.vs(64) }]}
+        >
+          <Text style={[styles.giftFlashTxt, { fontSize: layout.s(14) }]}>
             {GIFT_CATALOG.find((g) => g.key === giftFlash.giftKey)?.emoji ?? "🎁"}{" "}
             {giftFlash.fromName}
           </Text>
@@ -460,9 +469,14 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <Glass tone="dark" intensity={42} radius={999}>
           <View style={styles.seller}>
-            <Image source={{ uri: s.avatar }} style={styles.av} />
-            <View>
-              <Text style={styles.name}>{s.seller}</Text>
+            <Image
+              source={{ uri: s.avatar }}
+              style={[styles.av, layout.narrow && { width: 32, height: 32, borderRadius: 16 }]}
+            />
+            <View style={{ maxWidth: layout.narrow ? 140 : 180 }}>
+              <Text style={[styles.name, { fontSize: layout.s(14) }]} numberOfLines={1}>
+                {s.seller}
+              </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <View style={[styles.live, ended && { backgroundColor: "rgba(255,255,255,0.25)" }]}>
                   {!ended ? <View style={styles.dot} /> : null}
@@ -474,10 +488,10 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
           </View>
         </Glass>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <GlassIconButton tone="dark" onPress={openMore}>
+          <GlassIconButton size={layout.icon} tone="dark" onPress={openMore}>
             <MoreVertical size={18} color="#fff" />
           </GlassIconButton>
-          <GlassIconButton tone="dark" onPress={closeOverlay}>
+          <GlassIconButton size={layout.icon} tone="dark" onPress={closeOverlay}>
             <X size={20} color="#fff" />
           </GlassIconButton>
         </View>
@@ -493,12 +507,12 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
       ) : (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]}
+          style={[styles.bottom, { paddingBottom: insets.bottom + 12, gap: layout.compact ? 6 : 10 }]}
           pointerEvents="box-none"
         >
           {room.chat.length > 0 ? (
             <View style={styles.chatList} pointerEvents="none">
-              {room.chat.slice(-6).map((m) => (
+              {room.chat.slice(layout.compact ? -3 : -6).map((m) => (
                 <View key={m.id} style={styles.chatBubble}>
                   {m.system ? (
                     <Text style={styles.chatSystem}>{m.text}</Text>
@@ -541,33 +555,37 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
             </Glass>
           ) : null}
 
-          <View style={styles.chatRow}>
+          <View style={[styles.chatRow, layout.narrow && { gap: 6 }]}>
             <Glass tone="dark" intensity={40} radius={999} style={{ flex: 1 }}>
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
                 placeholder={t("live.chatPlaceholder")}
                 placeholderTextColor="rgba(255,255,255,0.6)"
-                style={styles.input}
+                style={[styles.input, { height: layout.icon, fontSize: layout.s(14) }]}
                 onSubmitEditing={() => void onSendChat()}
                 returnKeyType="send"
               />
             </Glass>
-            <GlassIconButton tone="dark" onPress={() => room.sendHeart()}>
+            <GlassIconButton size={layout.icon} tone="dark" onPress={() => room.sendHeart()}>
               <Heart size={18} color="#fff" />
             </GlassIconButton>
             {liveId ? (
-              <GlassIconButton tone="dark" onPress={() => setGiftsOpen(true)}>
+              <GlassIconButton size={layout.icon} tone="dark" onPress={() => setGiftsOpen(true)}>
                 <Gift size={18} color={GOLD} />
               </GlassIconButton>
             ) : null}
-            <GlassIconButton tone="gold" onPress={() => void onSendChat()}>
+            <GlassIconButton size={layout.icon} tone="gold" onPress={() => void onSendChat()}>
               <Send size={18} color="#fff" />
             </GlassIconButton>
           </View>
 
           {featured && auctionLive ? (
-            <Press style={styles.bid} onPress={() => void onBid()} disabled={busy || isHighest}>
+            <Press
+              style={[styles.bid, { height: layout.vs(48) }]}
+              onPress={() => void onBid()}
+              disabled={busy || isHighest}
+            >
               <LinearGradient colors={["#F7CE5A", "#E8B93B", "#D9A73A"]} style={styles.bidGrad}>
                 <LinearGradient
                   colors={["rgba(255,255,255,0.5)", "rgba(255,255,255,0)"]}
@@ -575,7 +593,7 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
                   pointerEvents="none"
                 />
                 <Gavel size={18} color={NAVY} />
-                <Text style={styles.bidText}>
+                <Text style={[styles.bidText, { fontSize: layout.s(15) }]} numberOfLines={1}>
                   {isHighest
                     ? t("live.youLead")
                     : t("live.bidAt", { amount: fmt(nextBid) })}
@@ -583,10 +601,14 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
               </LinearGradient>
             </Press>
           ) : featured && featured.mode === "fixed" && featured.status === "active" ? (
-            <Press style={styles.bid} onPress={() => void onBuy()} disabled={busy}>
+            <Press
+              style={[styles.bid, { height: layout.vs(48) }]}
+              onPress={() => void onBuy()}
+              disabled={busy}
+            >
               <LinearGradient colors={["#F7CE5A", "#E8B93B", "#D9A73A"]} style={styles.bidGrad}>
                 <ShoppingBag size={18} color={NAVY} />
-                <Text style={styles.bidText}>
+                <Text style={[styles.bidText, { fontSize: layout.s(15) }]} numberOfLines={1}>
                   {t("live.buyNowPrice", { amount: fmt(Number(featured.price)) })}
                 </Text>
               </LinearGradient>

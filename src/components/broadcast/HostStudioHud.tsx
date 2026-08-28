@@ -49,6 +49,7 @@ import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { GIFT_CATALOG } from "../../lib/gifts";
+import { useLayout } from "../../lib/layout";
 import { GOLD, NAVY } from "../../theme";
 
 const RAIL_BG = "rgba(10,12,20,0.55)";
@@ -82,6 +83,7 @@ export function HostStudioHud({
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
   const { user } = useAuth();
   const session = useHostLiveSession({ liveId, identity, displayName });
   const [draft, setDraft] = useState("");
@@ -185,15 +187,18 @@ export function HostStudioHud({
   return (
     <View pointerEvents="box-none" style={styles.root}>
       {giftFlash ? (
-        <View pointerEvents="none" style={[styles.giftFlash, { top: insets.top + 100 }]}>
-          <Text style={styles.giftFlashTxt}>
+        <View
+          pointerEvents="none"
+          style={[styles.giftFlash, { top: insets.top + layout.vs(88) }]}
+        >
+          <Text style={[styles.giftFlashTxt, { fontSize: layout.s(15) }]}>
             {GIFT_CATALOG.find((g) => g.key === giftFlash.giftKey)?.emoji ?? "🎁"}{" "}
             {giftFlash.senderName}
           </Text>
         </View>
       ) : null}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.topLeft}>
+        <View style={[styles.topLeft, layout.narrow && { paddingRight: 88 }]}>
           <View style={styles.livePill}>
             <View style={styles.liveDot} />
             <Text style={styles.liveTime}>{fmtDuration(session.durationSec)}</Text>
@@ -210,63 +215,79 @@ export function HostStudioHud({
         <View style={styles.topRight}>
           <Press
             onPress={() => setProductsOpen(true)}
-            style={styles.circleBtn}
+            style={[styles.circleBtn, { width: layout.iconSm, height: layout.iconSm, borderRadius: layout.iconSm / 2 }]}
             accessibilityLabel={t("live.openProducts")}
           >
-            <Package size={16} color="#fff" />
+            <Package size={layout.compact ? 14 : 16} color="#fff" />
             {session.products.length > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeTxt}>{session.products.length}</Text>
               </View>
             ) : null}
           </Press>
-          <Press onPress={onEnd} style={styles.endBtn} accessibilityLabel={t("live.endLive")}>
+          <Press
+            onPress={onEnd}
+            style={[styles.endBtn, layout.narrow && { paddingHorizontal: 8 }]}
+            accessibilityLabel={t("live.endLive")}
+          >
             <X size={14} color="#fff" />
-            <Text style={styles.endTxt}>{t("live.endLiveShort", "Terminer")}</Text>
+            {!layout.narrow ? (
+              <Text style={styles.endTxt}>{t("live.endLiveShort", "Terminer")}</Text>
+            ) : null}
           </Press>
         </View>
       </View>
 
       <View
         pointerEvents="box-none"
-        style={[styles.statsWrap, { top: insets.top + 52 }]}
+        style={[styles.statsWrap, { top: insets.top + layout.statsTopExtra }]}
       >
-        <View style={styles.statsBar}>
+        <View style={[styles.statsBar, layout.narrow && { maxWidth: "72%" }]}>
           <View style={styles.stat}>
             <Text style={styles.statLabel}>{t("live.salesShort", "Ventes")}</Text>
-            <Text style={styles.statValue}>{fmt(session.sales.revenue)}</Text>
+            <Text style={[styles.statValue, { fontSize: layout.s(13) }]}>{fmt(session.sales.revenue)}</Text>
           </View>
           <View style={styles.statDiv} />
           <View style={styles.stat}>
             <Text style={styles.statLabel}>{t("live.articlesShort", "Articles")}</Text>
-            <Text style={styles.statValue}>{session.sales.count}</Text>
+            <Text style={[styles.statValue, { fontSize: layout.s(13) }]}>{session.sales.count}</Text>
           </View>
           <View style={styles.statDiv} />
           <View style={styles.stat}>
             <Text style={styles.statLabel}>{t("gifts.short")}</Text>
-            <Text style={[styles.statValue, session.gifts.count > 0 && { color: GOLD }]}>
+            <Text style={[styles.statValue, { fontSize: layout.s(13) }, session.gifts.count > 0 && { color: GOLD }]}>
               {fmt(session.gifts.sellerNet)}
             </Text>
           </View>
         </View>
-        <View style={styles.socialRow}>
-          {(["YT", "FB", "TT"] as const).map((p) => (
-            <Press
-              key={p}
-              onPress={() =>
-                soon(t("live.restreamSoon", "Le restream {{platform}} se configure sur kidiplus.com", { platform: p }))
-              }
-              style={styles.socialPill}
-            >
-              <Radio size={11} color={NAVY} />
-              <Text style={styles.socialTxt}>{p}</Text>
-            </Press>
-          ))}
-        </View>
+        {!layout.compact ? (
+          <View style={styles.socialRow}>
+            {(["YT", "FB", "TT"] as const).map((p) => (
+              <Press
+                key={p}
+                onPress={() =>
+                  soon(t("live.restreamSoon", "Le restream {{platform}} se configure sur kidiplus.com", { platform: p }))
+                }
+                style={styles.socialPill}
+              >
+                <Radio size={11} color={NAVY} />
+                <Text style={styles.socialTxt}>{p}</Text>
+              </Press>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {featured ? (
-        <View style={[styles.featured, { top: insets.top + 96 }]}>
+        <View
+          style={[
+            styles.featured,
+            {
+              top: insets.top + layout.featuredTopExtra,
+              width: layout.featuredWidth,
+            },
+          ]}
+        >
           <Press
             onPress={() => {
               session.setFeaturedId(featured.id);
@@ -317,35 +338,66 @@ export function HostStudioHud({
         </View>
       ) : null}
 
-      <View pointerEvents="box-none" style={[styles.rail, { top: insets.top + 244 }]}>
-        <RailBtn onPress={onToggleMic} off={!micOn}>
-          {micOn ? <Mic size={19} color="#fff" strokeWidth={1.9} /> : <MicOff size={19} color="#fff" strokeWidth={1.9} />}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.rail,
+          {
+            top: insets.top + layout.railTopExtra,
+            gap: layout.railGap,
+          },
+        ]}
+      >
+        <RailBtn size={layout.icon} onPress={onToggleMic} off={!micOn}>
+          {micOn ? (
+            <Mic size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
+          ) : (
+            <MicOff size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
+          )}
         </RailBtn>
-        <RailBtn onPress={onToggleCam} off={!camOn}>
-          {camOn ? <Video size={19} color="#fff" strokeWidth={1.9} /> : <VideoOff size={19} color="#fff" strokeWidth={1.9} />}
+        <RailBtn size={layout.icon} onPress={onToggleCam} off={!camOn}>
+          {camOn ? (
+            <Video size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
+          ) : (
+            <VideoOff size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
+          )}
         </RailBtn>
-        <RailBtn onPress={onFlip}>
-          <RefreshCw size={19} color="#fff" strokeWidth={1.9} />
+        <RailBtn size={layout.icon} onPress={onFlip}>
+          <RefreshCw size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => setFiltersOpen(true)}>
-          <Sparkles size={19} color="#fff" strokeWidth={1.9} />
+        <RailBtn size={layout.icon} onPress={() => setFiltersOpen(true)}>
+          <Sparkles size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => setBattleOpen(true)}>
-          <Swords size={19} color="#fff" strokeWidth={1.9} />
+        <RailBtn size={layout.icon} onPress={() => setBattleOpen(true)}>
+          <Swords size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <RailBtn onPress={() => setModsOpen(true)}>
-          <Shield size={19} color="#fff" strokeWidth={1.9} />
+        <RailBtn size={layout.icon} onPress={() => setModsOpen(true)}>
+          <Shield size={layout.compact ? 17 : 19} color="#fff" strokeWidth={1.9} />
         </RailBtn>
-        <Press onPress={() => setAddOpen(true)} style={styles.plusBtn}>
-          <Plus size={22} color={NAVY} strokeWidth={2.6} />
+        <Press
+          onPress={() => setAddOpen(true)}
+          style={[
+            styles.plusBtn,
+            {
+              width: layout.icon,
+              height: layout.icon,
+              borderRadius: layout.icon / 2,
+            },
+          ]}
+        >
+          <Plus size={layout.compact ? 20 : 22} color={NAVY} strokeWidth={2.6} />
         </Press>
       </View>
 
-      <View pointerEvents="none" style={[styles.auctionStack, { top: insets.top + 168 }]}>
+      <View
+        pointerEvents="none"
+        style={[styles.auctionStack, { top: insets.top + layout.auctionTopExtra }]}
+      >
         <AuctionFinalCountdown
           secondsLeft={session.timeLeft}
           active={!!session.auction && !reveal}
           embedded
+          compact={layout.compact}
         />
         {flash ? (
           <View style={styles.sdPill}>
@@ -590,13 +642,22 @@ function RailBtn({
   children,
   onPress,
   off,
+  size = 44,
 }: {
   children: ReactNode;
   onPress: () => void;
   off?: boolean;
+  size?: number;
 }) {
   return (
-    <Press onPress={onPress} style={[styles.railBtn, off && styles.railOff]}>
+    <Press
+      onPress={onPress}
+      style={[
+        styles.railBtn,
+        { width: size, height: size, borderRadius: size / 2 },
+        off && styles.railOff,
+      ]}
+    >
       {children}
     </Press>
   );

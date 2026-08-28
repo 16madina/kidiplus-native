@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useLayout } from "../../lib/layout";
 import { GOLD } from "../../theme";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
@@ -88,8 +89,12 @@ export function BattleSplitStage({
   guestStatus?: string;
 }) {
   const insets = useSafeAreaInsets();
-  const dockTop = insets.top + 124;
-  const dockHeight = Math.min(Dimensions.get("window").height * 0.36, 300);
+  const layout = useLayout();
+  const dockTop = insets.top + layout.vs(100);
+  const dockHeight = Math.min(
+    Dimensions.get("window").height * (layout.compact ? 0.28 : 0.36),
+    layout.compact ? 220 : 300,
+  );
 
   if (!active) {
     return <View style={FILL}>{hostVideo}</View>;
