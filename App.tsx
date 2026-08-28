@@ -3,6 +3,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import "./src/i18n";
 import { LanguageProvider } from "./src/context/language";
 import { ThemeProvider } from "./src/context/theme";
@@ -24,8 +25,9 @@ function useTrackingTransparency() {
     if (Platform.OS !== "ios") return;
     (async () => {
       try {
-        const { requestTrackingPermissionsAsync } = await import("expo-tracking-transparency");
-        await requestTrackingPermissionsAsync();
+        const mod: any = requireOptionalNativeModule("ExpoTrackingTransparency");
+        if (!mod) return;
+        await mod.requestPermissionsAsync();
       } catch {}
     })();
   }, []);
