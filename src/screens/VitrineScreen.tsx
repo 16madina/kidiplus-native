@@ -19,7 +19,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
-import { VitrineCommentsSheet } from "../components/vitrine/VitrineCommentsSheet";
+import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
 import {
   VitrineLiveSlide,
   VitrineSoonSlide,
@@ -423,6 +423,8 @@ function VitrinePostSlide({
   const busyLike = useRef(false);
   const isLive = !!sellerLive;
 
+  const sharePost = () => shareVitrinePost(post.id, post.caption);
+
   useEffect(() => {
     setLiked(post.likedByMe);
     setLikes(post.likes);
@@ -518,7 +520,7 @@ function VitrinePostSlide({
           label={String(comments)}
           onPress={onComments}
         />
-        <Action icon={<Share2 size={26} color="#fff" />} label={t("vitrine.share")} />
+        <Action icon={<Share2 size={26} color="#fff" />} label={t("vitrine.share")} onPress={() => void sharePost()} />
         <Action icon={<Store size={26} color="#fff" />} label={t("vitrine.shop")} onPress={onShop} />
         <Action
           icon={<MoreVertical size={26} color="#fff" />}

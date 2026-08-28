@@ -7,7 +7,6 @@ const EMBEDDED_API_TOKEN =
 const EMBEDDED_LENS_GROUP_ID = "df287f43-6646-4b01-a711-1a0e632c211a";
 const EMBEDDED_LENS_GROUP_IDS_ALL = [
   "df287f43-6646-4b01-a711-1a0e632c211a",
-  "5b22f85d-3308-452f-8bcc-058a5c9dc34b",
 ];
 
 function readEnv(key: string): string {
