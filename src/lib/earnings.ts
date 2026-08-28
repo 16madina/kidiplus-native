@@ -75,3 +75,34 @@ export async function requestPayout(
     ...(r.available != null ? { available: Number(r.available) } : {}),
   };
 }
+
+const PAYPAL_PAYOUT_API = "https://kidiplus.com";
+
+/** Same POST /api/paypal-payout as Lovable's admin "Envoyer via PayPal". */
+export async function dispatchPaypalPayout(payoutId: string): Promise<{
+  ok: boolean;
+  alreadySent?: boolean;
+  error?: string;
+}> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return { ok: false, error: "unauthorized" };
+  try {
+    const res = await fetch(`${PAYPAL_PAYOUT_API}/api/paypal-payout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Origin: "https://kidiplus.com",
+      },
+      body: JSON.stringify({ payoutId }),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok || json.ok === false) {
+      return { ok: false, error: String(json.message ?? json.error ?? "paypal_payout_failed") };
+    }
+    return { ok: true, alreadySent: Boolean(json.alreadySent) };
+  } catch {
+    return { ok: false, error: "network" };
+  }
+}

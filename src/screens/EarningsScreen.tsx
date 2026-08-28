@@ -24,10 +24,12 @@ import {
   fetchMyBalance,
   fetchMyPayouts,
   requestPayout,
+  dispatchPaypalPayout,
   type PayoutMethod,
   type PayoutRow,
   type SellerBalance,
 } from "../lib/earnings";
+import { dispatchConnectPayout } from "../lib/stripe-connect";
 import { defaultPayoutMethod, payoutMethodsForCurrency } from "../lib/payout-methods";
 import { GOLD, NAVY } from "../theme";
 
@@ -224,10 +226,10 @@ function WithdrawSheet({
         setError(t("payout.errors.invalidEmail"));
         return;
       }
-      destination.email = email.trim();
+      // Lovable stores the recipient as paypalEmail (not email).
+      destination.paypalEmail = email.trim();
     } else if (method === "stripe_connect") {
       // Stripe Connect destination is resolved server-side from the seller account.
-      destination.note = "stripe_connect";
     } else {
       if (!iban.trim()) {
         setError(t("payout.errors.missingDestination"));
@@ -238,8 +240,8 @@ function WithdrawSheet({
     }
     setBusy(true);
     const res = await requestPayout(n, method, destination, "seller");
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       if (res.min != null) {
         setError(t("payout.errors.belowMin", { min: formatMoney(res.min, currency, i18n.language) }));
       } else {
@@ -247,6 +249,46 @@ function WithdrawSheet({
       }
       return;
     }
+    // Auto-send: PayPal Payouts / Stripe Connect transfer — no admin "mark as paid".
+    if (method === "paypal") {
+      const sent = await dispatchPaypalPayout(res.payoutId);
+      setBusy(false);
+      if (!sent.ok) {
+        onDone(
+          t("payout.paypalQueued", {
+            defaultValue:
+              "Demande enregistrée. PayPal n'a pas encore pu envoyer le virement — il partira automatiquement, tu n'as rien à valider.",
+          }),
+        );
+        return;
+      }
+      onDone(
+        t("payout.paypalSent", {
+          defaultValue: "PayPal envoie l'argent sur le compte indiqué. Tu n'as rien à accepter ni à marquer comme payé.",
+        }),
+      );
+      return;
+    }
+    if (method === "stripe_connect") {
+      const sent = await dispatchConnectPayout(res.payoutId);
+      setBusy(false);
+      if (!sent.ok) {
+        onDone(
+          t("payout.connectQueued", {
+            defaultValue:
+              "Demande enregistrée. Le virement Stripe n'est pas parti tout de suite — notre système le retraitera.",
+          }),
+        );
+        return;
+      }
+      onDone(
+        t("payout.connectSent", {
+          defaultValue: "Virement Stripe envoyé vers ton compte bancaire.",
+        }),
+      );
+      return;
+    }
+    setBusy(false);
     onDone(`${t("payout.successTitle")} ${t("payout.successBody")}`);
   };
 
@@ -308,15 +350,23 @@ function WithdrawSheet({
                   <FormField label={t("payout.holder")} value={holder} onChangeText={setHolder} />
                 </>
               ) : method === "paypal" ? (
-                <FormField
-                  required
-                  label={t("payout.paypalEmail")}
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  placeholder={t("payout.paypalEmailPlaceholder")}
-                />
+                <>
+                  <FormField
+                    required
+                    label={t("payout.paypalEmail")}
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    placeholder={t("payout.paypalEmailPlaceholder")}
+                  />
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+                    {t("payout.paypalAutoHint", {
+                      defaultValue:
+                        "PayPal envoie le virement tout seul sur cette adresse. Tu n'as pas à l'accepter ni à le marquer comme payé.",
+                    })}
+                  </Text>
+                </>
               ) : connect ? (
                 <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
                   {t("payout.stripeConnectHint", {

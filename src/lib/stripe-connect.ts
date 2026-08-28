@@ -133,6 +133,15 @@ export async function startConnectOnboarding(country?: string | null): Promise<{
   };
 }
 
+export async function dispatchConnectPayout(payoutId: string): Promise<{ ok: boolean; error?: string }> {
+  const json = await postConnect("/api/connect/payout", { payoutId });
+  if (json.ok) return { ok: true };
+  return {
+    ok: false,
+    error: typeof json.message === "string" ? json.message : String(json.error ?? "transfer_failed"),
+  };
+}
+
 export async function openConnectUrl(url: string): Promise<void> {
   // Web uses Capacitor Browser.open (popover) — same idea: in-app browser,
   // Stripe returns to https://kidiplus.com, then the seller comes back and refreshes.
