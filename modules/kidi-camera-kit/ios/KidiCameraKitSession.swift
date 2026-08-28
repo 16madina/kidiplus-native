@@ -308,6 +308,27 @@ final class KidiCameraKitSession: NSObject {
     }
 }
 
+// MARK: - Preview host (accessed from KidiCameraKitPreviewView)
+
+extension KidiCameraKitSession {
+    func registerPreviewHost(_ host: UIView) {
+        previewHost = host
+        if let preview = previewView {
+            attachPreview(preview)
+        }
+    }
+
+    func unregisterPreviewHost(_ host: UIView) {
+        guard previewHost === host else { return }
+        previewHost = nil
+        previewView?.removeFromSuperview()
+    }
+
+    func layoutPreview(in bounds: CGRect) {
+        previewView?.frame = bounds
+    }
+}
+
 // MARK: - Session lifecycle
 
 private extension KidiCameraKitSession {
@@ -481,23 +502,6 @@ private extension KidiCameraKitSession {
                 completion(running)
             }
         }
-    }
-
-    func registerPreviewHost(_ host: UIView) {
-        previewHost = host
-        if let preview = previewView {
-            attachPreview(preview)
-        }
-    }
-
-    func unregisterPreviewHost(_ host: UIView) {
-        guard previewHost === host else { return }
-        previewHost = nil
-        previewView?.removeFromSuperview()
-    }
-
-    func layoutPreview(in bounds: CGRect) {
-        previewView?.frame = bounds
     }
 
     /// Prefer the Expo RN preview host; fall back to key-window root.
