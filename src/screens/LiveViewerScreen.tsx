@@ -269,6 +269,22 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onBid = async () => {
+    // Demo lives: bid without account/wallet gates so the full auction
+    // flow (bid -> sudden death -> winner) is reviewable by Apple.
+    if (s.fictitious) {
+      setBusy(true);
+      try {
+        const res = await room.placeBid();
+        if (res.ok) {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+        } else {
+          setToast(t("live.waitingForSeller"));
+        }
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!liveId) return;
     if (!user) {
       openAuth();
@@ -319,6 +335,11 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onBuy = async () => {
+    if (s.fictitious) {
+      const res = await room.buyNow({ productId: featured?.id });
+      if (res.ok) setToast(t("live.demoPurchase", "Achat démo confirmé 🎉"));
+      return;
+    }
     if (!liveId || !featured) return;
     if (!user) {
       openAuth();
@@ -364,6 +385,14 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onGift = async (key: GiftKey) => {
+    if (s.fictitious) {
+      const res = await room.sendGift(key);
+      if (res.ok) {
+        setGiftsOpen(false);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      }
+      return;
+    }
     if (!liveId) return;
     if (!user) {
       openAuth();
@@ -576,7 +605,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             <GlassIconButton size={layout.icon} tone="dark" onPress={() => room.sendHeart()}>
               <Heart size={18} color="#fff" />
             </GlassIconButton>
-            {liveId ? (
+            {liveId || s.fictitious ? (
               <GlassIconButton size={layout.icon} tone="dark" onPress={() => setGiftsOpen(true)}>
                 <Gift size={18} color={GOLD} />
               </GlassIconButton>

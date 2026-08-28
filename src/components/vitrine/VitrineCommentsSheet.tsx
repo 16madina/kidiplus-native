@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Share,
@@ -49,6 +50,10 @@ export function VitrineCommentsSheet({
   const [replyTo, setReplyTo] = useState<VitrineComment | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const inputRef = useRef<TextInput>(null);
+  // Parents pass inline closures that change on every render; keep them in a
+  // ref so the load effect below never re-fires (it caused flicker/trembling).
+  const onCountChangeRef = useRef(onCountChange);
+  onCountChangeRef.current = onCountChange;
 
   useEffect(() => {
     if (!open) return;
@@ -58,10 +63,10 @@ export function VitrineCommentsSheet({
     void fetchVitrineComments(postId).then((r) => {
       setRows(r);
       setLoading(false);
-      onCountChange?.(r.length);
+      onCountChangeRef.current?.(r.length);
     });
     void loadLikedComments().then(setLikedIds);
-  }, [open, postId, onCountChange]);
+  }, [open, postId]);
 
   const send = async () => {
     const text = body.trim();
@@ -74,7 +79,7 @@ export function VitrineCommentsSheet({
     setReplyTo(null);
     Keyboard.dismiss();
     setRows((prev) => [...prev, res.comment]);
-    onCountChange?.(rows.length + 1);
+    onCountChangeRef.current?.(rows.length + 1);
   };
 
   const toggleLike = async (commentId: string) => {
@@ -113,7 +118,10 @@ export function VitrineCommentsSheet({
       presentationStyle={Platform.OS === "ios" ? "pageSheet" : undefined}
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         <View style={styles.head}>
           <View style={styles.handle} />
           <View style={styles.headRow}>
@@ -195,7 +203,7 @@ export function VitrineCommentsSheet({
             </Press>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
