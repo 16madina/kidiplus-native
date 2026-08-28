@@ -12,6 +12,7 @@ import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
 import { UpcomingLivesRow } from "../components/UpcomingLivesRow";
 import { EmailConfirmBanner } from "../components/EmailConfirmBanner";
+import { FrozenBanner } from "../components/FrozenBanner";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -106,6 +107,7 @@ export function HomeScreen() {
       >
         <View style={{ height: 8 }} />
         <EmailConfirmBanner />
+        <FrozenBanner />
         <CategoryTiles active={category} onChange={setCategory} />
         <View style={{ height: 12 }} />
         <FilterPills active={filter} onChange={setFilter} onOpenFilters={() => setFilterSheetOpen(true)} />

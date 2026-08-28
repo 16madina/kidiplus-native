@@ -6,6 +6,7 @@ import { OverlayHeader } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { VerifiedBadge } from "../components/VerifiedBadge";
+import { ReferredBadge } from "../components/ReferredBadge";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
 import { supabase } from "../lib/supabase";
@@ -19,6 +20,7 @@ type SellerProfile = {
   avatar_url: string | null;
   bio: string | null;
   is_verified: boolean;
+  is_referred: boolean;
   followers_count: number;
 };
 
@@ -33,7 +35,7 @@ export function SellerProfileScreen({ sellerId }: { sellerId: string }) {
     const load = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, display_name, handle, avatar_url, bio, is_verified, followers_count")
+        .select("id, display_name, handle, avatar_url, bio, is_verified, is_referred, followers_count")
         .eq("id", sellerId)
         .single();
       if (alive && data) {
@@ -67,6 +69,7 @@ export function SellerProfileScreen({ sellerId }: { sellerId: string }) {
             <View style={styles.nameRow}>
               <Text style={[styles.displayName, { color: colors.foreground }]}>{profile.display_name}</Text>
               {profile.is_verified && <VerifiedBadge />}
+              <ReferredBadge referred={profile.is_referred} size={16} />
             </View>
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{profile.handle}</Text>
             {profile.bio ? (

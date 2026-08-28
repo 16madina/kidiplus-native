@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { FileText } from "lucide-react-native";
 import { Image } from "expo-image";
@@ -16,6 +16,7 @@ import {
   disputeOrder,
   fetchMyPurchases,
   fetchMySales,
+  formatAddressSnapshot,
   markOrderShipped,
   type OrderView,
 } from "../lib/orders";
@@ -46,7 +47,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"purchases" | "sales">("purchases");
+  const [tab, setTab] = useState<"purchases" | "sales">(user?.isSeller ? "sales" : "purchases");
   const [toast, setToast] = useState<string | null>(null);
   const [purchases, setPurchases] = useState<OrderView[]>([]);
   const [sales, setSales] = useState<OrderView[]>([]);
@@ -54,6 +55,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const [paying, setPaying] = useState<OrderView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<OrderView | null>(null);
+  const [detailIsSale, setDetailIsSale] = useState(false);
   const [invoiceOrder, setInvoiceOrder] = useState<OrderView | null>(null);
   const openedOrderRef = useRef<string | null>(null);
   const list = tab === "purchases" ? purchases : sales;
@@ -149,7 +151,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("myOrders.title")} />
       <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
-        {(["purchases", "sales"] as const).map((k) => (
+        {(["sales", "purchases"] as const).map((k) => (
           <Press key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && { borderBottomColor: GOLD }]}>
             <Text style={{ fontWeight: tab === k ? "800" : "600", color: tab === k ? colors.foreground : colors.mutedForeground }}>
               {t(`myOrders.tabs.${k}`)}
@@ -172,7 +174,14 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
             const busy = busyId === o.id;
             const isBuyer = tab === "purchases";
             return (
-              <Press key={o.id} onPress={() => setDetailOrder(o)} style={{ minHeight: 0 }}>
+              <Press
+                key={o.id}
+                onPress={() => {
+                  setDetailIsSale(!isBuyer);
+                  setDetailOrder(o);
+                }}
+                style={{ minHeight: 0 }}
+              >
               <SurfaceCard padded={false}>
                 <View style={styles.card}>
                   {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
@@ -246,6 +255,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
               <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 4 }}>{detailOrder.seller}</Text>
               <Text style={{ color: GOLD, fontWeight: "800", fontSize: 18, marginTop: 6 }}>{detailOrder.price}</Text>
             </SurfaceCard>
+            {detailIsSale ? <SellerShipBlock order={detailOrder} /> : null}
             <SurfaceCard>
               <Text style={{ fontWeight: "700", fontSize: 14, color: colors.foreground, marginBottom: 8 }}>Suivi de commande</Text>
               <OrderTimeline
@@ -255,7 +265,7 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
             </SurfaceCard>
             <Press onPress={() => setInvoiceOrder(detailOrder)} style={styles.cta}>
               <FileText size={16} color={NAVY} />
-              <Text style={{ fontWeight: "800", color: NAVY }}>Voir la facture</Text>
+              <Text style={{ fontWeight: "800", color: NAVY }}>{t("invoice.viewCta")}</Text>
             </Press>
           </ScrollView>
         </View>
@@ -264,10 +274,10 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
         order={invoiceOrder ? {
           id: invoiceOrder.id,
           item_name: invoiceOrder.name,
-          amount: parseFloat(invoiceOrder.price.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
-          delivery_fee: 0,
-          total: parseFloat(invoiceOrder.price.replace(/[^\d.,]/g, "").replace(",", ".")) || 0,
-          currency: "EUR",
+          amount: invoiceOrder.itemAmount,
+          delivery_fee: invoiceOrder.deliveryFee,
+          total: invoiceOrder.total,
+          currency: invoiceOrder.currency,
           status: invoiceOrder.status,
           created_at: invoiceOrder.when || new Date().toISOString(),
           seller_name: invoiceOrder.seller,
@@ -276,6 +286,77 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
         onClose={() => setInvoiceOrder(null)}
       />
     </View>
+  );
+}
+
+function SellerShipBlock({ order }: { order: OrderView }) {
+  const { t } = useTranslation();
+  const { colors } = useAppTheme();
+  const snap = order.address;
+  const line = formatAddressSnapshot(snap);
+  const paid = order.rawStatus === "paid" || order.status === "shipped" || order.status === "delivered";
+
+  if (!paid) {
+    return (
+      <SurfaceCard>
+        <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("sellerOrder.shipTo")}</Text>
+        <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 6 }}>
+          {t("sellerOrder.awaitingPayment")}
+        </Text>
+      </SurfaceCard>
+    );
+  }
+
+  if (!snap) {
+    return (
+      <SurfaceCard>
+        <Text style={{ fontWeight: "700", color: colors.foreground }}>{t("sellerOrder.shipTo")}</Text>
+        <Text style={{ color: colors.mutedForeground, fontSize: 13, marginTop: 6 }}>{t("sellerOrder.noAddress")}</Text>
+      </SurfaceCard>
+    );
+  }
+
+  const phone = (snap.phone ?? "").trim();
+  const digits = phone.replace(/[^0-9+]/g, "");
+
+  return (
+    <SurfaceCard>
+      <Text style={{ fontWeight: "700", color: colors.foreground, marginBottom: 8 }}>{t("sellerOrder.shipTo")}</Text>
+      {snap.full_name ? (
+        <Text style={{ color: colors.foreground, fontWeight: "800", fontSize: 15 }}>{snap.full_name}</Text>
+      ) : null}
+      {phone ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          <Press
+            onPress={() => void Linking.openURL(`tel:${digits}`)}
+            style={[styles.ghost, { borderColor: colors.border, paddingHorizontal: 12, height: 36, minHeight: 36 }]}
+          >
+            <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 13 }}>{phone}</Text>
+          </Press>
+          <Press
+            onPress={() => void Linking.openURL(`https://wa.me/${digits.replace(/^\+/, "")}`)}
+            style={[styles.ghost, { borderColor: colors.border, paddingHorizontal: 12, height: 36, minHeight: 36 }]}
+          >
+            <Text style={{ fontWeight: "700", color: "#128C7E", fontSize: 13 }}>WhatsApp</Text>
+          </Press>
+        </View>
+      ) : null}
+      {line ? (
+        <Text style={{ color: colors.foreground, fontSize: 13, marginTop: 8, lineHeight: 18 }}>{line}</Text>
+      ) : null}
+      {snap.details ? (
+        <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>{snap.details}</Text>
+      ) : null}
+      <Press
+        onPress={() => {
+          const block = [snap.full_name, phone, line, snap.details].filter(Boolean).join("\n");
+          if (block) void Share.share({ message: block });
+        }}
+        style={[styles.ghost, { borderColor: colors.border, marginTop: 10, height: 36, minHeight: 36 }]}
+      >
+        <Text style={{ fontWeight: "700", color: colors.foreground, fontSize: 12 }}>{t("sellerOrder.copyAddress")}</Text>
+      </Press>
+    </SurfaceCard>
   );
 }
 

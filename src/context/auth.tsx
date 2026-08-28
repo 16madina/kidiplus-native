@@ -30,6 +30,8 @@ export type AuthUser = {
   phone: string;
   isSeller: boolean;
   isAdmin: boolean;
+  isReferred: boolean;
+  isFrozen: boolean;
   avatarUrl?: string | null;
   bannerUrl?: string | null;
   bio?: string | null;
@@ -145,6 +147,8 @@ async function toAuthUser(
     phone: profile?.phone || (typeof meta.phone === "string" ? meta.phone : "") || "",
     isSeller: !!profile?.is_seller,
     isAdmin: !!profile?.is_admin,
+    isReferred: !!profile?.is_referred,
+    isFrozen: !!profile?.is_frozen,
     avatarUrl,
     bannerUrl: (await resolveAvatarUrl(profile?.banner_url)) || null,
     bio: profile?.bio ?? null,

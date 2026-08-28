@@ -1156,7 +1156,7 @@
     "title": "Payment",
     "item": "Item",
     "platformFee": "Service fee",
-    "feeNote": "You pay the listed price. Fastest in live: top up your wallet, then pay from balance. KiDi+ keeps {{pct}}% from the seller (not from you).",
+    "feeNote": "You pay the listed price. Commission fees ({{pct}}%) are deducted from the seller.",
     "processingFee": "Processing fee",
     "total": "Total",
     "payNow": "Pay {{total}}",
@@ -1317,8 +1317,8 @@
   "myOrders": {
     "title": "My orders",
     "tabs": {
-      "sales": "My sales",
-      "purchases": "My purchases"
+      "sales": "Orders",
+      "purchases": "Ordered"
     },
     "salesHint": "Items buyers ordered from you — ship them once paid.",
     "purchasesHint": "Items you ordered from other sellers.",
@@ -1411,6 +1411,14 @@
       "resolveFail": "Failed",
       "freeze": "Freeze",
       "unfreeze": "Unfreeze",
+      "freezeFunds": "Freeze funds 🧊",
+      "freezePrompt": "Reason for freezing this account?",
+      "noSignals": "No signals",
+      "level": {
+        "green": "No signals",
+        "yellow": "Caution",
+        "red": "High risk"
+      },
       "freezeOn": "Account frozen (payments)",
       "freezeOff": "Freeze lifted",
       "frozen": "frozen",
@@ -1531,7 +1539,10 @@
     "endLive": "End live",
     "dismiss": "Dismiss",
     "approve": "Approve",
-    "approxEurTotal": "≈ EUR (indicative)"
+    "approxEurTotal": "≈ EUR (indicative)",
+    "frozen": {
+      "banner": "Your account is under review"
+    }
   },
   "moderation": {
     "reason": "Reason",
@@ -1964,12 +1975,6 @@
     "menu": "My referral codes & earnings",
     "myCode": "My code",
     "inactive": "Inactive",
-    "admin": {
-      "requestsTitle": "Code requests",
-      "codesTitle": "Influencer codes",
-      "activate": "Activate",
-      "deactivate": "Deactivate"
-    },
     "signups": "Signups",
     "ordersCredited": "Orders",
     "totals": "Earnings",
@@ -1986,12 +1991,12 @@
       "withdrawEmpty": "Withdraw (no earnings yet)",
       "withdrawWeb": "OTP withdrawal is coming in the app. For now, withdraw on kidiplus.com."
     },
-    "intro": "Share your code. When someone enters it at signup, 10% of each of their purchases and sales goes to your referral card — instead of KiDi+.",
+    "intro": "Share your code. People who sign up with it stay linked to you for life. On their first 14 orders (as buyer or seller), 10% of KiDi+'s commission goes to your referral card. Seller's referrer first, otherwise the buyer's — one order = one credit.",
     "quota": "Quota",
     "claim": {
       "entry": "Claim my referral code 🤝",
       "title": "Become a KiDi+ partner",
-      "intro": "Scratch your partner vial to activate your code. Then 10% of every purchase and sale from people who used it lands here, on your referral card.",
+      "intro": "Scratch your partner vial to activate your code. Then 10% of KiDi+'s commission on the first 14 orders of people who used it (as buyer or seller) lands here — instead of KiDi+.",
       "tokenLabel": "Activation code",
       "hint": "Already got an activation code? Enter it below. Otherwise, request a referral code further down.",
       "partnerLabel": "KiDi+ Partner",
@@ -2024,6 +2029,8 @@
     },
     "admin": {
       "title": "Referrals",
+      "requestsTitle": "Code requests",
+      "codesTitle": "Influencer codes",
       "create": "New code",
       "createBtn": "Create code",
       "createIntro": "By default, the code is \"to be claimed\": the influencer activates their account with a secret activation code.",
@@ -2061,6 +2068,7 @@
       "activate": "Activate",
       "deactivate": "Deactivate",
       "renew": "Renew",
+      "plus14": "+14",
       "renewPrompt": "How many credits to add to each signup?",
       "renewed": "{{n}} signup(s) credited",
       "assign": "Assign",

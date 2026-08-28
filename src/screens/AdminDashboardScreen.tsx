@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -29,6 +30,7 @@ import { SurfaceCard } from "../components/SurfaceCard";
 import { AdminPrelaunchSimPanel } from "../components/admin/AdminPrelaunchSimPanel";
 import { AdminPushPanel } from "../components/admin/AdminPushPanel";
 import { PaymentsModeBadge } from "../components/admin/PaymentsModeBadge";
+import { PayoutRiskBadge } from "../components/admin/PayoutRiskBadge";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD, NAVY, initials } from "../theme";
@@ -61,8 +63,11 @@ import {
   type ReportRow,
 } from "../lib/admin";
 import {
+  adminCreatePromoCode,
+  adminRenewPromoCredits,
   adminReviewPromoCodeRequest,
   adminSetPromoActive,
+  buildInfluencerOnboardingMessage,
   fetchAdminPromoCodeRequests,
   fetchAdminPromoCodes,
   formatTotals,
@@ -516,6 +521,12 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
           {p.method === "paypal" && paypalEmail(p) ? (
             <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{paypalEmail(p)}</Text>
           ) : null}
+          {p.source === "referral" ? (
+            <Text style={{ color: GOLD, fontSize: 11, fontWeight: "800", marginTop: 4 }}>
+              {t("admin.payouts.sourceReferral")}
+            </Text>
+          ) : null}
+          <PayoutRiskBadge payoutId={p.id} sellerId={p.seller_id} onChanged={load} />
           <View style={styles.rowBtns}>
             {p.method === "paypal" ? (
               <ActionPill
@@ -599,12 +610,21 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
   );
 }
 
+function shareOnboarding(code: string, token: string, lang: string) {
+  const loc = lang.startsWith("en") ? "en" : "fr";
+  void Share.share({ message: buildInfluencerOnboardingMessage(code, token, loc) });
+}
+
 function ReferralAdminTab({ flash }: { flash: (s: string) => void }) {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const [requests, setRequests] = useState<AdminPromoCodeRequestRow[]>([]);
   const [codes, setCodes] = useState<AdminPromoCodeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newCode, setNewCode] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [lastCreated, setLastCreated] = useState<{ code: string; token: string } | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const [reqs, list] = await Promise.all([fetchAdminPromoCodeRequests("pending"), fetchAdminPromoCodes()]);
@@ -641,6 +661,26 @@ function ReferralAdminTab({ flash }: { flash: (s: string) => void }) {
     ]);
   };
 
+  const createUnassigned = () => {
+    const code = newCode.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{4,20}$/.test(code)) {
+      flash(t("referral.admin.badFormat"));
+      return;
+    }
+    setCreating(true);
+    void adminCreatePromoCode(code, null, 14).then((res) => {
+      setCreating(false);
+      if (!res.ok) {
+        flash(res.error);
+        return;
+      }
+      setNewCode("");
+      setLastCreated({ code: res.code, token: res.claim_token });
+      flash(t("referral.admin.created"));
+      void load();
+    });
+  };
+
   if (loading) return <ActivityIndicator color={GOLD} />;
 
   return (
@@ -667,46 +707,133 @@ function ReferralAdminTab({ flash }: { flash: (s: string) => void }) {
           </SurfaceCard>
         ))
       )}
+
       <SectionTitle text={t("referral.admin.codesTitle", { defaultValue: "Codes influenceurs" })} />
+      <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+        {t("referral.admin.createIntro")}
+      </Text>
+      <View style={[styles.search, { borderColor: colors.border }]}>
+        <TextInput
+          value={newCode}
+          onChangeText={setNewCode}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          placeholder={t("referral.admin.codeLabel")}
+          placeholderTextColor={colors.mutedForeground}
+          style={[styles.searchInput, { color: colors.foreground }]}
+        />
+      </View>
+      <ActionPill
+        label={creating ? "…" : t("referral.admin.create")}
+        onPress={() => {
+          if (!creating) createUnassigned();
+        }}
+      />
+
+      {lastCreated ? (
+        <SurfaceCard style={{ borderColor: GOLD, backgroundColor: "rgba(232,185,59,0.08)" }}>
+          <Text style={{ fontWeight: "800", color: colors.foreground }}>{t("referral.admin.onboardingTitle")}</Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>
+            {t("referral.admin.onboardingIntro")}
+          </Text>
+          <Text style={{ color: colors.foreground, marginTop: 8, fontWeight: "800" }}>
+            {t("referral.admin.publicLabel")} : {lastCreated.code}
+          </Text>
+          <Text style={{ color: colors.foreground, marginTop: 4, fontWeight: "700" }}>
+            {t("referral.admin.secretLabel")} : {lastCreated.token}
+          </Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 4 }}>
+            {t("referral.admin.secretHint")}
+          </Text>
+          <View style={styles.rowBtns}>
+            <ActionPill
+              label={t("referral.admin.copyMessage")}
+              onPress={() => shareOnboarding(lastCreated.code, lastCreated.token, i18n.language)}
+            />
+          </View>
+        </SurfaceCard>
+      ) : null}
+
       {codes.length === 0 ? (
-        <Text style={{ color: colors.mutedForeground }}>{t("admin.empty")}</Text>
+        <Text style={{ color: colors.mutedForeground }}>{t("referral.admin.empty")}</Text>
       ) : (
-        codes.map((c) => (
-          <SurfaceCard key={c.id}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ flex: 1, fontWeight: "800", color: colors.foreground }}>{c.code}</Text>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "800",
-                  color: c.active ? "#1B7A3A" : colors.mutedForeground,
-                }}
-              >
-                {c.active ? "ACTIF" : t("referral.inactive", { defaultValue: "Inactif" }).toUpperCase()}
+        codes.map((c) => {
+          const claimed = !!c.owner_id && !!c.claimed_at;
+          const showToken = !!revealed[c.id];
+          const held = c.held_totals && Object.keys(c.held_totals).length > 0
+            ? formatTotals(c.held_totals, i18n.language)
+            : null;
+          return (
+            <SurfaceCard key={c.id}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ flex: 1, fontWeight: "800", color: colors.foreground }}>{c.code}</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "800",
+                    color: c.active ? "#1B7A3A" : colors.mutedForeground,
+                  }}
+                >
+                  {c.active ? "ACTIF" : t("referral.inactive").toUpperCase()}
+                </Text>
+              </View>
+              <Text style={{ color: claimed ? "#1B7A3A" : "#B45309", fontSize: 12, fontWeight: "700", marginTop: 4 }}>
+                {claimed
+                  ? t("referral.admin.statusClaimed", { h: c.owner_handle || c.owner_name || "?" })
+                  : t("referral.admin.statusPending")}
               </Text>
-            </View>
-            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
-              {c.owner_handle ? `@${c.owner_handle}` : "—"} · {c.signups} {t("referral.signups").toLowerCase()} ·{" "}
-              {c.orders_credited} {t("referral.ordersCredited").toLowerCase()} · {formatTotals(c.totals, i18n.language)}
-            </Text>
-            <View style={styles.rowBtns}>
-              <ActionPill
-                label={
-                  c.active
-                    ? t("referral.admin.deactivate", { defaultValue: "Désactiver" })
-                    : t("referral.admin.activate", { defaultValue: "Activer" })
-                }
-                danger={c.active}
-                onPress={() => {
-                  void adminSetPromoActive(c.id, !c.active).then((res) => {
-                    flash(res.ok ? "OK" : res.error ?? "Erreur");
-                    void load();
-                  });
-                }}
-              />
-            </View>
-          </SurfaceCard>
-        ))
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+                {c.signups} {t("referral.signups").toLowerCase()} · {c.orders_credited}{" "}
+                {t("referral.ordersCredited").toLowerCase()} · quota {c.reward_quota} ·{" "}
+                {formatTotals(c.totals, i18n.language)}
+              </Text>
+              {held ? (
+                <Text style={{ color: "#B45309", fontSize: 12, marginTop: 2 }}>
+                  {t("referral.admin.held")} : {held}
+                </Text>
+              ) : null}
+              {c.claim_token ? (
+                <Press
+                  onPress={() => setRevealed((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
+                  style={{ minHeight: 0, alignSelf: "flex-start", marginTop: 6 }}
+                >
+                  <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "700" }}>
+                    {t("referral.admin.claimToken")} : {showToken ? c.claim_token : "••••-••••-••••"}
+                  </Text>
+                </Press>
+              ) : null}
+              <View style={[styles.rowBtns, { flexWrap: "wrap" }]}>
+                {c.claim_token ? (
+                  <ActionPill
+                    label={t("referral.admin.copyMessage")}
+                    onPress={() => shareOnboarding(c.code, c.claim_token!, i18n.language)}
+                  />
+                ) : null}
+                <ActionPill
+                  label={t("referral.admin.plus14", { defaultValue: "+14" })}
+                  onPress={() => {
+                    void adminRenewPromoCredits(c.id, 14).then((res) => {
+                      flash(res.ok ? t("referral.admin.renewed", { n: res.updated }) : res.error);
+                      if (res.ok) void load();
+                    });
+                  }}
+                />
+                <ActionPill
+                  label={
+                    c.active ? t("referral.admin.deactivate") : t("referral.admin.activate")
+                  }
+                  danger={c.active}
+                  onPress={() => {
+                    void adminSetPromoActive(c.id, !c.active).then((res) => {
+                      flash(res.ok ? "OK" : res.error ?? "Erreur");
+                      void load();
+                    });
+                  }}
+                />
+              </View>
+            </SurfaceCard>
+          );
+        })
       )}
     </View>
   );

@@ -1156,7 +1156,7 @@
     "title": "Paiement",
     "item": "Article",
     "platformFee": "Frais de service",
-    "feeNote": "Tu paies le prix affiché. Le plus simple en live : recharger le portefeuille, puis payer au solde. KiDi+ retient {{pct}} % sur le vendeur (pas sur toi).",
+    "feeNote": "Tu paies le prix affiché. Les frais de commission ({{pct}}%) sont déduits du vendeur.",
     "processingFee": "Frais de traitement",
     "total": "Total",
     "payNow": "Payer {{total}}",
@@ -1318,8 +1318,8 @@
   "myOrders": {
     "title": "Mes commandes",
     "tabs": {
-      "sales": "Mes ventes",
-      "purchases": "Mes achats"
+      "sales": "Commandes",
+      "purchases": "Commandé"
     },
     "salesHint": "Articles que des acheteurs t’ont commandés — à livrer une fois payés.",
     "purchasesHint": "Articles que tu as commandés chez d’autres vendeurs.",
@@ -1412,6 +1412,14 @@
       "resolveFail": "Échec",
       "freeze": "Geler",
       "unfreeze": "Lever le gel",
+      "freezeFunds": "Geler les fonds 🧊",
+      "freezePrompt": "Motif du gel du compte ?",
+      "noSignals": "Aucun signal",
+      "level": {
+        "green": "Aucun signal",
+        "yellow": "Vigilance",
+        "red": "Risque élevé"
+      },
       "freezeOn": "Compte gelé (paiements)",
       "freezeOff": "Gel levé",
       "frozen": "gelé",
@@ -1532,7 +1540,10 @@
     "endLive": "Couper le live",
     "dismiss": "Classer",
     "approve": "Approuver",
-    "approxEurTotal": "≈ EUR (indicatif)"
+    "approxEurTotal": "≈ EUR (indicatif)",
+    "frozen": {
+      "banner": "Ton compte fait l'objet d'une vérification"
+    }
   },
   "moderation": {
     "reason": "Motif",
@@ -1965,12 +1976,6 @@
     "menu": "Mes codes & gains de parrainage",
     "myCode": "Mon code",
     "inactive": "Inactif",
-    "admin": {
-      "requestsTitle": "Demandes de code",
-      "codesTitle": "Codes influenceurs",
-      "activate": "Activer",
-      "deactivate": "Désactiver"
-    },
     "signups": "Inscrits",
     "ordersCredited": "Commandes",
     "totals": "Gains",
@@ -1987,12 +1992,12 @@
       "withdrawEmpty": "Retirer (aucun gain)",
       "withdrawWeb": "Le retrait OTP arrive dans l’app. En attendant, retire tes gains sur kidiplus.com."
     },
-    "intro": "Partage ton code. Dès qu’un utilisateur l’entre à l’inscription, 10 % de chacun de ses achats et de ses ventes vont sur ta carte parrainage — à la place de KiDi+.",
+    "intro": "Partage ton code. Tes filleuls sont rattachés à toi à vie. Sur leurs 14 premières commandes (acheteur ou vendeur), 10 % de la commission KiDi+ vont sur ta carte parrainage. Priorité au parrain du vendeur, sinon celui de l'acheteur — une commande = un crédit.",
     "quota": "Quota",
     "claim": {
       "entry": "Réclamer mon code influenceur 🤝",
       "title": "Deviens partenaire KiDi+",
-      "intro": "Gratte ta fiole partenaire pour activer ton code. Ensuite, 10 % de chaque achat et de chaque vente de tes filleuls arrivent ici, sur ta carte parrainage.",
+      "intro": "Gratte ta fiole partenaire pour activer ton code. Ensuite, 10 % de la commission KiDi+ sur les 14 premières commandes de tes filleuls (acheteur ou vendeur) arrivent ici — à la place de KiDi+.",
       "tokenLabel": "Code d'activation",
       "hint": "As-tu déjà reçu un code d'activation ? Entre-le ci-dessous. Sinon, tu peux demander un code de parrainage plus bas.",
       "partnerLabel": "KiDi+ Partenaire",
@@ -2025,6 +2030,8 @@
     },
     "admin": {
       "title": "Parrainage",
+      "requestsTitle": "Demandes de code",
+      "codesTitle": "Codes influenceurs",
       "create": "Nouveau code",
       "createBtn": "Créer le code",
       "createIntro": "Par défaut, le code est « à réclamer » : l'influenceur active son compte avec un code d'activation secret.",
@@ -2062,6 +2069,7 @@
       "activate": "Activer",
       "deactivate": "Désactiver",
       "renew": "Renouveler",
+      "plus14": "+14",
       "renewPrompt": "Ajouter combien de crédits à chaque parrainage ?",
       "renewed": "{{n}} parrainage(s) crédité(s)",
       "assign": "Assigner",

@@ -33,6 +33,8 @@ import { Logo } from "../components/Logo";
 import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
 import { SurfaceCard } from "../components/SurfaceCard";
+import { ReferredBadge } from "../components/ReferredBadge";
+import { FrozenBanner } from "../components/FrozenBanner";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -180,7 +182,10 @@ function AuthedProfile() {
             <Text style={styles.heroIconLabel}>{t("profile.hero.message")}</Text>
           </View>
         </View>
-        <Text style={styles.name}>{user.displayName}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>{user.displayName}</Text>
+          <ReferredBadge referred={user.isReferred} size={16} />
+        </View>
         <Text style={styles.handle}>@{user.handle}</Text>
         <Text style={styles.email}>{user.email}</Text>
         <Glass tone="dark" intensity={42} radius={18} style={styles.stats}>
@@ -201,6 +206,7 @@ function AuthedProfile() {
           <Quick icon={<ShoppingBag size={18} color={GOLD} />} label={t("profile.quick.orders")} onPress={() => openOverlay({ kind: "orders" })} />
         </View>
       </LinearGradient>
+      <FrozenBanner />
 
       {user.isSeller ? (
         <Section title={t("profile.sections.boutique")}>
@@ -348,7 +354,8 @@ const styles = StyleSheet.create({
   avatar: { flex: 1, borderRadius: 44, backgroundColor: NAVY_INSET },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarInitials: { color: "#fff", fontSize: 28, fontWeight: "900" },
-  name: { marginTop: 10, color: "#fff", fontSize: 22, fontWeight: "900", textAlign: "center" },
+  nameRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
+  name: { color: "#fff", fontSize: 22, fontWeight: "900", textAlign: "center" },
   handle: { color: GOLD, textAlign: "center", fontWeight: "700" },
   email: { color: "rgba(255,255,255,0.6)", textAlign: "center", fontSize: 12, marginTop: 2 },
   stats: { marginTop: 14 },

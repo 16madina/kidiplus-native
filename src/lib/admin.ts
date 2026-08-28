@@ -65,6 +65,7 @@ export async function fetchAdminUsers(
 
 export type AdminPayoutRow = {
   id: string;
+  seller_id: string;
   seller_handle: string | null;
   seller_name: string | null;
   amount: number;
@@ -76,12 +77,60 @@ export type AdminPayoutRow = {
   source?: string;
 };
 
+export type PayoutRiskSignal = { code: string; label: string };
+
+export type PayoutRisk = {
+  ok: true;
+  level: "green" | "yellow" | "red";
+  signals: PayoutRiskSignal[];
+  seller_age_days: number | null;
+  total_sales: number;
+  top_buyer_pct: number | null;
+  top_buyer_handle: string | null;
+  cycle_hours: number | null;
+  prev_payouts: number;
+  disputes: number;
+  chargebacks: number;
+  is_frozen: boolean;
+};
+
 export async function fetchAdminPayouts(status: string | null = "requested"): Promise<AdminPayoutRow[]> {
   const data = await rpc<{ rows?: AdminPayoutRow[] }>("admin_list_payouts", {
     _status: status,
     _limit: 200,
   });
   return data?.rows ?? [];
+}
+
+export async function fetchPayoutRisk(payoutId: string): Promise<PayoutRisk | null> {
+  const { data, error } = await supabase.rpc("admin_compute_payout_risk", { _payout_id: payoutId });
+  if (error) {
+    console.warn("[admin] payout risk", error.message);
+    return null;
+  }
+  const row = data as { ok?: boolean } | null;
+  if (!row?.ok) return null;
+  return data as PayoutRisk;
+}
+
+export async function adminFreezeUser(
+  userId: string,
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase.rpc("admin_freeze_user", {
+    _user_id: userId,
+    _reason: reason,
+  });
+  if (error) return { ok: false, error: error.message };
+  const r = (data ?? {}) as { ok?: boolean; error?: string };
+  return r.ok ? { ok: true } : { ok: false, error: r.error ?? "rpc failed" };
+}
+
+export async function adminUnfreezeUser(userId: string): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase.rpc("admin_unfreeze_user", { _user_id: userId });
+  if (error) return { ok: false, error: error.message };
+  const r = (data ?? {}) as { ok?: boolean; error?: string };
+  return r.ok ? { ok: true } : { ok: false, error: r.error ?? "rpc failed" };
 }
 
 export async function adminProcessPayout(

@@ -111,7 +111,7 @@ export const LEGAL_FR: Bundle = {
         `Toute tentative de contournement de ces mesures (multi-comptes, transactions fractionnées, faux justificatifs) constitue un manquement grave et peut entraîner la fermeture définitive du ou des comptes concernés ainsi que la retenue des fonds jusqu'à résolution.`,
       ]},
       { h: "13. Programme de parrainage", p: [
-        `${APP_NAME} peut mettre à disposition un programme de parrainage. Lorsqu'un Utilisateur saisit un code partenaire à l'inscription, la commission de service de dix pour cent (10 %) prélevée sur chacun de ses achats et de ses ventes est créditée sur la carte parrainage du partenaire, au lieu d'être conservée par ${APP_NAME}. Les conditions détaillées (activation, retraits, exclusions) sont décrites dans l'écran dédié à ce programme.`,
+        `${APP_NAME} peut mettre à disposition un programme de parrainage. Lorsqu'un Utilisateur saisit un code partenaire à l'inscription, il est rattaché à vie au partenaire. Sur ses quatorze (14) premières commandes payées (en tant qu'acheteur ou vendeur), la commission de service de dix pour cent (10 %) est créditée sur la carte parrainage du partenaire, au lieu d'être conservée par ${APP_NAME}. Si le vendeur et l'acheteur d'une même commande ont chacun un parrain, seul le parrain du vendeur est crédité. Les conditions détaillées (activation, quota, retraits, exclusions) sont décrites dans l'écran dédié à ce programme.`,
         `${APP_NAME} peut modifier, suspendre ou clôturer le programme à tout moment, moyennant un préavis raisonnable. Tout comportement frauduleux, notamment la création de faux comptes, l'auto-parrainage ou la manipulation des activités récompensées, entraîne l'annulation immédiate des gains, la fermeture du ou des comptes concernés et l'exclusion du programme.`,
       ]},
       { h: "14. Disponibilité du service", p: [
@@ -387,7 +387,7 @@ export const LEGAL_EN: Bundle = {
         `Any attempt to circumvent these measures (multiple accounts, structuring, forged documents) is a material breach and may lead to permanent closure of the accounts involved and retention of funds until resolution.`,
       ]},
       { h: "13. Referral program", p: [
-        `${APP_NAME} may offer a referral program. When a User enters a partner code at signup, the ten percent (10%) service fee on each of their purchases and sales is credited to the partner's referral card, instead of being kept by ${APP_NAME}. Detailed terms (activation, withdrawals, exclusions) are described in the dedicated screen.`,
+        `${APP_NAME} may offer a referral program. When a User enters a partner code at signup, they remain linked to that partner for life. On their first fourteen (14) paid orders (as buyer or seller), the ten percent (10%) service fee is credited to the partner's referral card, instead of being kept by ${APP_NAME}. If both the seller and the buyer of an order have a referrer, only the seller's referrer is credited. Detailed terms (activation, quota, withdrawals, exclusions) are described in the dedicated screen.`,
         `${APP_NAME} may modify, suspend or close the program at any time on reasonable notice. Fraudulent behaviour (fake accounts, self-referral, activity manipulation) results in immediate cancellation of earnings, closure of the accounts involved and exclusion.`,
       ]},
       { h: "14. Service availability", p: [

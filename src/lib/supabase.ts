@@ -50,4 +50,8 @@ export type ProfileRow = {
   followers_count: number | null;
   following_count: number | null;
   is_admin: boolean | null;
+  is_referred?: boolean | null;
+  is_frozen?: boolean | null;
+  frozen_at?: string | null;
+  is_verified?: boolean | null;
 };

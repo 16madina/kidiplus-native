@@ -26,9 +26,43 @@ type OrderRow = {
   created_at: string;
   seller_id: string;
   buyer_id: string;
+  address_snapshot?: Record<string, unknown> | null;
   seller?: ProfileEmbed | ProfileEmbed[] | null;
   buyer?: ProfileEmbed | ProfileEmbed[] | null;
 };
+
+export type AddressSnapshot = {
+  full_name?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  city?: string | null;
+  zone_or_commune?: string | null;
+  street_address?: string | null;
+  postal_code?: string | null;
+  region?: string | null;
+  details?: string | null;
+  line?: string | null;
+};
+
+export function asAddressSnapshot(v: unknown): AddressSnapshot | null {
+  if (!v || typeof v !== "object") return null;
+  return v as AddressSnapshot;
+}
+
+export function formatAddressSnapshot(snap: AddressSnapshot | null): string {
+  if (!snap) return "";
+  if (snap.line?.trim()) return snap.line.trim();
+  return [
+    snap.street_address,
+    snap.zone_or_commune,
+    snap.city,
+    snap.postal_code,
+    snap.region,
+    snap.country,
+  ]
+    .filter((s) => !!s && String(s).trim())
+    .join(", ");
+}
 
 /** UI order row: display strings + raw fields for actions. */
 export type OrderView = MockOrder & {
@@ -42,6 +76,7 @@ export type OrderView = MockOrder & {
   currency: Currency;
   kind: "auction" | "fixed";
   paymentDeadline: string | null;
+  address: AddressSnapshot | null;
 };
 
 function embedName(value: ProfileEmbed | ProfileEmbed[] | null | undefined, fallback: string): string {
@@ -84,12 +119,13 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
     currency,
     kind: row.kind === "auction" ? "auction" : "fixed",
     paymentDeadline: row.payment_deadline,
+    address: asAddressSnapshot(row.address_snapshot),
   };
 }
 
 const ORDER_SELECT = `
   id, item_name, item_image, amount, delivery_fee, platform_fee, seller_net, total, currency, status, fulfillment_status,
-  payment_deadline, kind, created_at, seller_id, buyer_id,
+  payment_deadline, kind, created_at, seller_id, buyer_id, address_snapshot,
   seller:profiles!orders_seller_id_fkey(display_name, handle),
   buyer:profiles!orders_buyer_id_fkey(display_name, handle)
 `;

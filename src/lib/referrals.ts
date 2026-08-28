@@ -195,6 +195,9 @@ export type AdminPromoCodeRow = {
   signups: number;
   orders_credited: number;
   totals: Record<string, number>;
+  claim_token: string | null;
+  claimed_at: string | null;
+  held_totals: Record<string, number>;
 };
 
 export async function fetchAdminPromoCodes(): Promise<AdminPromoCodeRow[]> {
@@ -203,6 +206,48 @@ export async function fetchAdminPromoCodes(): Promise<AdminPromoCodeRow[]> {
     return ((data as { rows?: AdminPromoCodeRow[] } | null)?.rows ?? []) as AdminPromoCodeRow[];
   } catch {
     return [];
+  }
+}
+
+export async function adminCreatePromoCode(
+  code: string,
+  ownerId: string | null = null,
+  rewardQuota = 14,
+): Promise<{ ok: true; id: string; code: string; claim_token: string } | { ok: false; error: string }> {
+  try {
+    const data = await rpc("admin_create_promo_code", {
+      _code: code.trim().toUpperCase(),
+      _owner_id: ownerId,
+      _reward_quota: rewardQuota,
+    });
+    const r = (data ?? {}) as {
+      ok?: boolean;
+      error?: string;
+      id?: string;
+      code?: string;
+      claim_token?: string;
+    };
+    return r.ok
+      ? { ok: true, id: String(r.id), code: String(r.code), claim_token: String(r.claim_token) }
+      : { ok: false, error: r.error ?? "unknown" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "unknown" };
+  }
+}
+
+export async function adminRenewPromoCredits(
+  promoCodeId: string,
+  amount = 14,
+): Promise<{ ok: true; updated: number } | { ok: false; error: string }> {
+  try {
+    const data = await rpc("admin_renew_promo_credits", {
+      _promo_code_id: promoCodeId,
+      _amount: amount,
+    });
+    const r = (data ?? {}) as { ok?: boolean; error?: string; updated?: number };
+    return r.ok ? { ok: true, updated: Number(r.updated ?? 0) } : { ok: false, error: r.error ?? "unknown" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "unknown" };
   }
 }
 
@@ -263,6 +308,46 @@ export function buildShareMessage(code: string, lang: string): string {
   const url = `https://kidiplus.com/join/${encodeURIComponent(code)}`;
   if (lang.startsWith("en")) return `Join me on KiDi+ 🎁 Use my code ${code} at signup: ${url}`;
   return `Rejoins-moi sur KiDi+ 🎁 Utilise mon code ${code} à l'inscription : ${url}`;
+}
+
+/** Message WhatsApp : code public + token d'activation secret. */
+export function buildInfluencerOnboardingMessage(
+  code: string,
+  token: string,
+  lang: "fr" | "en" = "fr",
+): string {
+  const publicCode = code.trim().toUpperCase();
+  const claim = token.trim().toUpperCase();
+  if (lang === "en") {
+    return [
+      `Welcome to the KiDi+ Gold Partner programme ✨`,
+      ``,
+      `Your public code (share with your community): ${publicCode}`,
+      `Your secret activation code (keep it private): ${claim}`,
+      ``,
+      `How it works:`,
+      `1. Open KiDi+ → Profile → Referral`,
+      `2. Scratch the card and enter your secret code`,
+      `3. Share ${publicCode} — anyone who signs up with it is linked to you for life`,
+      `4. You earn 10% of KiDi+'s commission on their first 14 orders (as buyer or seller)`,
+      ``,
+      `Held earnings from people who already used ${publicCode} are paid to you when you claim.`,
+    ].join("\n");
+  }
+  return [
+    `Bienvenue dans le programme KiDi+ Gold Partenaire ✨`,
+    ``,
+    `Ton code public (à partager) : ${publicCode}`,
+    `Ton code d'activation secret (à garder pour toi) : ${claim}`,
+    ``,
+    `Comment ça marche :`,
+    `1. Ouvre KiDi+ → Profil → Parrainage`,
+    `2. Gratte la carte et entre ton code secret`,
+    `3. Partage ${publicCode} — toute inscription avec ce code est rattachée à toi à vie`,
+    `4. Tu gagnes 10 % de la commission KiDi+ sur les 14 premières commandes de tes filleuls (acheteur ou vendeur)`,
+    ``,
+    `Les gains déjà accumulés avec ${publicCode} te sont versés d'un coup à la réclamation.`,
+  ].join("\n");
 }
 
 export function formatTotals(totals: Record<string, number>, locale: string): string {
