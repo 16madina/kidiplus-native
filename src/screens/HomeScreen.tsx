@@ -10,6 +10,7 @@ import { FilterPills } from "../components/FilterPills";
 import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
+import { UpcomingLivesRow } from "../components/UpcomingLivesRow";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -23,6 +24,7 @@ import {
   type HomeCategory,
   type HomeFilter,
 } from "../mock/home-categories";
+import { mergeUpcomingWithDemos } from "../mock/upcoming-demos";
 import { GOLD, NAVY } from "../theme";
 
 const demoPoster = require("../../assets/demo-live-poster.jpg");
@@ -39,6 +41,14 @@ export function HomeScreen() {
   const [filter, setFilter] = useState<HomeFilter>("Recommandés");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [liveOnly, setLiveOnly] = useState(false);
+
+  const upcomingRow = useMemo(
+    () =>
+      mergeUpcomingWithDemos(
+        upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
+      ),
+    [upcoming, blockedIds],
+  );
 
   const filtered = useMemo(() => {
     const unblocked = active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId));
@@ -92,24 +102,7 @@ export function HomeScreen() {
         <View style={{ height: 12 }} />
         <FilterPills active={filter} onChange={setFilter} onOpenFilters={() => setFilterSheetOpen(true)} />
 
-        {upcoming.length > 0 ? (
-          <View style={{ marginTop: 16 }}>
-            <Text style={[styles.section, { color: colors.foreground, paddingHorizontal: 16 }]}>
-              {t("schedule.upcomingTitle")}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingTop: 8 }}>
-              {upcoming.map((s) => (
-                <Press key={s.id} onPress={() => openList(upcoming, upcoming.indexOf(s))} style={styles.upCard}>
-                  <Glass tone="dark" intensity={24} radius={16} elevated={false}>
-                    <Image source={{ uri: s.thumbnail }} style={styles.upImg} contentFit="cover" />
-                  </Glass>
-                  <Text numberOfLines={1} style={[styles.upName, { color: colors.foreground }]}>{s.seller}</Text>
-                  <Text numberOfLines={1} style={styles.upWhen}>{s.startsInMin} min</Text>
-                </Press>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
+        <UpcomingLivesRow items={upcomingRow} onOpen={openList} />
 
         <Text style={[styles.section, { color: colors.foreground }]}>{t("home.livesNearYou")}</Text>
         {loading ? (
@@ -257,10 +250,6 @@ const styles = StyleSheet.create({
   demoBottom: { position: "absolute", left: 8, right: 8, bottom: 8 },
   demoTitle: { color: "#fff", fontWeight: "800", fontSize: 13 },
   demoSub: { color: "rgba(255,255,255,0.8)", fontSize: 11, marginTop: 2 },
-  upCard: { width: 88, minHeight: 0, minWidth: 0, alignItems: "flex-start" },
-  upImg: { width: 88, height: 88, borderRadius: 16 },
-  upName: { fontSize: 11, fontWeight: "700", marginTop: 4, color: "#10162B" },
-  upWhen: { fontSize: 10, color: "#6B7289" },
   sheetBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", minHeight: 0 },
   sheet: {
     borderTopLeftRadius: 28,
