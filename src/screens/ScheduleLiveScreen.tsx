@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingBottom: 6,
-    zIndex: 4,
+    zIndex: 50,
   },
   logoWrap: { alignItems: "center" },
   logoLine: {
