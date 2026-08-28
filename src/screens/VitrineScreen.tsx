@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Compass, Heart, Home, MessageCircle, Plus, Share2, Store, Volume2, VolumeX } from "lucide-react-native";
+import { Compass, Heart, Home, MessageCircle, MoreVertical, Plus, Share2, Store, Volume2, VolumeX } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,6 +21,7 @@ import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { LiveCard } from "../components/LiveCard";
 import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
 import { VitrineCommentsSheet } from "../components/vitrine/VitrineCommentsSheet";
+import { ReportSheet } from "../components/moderation/ReportSheet";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { GOLD, LIVE_RED, initials } from "../theme";
@@ -31,6 +33,7 @@ import {
   toggleVitrineLike,
   type VitrineFeedPost,
 } from "../lib/vitrine";
+import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
 import { sampleLivesForCategory } from "../mock/home-categories";
@@ -51,6 +54,7 @@ export function VitrineScreen() {
   } = useNav();
   const { guestMode, openAuth } = useAuth();
   const { active, upcoming } = useLivesFeed();
+  const blockedIds = useBlockedIds();
   const [cat, setCat] = useState<"forYou" | "live" | "soon">("forYou");
   const [posts, setPosts] = useState<VitrineFeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,8 +63,18 @@ export function VitrineScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const listRef = useRef<FlatList<VitrineFeedPost>>(null);
-  const lives = active;
-  const soon = upcoming;
+  const lives = useMemo(
+    () => active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
+    [active, blockedIds],
+  );
+  const soon = useMemo(
+    () => upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
+    [upcoming, blockedIds],
+  );
+  const visiblePosts = useMemo(
+    () => posts.filter((p) => !p.userId || !blockedIds.has(p.userId)),
+    [posts, blockedIds],
+  );
   const liveCards = useMemo(() => {
     const samples = sampleLivesForCategory("Pour toi", lives.length);
     return [...lives, ...samples];
@@ -160,14 +174,14 @@ export function VitrineScreen() {
           <View style={styles.center}>
             <ActivityIndicator color={GOLD} />
           </View>
-        ) : posts.length === 0 ? (
+        ) : visiblePosts.length === 0 ? (
           <View style={{ flex: 1, paddingTop: insets.top + 56 }}>
             <Empty onExplore={() => setTab("search")} labelKey="vitrine.emptyForYou" />
           </View>
         ) : (
           <FlatList
             ref={listRef}
-            data={posts}
+            data={visiblePosts}
             keyExtractor={(p) => p.id}
             style={{ flex: 1 }}
             pagingEnabled
@@ -216,6 +230,10 @@ export function VitrineScreen() {
                   setPosts((prev) =>
                     prev.map((p) => (p.id === item.id ? { ...p, likedByMe: liked, likes } : p)),
                   );
+                }}
+                onBlocked={() => {
+                  if (!item.userId) return;
+                  setPosts((prev) => prev.filter((p) => p.userId !== item.userId));
                 }}
               />
             )}
@@ -286,6 +304,7 @@ function VitrinePostSlide({
   onShop,
   onComments,
   onLikeChange,
+  onBlocked,
 }: {
   post: VitrineFeedPost;
   width: number;
@@ -296,6 +315,7 @@ function VitrinePostSlide({
   onShop: () => void;
   onComments: () => void;
   onLikeChange: (liked: boolean, likes: number) => void;
+  onBlocked?: () => void;
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -303,6 +323,7 @@ function VitrinePostSlide({
   const [likes, setLikes] = useState(post.likes);
   const [comments, setComments] = useState(post.comments);
   const [muted, toggleMuted] = useVitrineSound();
+  const [reportOpen, setReportOpen] = useState(false);
   const busyLike = useRef(false);
 
   useEffect(() => {
@@ -331,10 +352,50 @@ function VitrinePostSlide({
     }
   };
 
+  const openModeration = () => {
+    if (guest) return onAuth();
+    if (!post.userId) return;
+    Alert.alert(`@${post.handle}`, undefined, [
+      {
+        text: t("report.action"),
+        onPress: () => setReportOpen(true),
+      },
+      {
+        text: t("block.action"),
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(t("block.action"), t("block.confirm"), [
+            { text: t("block.cancel"), style: "cancel" },
+            {
+              text: t("block.action"),
+              style: "destructive",
+              onPress: () => {
+                void blockUserAndNotify(post.userId!, {
+                  handle: post.handle,
+                  displayName: post.sellerName,
+                  avatarUrl: post.avatarUrl,
+                }).then((r) => {
+                  if (r.ok) onBlocked?.();
+                  else Alert.alert("KiDi+", r.error ?? t("block.failed"));
+                });
+              },
+            },
+          ]);
+        },
+      },
+      { text: t("common.cancel"), style: "cancel" },
+    ]);
+  };
+
   return (
     <View style={{ width, height, backgroundColor: "#000" }} onTouchStart={unlockVitrineSound}>
       <VitrineMedia post={post} active={active} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} />
+      <View style={[styles.modMenu, { top: insets.top + 12 }]}>
+        <GlassIconButton tone="dark" onPress={openModeration}>
+          <MoreVertical size={18} color="#fff" />
+        </GlassIconButton>
+      </View>
       <View style={[styles.side, { bottom: insets.bottom + 28 }]}>
         <Action
           icon={muted ? <VolumeX size={26} color="#fff" /> : <Volume2 size={26} color="#fff" />}
@@ -372,6 +433,13 @@ function VitrinePostSlide({
           {post.caption ? <Text style={styles.caption}>{post.caption}</Text> : null}
         </Glass>
       </View>
+      <ReportSheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="user"
+        targetId={post.userId || ""}
+        defaultNote={`Vitrine post: ${post.id}`}
+      />
     </View>
   );
 }
@@ -490,6 +558,7 @@ const styles = StyleSheet.create({
   catActive: { color: "#fff" },
   underline: { height: 2, backgroundColor: GOLD, marginTop: 4, borderRadius: 1 },
   bottomGrad: { position: "absolute", left: 0, right: 0, bottom: 0, height: 220 },
+  modMenu: { position: "absolute", right: 12, zIndex: 20 },
   side: { position: "absolute", right: 10, alignItems: "center", gap: 14 },
   action: { minHeight: 0, minWidth: 0, alignItems: "center" },
   actionLabel: { color: "#fff", fontSize: 11, fontWeight: "700", marginTop: 2 },

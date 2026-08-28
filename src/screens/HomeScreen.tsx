@@ -15,6 +15,7 @@ import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
+import { useBlockedIds } from "../lib/moderation";
 import {
   applyHomeCategory,
   sampleLivesForCategory,
@@ -33,20 +34,22 @@ export function HomeScreen() {
   const { user, openAuth } = useAuth();
   const { openList, openOverlay } = useNav();
   const { active, upcoming, loading } = useLivesFeed();
+  const blockedIds = useBlockedIds();
   const [category, setCategory] = useState<HomeCategory>("Pour toi");
   const [filter, setFilter] = useState<HomeFilter>("Recommandés");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [liveOnly, setLiveOnly] = useState(false);
 
   const filtered = useMemo(() => {
-    const scopedReal = applyHomeCategory(active, category);
+    const unblocked = active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId));
+    const scopedReal = applyHomeCategory(unblocked, category);
     const samples = sampleLivesForCategory(category, scopedReal.length);
     let list = sortLivesNewestFirst([...scopedReal, ...samples]);
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
     if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
     if (liveOnly) list = list.filter((s) => !s.scheduled);
     return list;
-  }, [active, category, filter, liveOnly]);
+  }, [active, category, filter, liveOnly, blockedIds]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

@@ -47,24 +47,22 @@ export function ActivityScreen() {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
-  const { overlay, closeOverlay, openOverlay } = useNav();
+  const { findOverlay, closeOverlay, openOverlay } = useNav();
   const { openFromPush } = usePush();
   const { user, guestMode, openAuth } = useAuth();
-  const initialTab: ActivityTab =
-    overlay.kind === "activity" && overlay.tab === "messages" ? "messages" : "notifs";
-  const focusThreadId =
-    overlay.kind === "activity" && overlay.threadId ? overlay.threadId : null;
+  const activity = findOverlay("activity");
+  const initialTab: ActivityTab = activity?.tab === "messages" ? "messages" : "notifs";
+  const focusThreadId = activity?.threadId ?? null;
   const [tab, setTab] = useState<ActivityTab>(initialTab);
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (overlay.kind === "activity") {
-      if (overlay.tab === "messages") setTab("messages");
-      else if (overlay.tab === "notifs") setTab("notifs");
-    }
-  }, [overlay]);
+    if (!activity) return;
+    if (activity.tab === "messages") setTab("messages");
+    else if (activity.tab === "notifs") setTab("notifs");
+  }, [activity?.tab, activity?.threadId]);
 
   const reload = useCallback(async () => {
     if (!user?.id) {

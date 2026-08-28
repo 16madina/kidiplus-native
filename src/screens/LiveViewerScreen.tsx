@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Gavel, Gift, Heart, Send, ShoppingBag, X } from "lucide-react-native";
+import { Gavel, Gift, Heart, MoreVertical, Send, ShoppingBag, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
@@ -22,6 +22,7 @@ import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { AuctionFinalCountdown } from "../components/live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
+import { ReportSheet } from "../components/moderation/ReportSheet";
 import { PaymentSheet } from "../components/payments/PaymentSheet";
 import { TopUpSheet } from "../components/wallet/TopUpSheet";
 import { useAuth } from "../context/auth";
@@ -32,6 +33,7 @@ import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
 import { isBattleLiveActive, useBattleForLive } from "../lib/battles";
 import { guestLiveKitIdentity } from "../lib/livekit";
 import { useViewerLiveRoom } from "../lib/live-viewer";
+import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
 import { fetchOrderById, type OrderView } from "../lib/orders";
 import { isExpoGo } from "../lib/expo-go";
@@ -90,6 +92,8 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [payOrder, setPayOrder] = useState<OrderView | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const blockedIds = useBlockedIds();
   const [buyerCountry, setBuyerCountry] = useState<string | null>(null);
   const [sellerCountry, setSellerCountry] = useState<string | null>(null);
   const [sellerSettings, setSellerSettings] = useState<Awaited<
@@ -126,6 +130,55 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
     const id = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(id);
   }, [toast]);
+
+  // Auto-leave if the host is already blocked (Apple 1.2 / web parity).
+  useEffect(() => {
+    if (!s.sellerId || s.fictitious) return;
+    if (!blockedIds.has(s.sellerId)) return;
+    setToast(t("block.autoClosedLive"));
+    const id = setTimeout(() => closeOverlay(), 900);
+    return () => clearTimeout(id);
+  }, [blockedIds, s.sellerId, s.fictitious, closeOverlay, t]);
+
+  const openMore = () => {
+    if (!user) return openAuth();
+    Alert.alert(s.seller, undefined, [
+      {
+        text: t("report.action"),
+        onPress: () => setReportOpen(true),
+      },
+      {
+        text: t("block.action"),
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(t("block.action"), t("block.confirm"), [
+            { text: t("block.cancel"), style: "cancel" },
+            {
+              text: t("block.action"),
+              style: "destructive",
+              onPress: () => {
+                if (!s.sellerId) return;
+                void blockUserAndNotify(s.sellerId, {
+                  handle: s.handle,
+                  displayName: s.seller,
+                  avatarUrl: s.avatar,
+                  liveId: liveId,
+                }).then((r) => {
+                  if (r.ok) {
+                    setToast(t("block.blocked"));
+                    setTimeout(() => closeOverlay(), 700);
+                  } else {
+                    setToast(r.error ?? t("block.failed"));
+                  }
+                });
+              },
+            },
+          ]);
+        },
+      },
+      { text: t("common.cancel"), style: "cancel" },
+    ]);
+  };
 
   const [giftFlash, setGiftFlash] = useState<typeof room.lastGift>(null);
   useEffect(() => {
@@ -412,9 +465,14 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
             </View>
           </View>
         </Glass>
-        <GlassIconButton tone="dark" onPress={closeOverlay}>
-          <X size={20} color="#fff" />
-        </GlassIconButton>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <GlassIconButton tone="dark" onPress={openMore}>
+            <MoreVertical size={18} color="#fff" />
+          </GlassIconButton>
+          <GlassIconButton tone="dark" onPress={closeOverlay}>
+            <X size={20} color="#fff" />
+          </GlassIconButton>
+        </View>
       </View>
 
       {ended ? (
@@ -583,6 +641,13 @@ export function LiveViewerScreen({ stream }: { stream: LiveStream }) {
           setToast(msg);
           void refreshUser();
         }}
+      />
+      <ReportSheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="live"
+        targetId={liveId || s.id || s.sellerId || ""}
+        defaultNote={s.seller ? `Live host: ${s.seller}` : undefined}
       />
     </View>
   );

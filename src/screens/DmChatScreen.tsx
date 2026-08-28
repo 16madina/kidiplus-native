@@ -11,10 +11,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronLeft, Send } from "lucide-react-native";
+import { ChevronLeft, MoreHorizontal, Send } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Press } from "../components/Press";
+import { ReportSheet } from "../components/moderation/ReportSheet";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
@@ -27,7 +28,7 @@ import {
   type DmChatTarget,
   type DmMessageRow,
 } from "../lib/dm";
-import { blockUser, submitReport } from "../lib/moderation";
+import { blockUserAndNotify, listMyBlockedIds, unblockUser } from "../lib/moderation";
 import { resolveAvatarUrl } from "../lib/storage";
 import { GOLD, NAVY, initials } from "../theme";
 
@@ -42,11 +43,17 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(target.otherAvatarUrl ?? null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [iBlockedThem, setIBlockedThem] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     void resolveAvatarUrl(target.otherAvatarUrl ?? null).then(setAvatar);
   }, [target.otherAvatarUrl]);
+
+  useEffect(() => {
+    void listMyBlockedIds().then((ids) => setIBlockedThem(ids.has(target.otherId)));
+  }, [target.otherId]);
 
   const reload = useCallback(async () => {
     let tid = threadId;
@@ -80,6 +87,10 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
   const send = async () => {
     const text = body.trim();
     if (!text || sending || !user?.id) return;
+    if (iBlockedThem) {
+      Alert.alert("KiDi+", t("dm.blockedNotice", { defaultValue: "Tu as bloqué cet utilisateur." }));
+      return;
+    }
     setSending(true);
     const res = await sendDm(target.otherId, text);
     setSending(false);
@@ -99,29 +110,49 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   };
 
-  const onMenu = () => {
-    Alert.alert(target.otherName, undefined, [
+  const doBlock = () => {
+    Alert.alert(t("block.action"), t("block.confirm"), [
+      { text: t("block.cancel"), style: "cancel" },
       {
-        text: t("dm.report", { defaultValue: "Signaler" }),
-        onPress: () => {
-          void submitReport({
-            targetType: "user",
-            targetId: target.otherId,
-            reason: "harassment",
-            note: "Reported from DM",
-          }).then((ok) => Alert.alert("KiDi+", ok ? t("dm.reported", { defaultValue: "Signalement envoyé." }) : t("errors.generic")));
-        },
-      },
-      {
-        text: t("dm.block", { defaultValue: "Bloquer" }),
+        text: t("block.action"),
         style: "destructive",
         onPress: () => {
-          void blockUser(target.otherId).then((r) => {
-            Alert.alert("KiDi+", r.ok ? t("dm.blocked", { defaultValue: "Utilisateur bloqué." }) : r.error ?? t("errors.generic"));
-            if (r.ok) onClose();
+          void blockUserAndNotify(target.otherId, {
+            displayName: target.otherName,
+            avatarUrl: target.otherAvatarUrl,
+          }).then((r) => {
+            if (r.ok) {
+              setIBlockedThem(true);
+              Alert.alert("KiDi+", t("block.blocked"), [{ text: "OK", onPress: onClose }]);
+            } else {
+              Alert.alert("KiDi+", r.error ?? t("block.failed"));
+            }
           });
         },
       },
+    ]);
+  };
+
+  const doUnblock = () => {
+    void unblockUser(target.otherId).then((r) => {
+      if (r.ok) {
+        setIBlockedThem(false);
+        Alert.alert("KiDi+", t("block.unblocked"));
+      } else {
+        Alert.alert("KiDi+", r.error ?? t("block.failed"));
+      }
+    });
+  };
+
+  const onMenu = () => {
+    Alert.alert(target.otherName, undefined, [
+      {
+        text: t("report.action"),
+        onPress: () => setReportOpen(true),
+      },
+      iBlockedThem
+        ? { text: t("block.unblock"), onPress: doUnblock }
+        : { text: t("block.action"), style: "destructive" as const, onPress: doBlock },
       { text: t("common.cancel"), style: "cancel" },
     ]);
   };
@@ -129,7 +160,7 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.head}>
-        <Press onPress={onClose} style={styles.back}>
+        <Press onPress={onClose} style={styles.back} hitSlop={8}>
           <ChevronLeft size={24} color={colors.foreground} />
         </Press>
         <Press onPress={onMenu} style={styles.headCenter}>
@@ -144,7 +175,9 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
             {target.otherName}
           </Text>
         </Press>
-        <View style={{ width: 40 }} />
+        <Press onPress={onMenu} style={styles.back} hitSlop={8}>
+          <MoreHorizontal size={22} color={colors.foreground} />
+        </Press>
       </View>
 
       <KeyboardAvoidingView
@@ -178,30 +211,61 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
             }}
           />
         )}
-        <View style={[styles.composer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
-          <TextInput
-            value={body}
-            onChangeText={setBody}
-            placeholder={t("dm.placeholder", { defaultValue: "Écrire un message…" })}
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-            maxLength={2000}
-            multiline
-          />
-          <Press onPress={() => void send()} disabled={sending || !body.trim()} style={[styles.send, { opacity: body.trim() ? 1 : 0.4 }]}>
-            {sending ? <ActivityIndicator color={NAVY} /> : <Send size={18} color={NAVY} />}
-          </Press>
-        </View>
+
+        {iBlockedThem ? (
+          <View style={[styles.blockedBanner, { backgroundColor: colors.muted }]}>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: "center", fontWeight: "600" }}>
+              {t("dm.blockedNotice", { defaultValue: "Tu as bloqué cet utilisateur." })}
+            </Text>
+            <Press onPress={doUnblock} style={{ marginTop: 6 }}>
+              <Text style={{ color: GOLD, fontWeight: "800", textAlign: "center", fontSize: 13 }}>
+                {t("block.unblock")}
+              </Text>
+            </Press>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.composer,
+              { paddingBottom: insets.bottom + 8, borderTopColor: colors.border, backgroundColor: colors.background },
+            ]}
+          >
+            <TextInput
+              value={body}
+              onChangeText={setBody}
+              placeholder={t("dm.placeholder", { defaultValue: "Écris un message…" })}
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
+              multiline
+            />
+            <Press
+              onPress={() => void send()}
+              disabled={sending || !body.trim()}
+              style={[styles.send, { opacity: body.trim() ? 1 : 0.4 }]}
+            >
+              {sending ? <ActivityIndicator color={NAVY} /> : <Send size={18} color={NAVY} />}
+            </Press>
+          </View>
+        )}
       </KeyboardAvoidingView>
+
+      <ReportSheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="user"
+        targetId={target.otherId}
+        defaultNote={`Reported from DM · ${target.otherName}`}
+      />
     </View>
   );
 }
 
 /** Convenience when opened as nav overlay. */
 export function DmChatOverlay() {
-  const { overlay, closeOverlay } = useNav();
-  if (overlay.kind !== "dm-chat") return null;
-  return <DmChatScreen target={overlay.target} onClose={closeOverlay} />;
+  const { findOverlay, closeOverlay } = useNav();
+  const entry = findOverlay("dm-chat");
+  if (!entry) return null;
+  return <DmChatScreen target={entry.target} onClose={closeOverlay} />;
 }
 
 const styles = StyleSheet.create({
@@ -224,6 +288,12 @@ const styles = StyleSheet.create({
   },
   mine: { alignSelf: "flex-end", borderBottomRightRadius: 4 },
   theirs: { alignSelf: "flex-start", borderBottomLeftRadius: 4 },
+  blockedBanner: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 14,
+    padding: 12,
+  },
   composer: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -237,7 +307,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     maxHeight: 120,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
@@ -245,8 +315,6 @@ const styles = StyleSheet.create({
   send: {
     width: 42,
     height: 42,
-    minWidth: 42,
-    minHeight: 42,
     borderRadius: 21,
     backgroundColor: GOLD,
     alignItems: "center",

@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { BottomTabBar } from "./components/BottomTabBar";
 import { PushScreen } from "./components/PushScreen";
 import { useAuth } from "./context/auth";
-import { useNav, type Overlay } from "./context/navigation";
+import { useNav, type OverlayKind } from "./context/navigation";
 import { useAppTheme } from "./context/theme";
 import { AuthFlow } from "./screens/AuthFlow";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -60,17 +60,34 @@ function BroadcastLiveFallback() {
   );
 }
 
+/** Keep last-known payload so exit animation still has content while unmounting. */
+function useCachedOverlay<K extends OverlayKind>(kind: K) {
+  const { findOverlay, isOverlayOpen } = useNav();
+  const open = isOverlayOpen(kind);
+  const current = findOverlay(kind);
+  const last = useRef(current);
+  if (current) last.current = current;
+  return { open, entry: last.current };
+}
+
 export function AppShell() {
-  const { tab, setTab, overlay, closeOverlay } = useNav();
+  const { tab, setTab, closeOverlay, isOverlayOpen } = useNav();
   const { authOverlay, closeAuth } = useAuth();
   const { dark, colors } = useAppTheme();
+
+  const activity = useCachedOverlay("activity");
+  const dmChat = useCachedOverlay("dm-chat");
+  const legal = useCachedOverlay("legal");
+  const shop = useCachedOverlay("shop");
+  const orders = useCachedOverlay("orders");
+  const broadcastSetup = useCachedOverlay("broadcast-setup");
+  const broadcastLive = useCachedOverlay("broadcast-live");
+  const live = useCachedOverlay("live");
+
   const hideTabs =
-    tab === "vitrine" || overlay.kind === "live" || overlay.kind === "broadcast-live";
-  const last = useRef<Overlay>(overlay);
-  if (overlay.kind !== "none") last.current = overlay;
-  const shown = last.current;
+    tab === "vitrine" || isOverlayOpen("live") || isOverlayOpen("broadcast-live");
   const statusLight =
-    tab === "vitrine" || overlay.kind === "live" || overlay.kind === "broadcast-live" || dark;
+    tab === "vitrine" || isOverlayOpen("live") || isOverlayOpen("broadcast-live") || dark;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -92,82 +109,82 @@ export function AppShell() {
       </View>
       <BottomTabBar active={tab} onChange={setTab} hidden={hideTabs} />
 
-      <PushScreen open={overlay.kind === "activity"} onClose={closeOverlay}>
+      <PushScreen open={activity.open} onClose={closeOverlay} zIndex={70}>
         <ActivityScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "dm-chat"} onClose={closeOverlay} zIndex={82}>
-        {shown.kind === "dm-chat" ? (
-          <DmChatScreen target={shown.target} onClose={closeOverlay} />
+      <PushScreen open={dmChat.open} onClose={closeOverlay} zIndex={82}>
+        {dmChat.entry ? (
+          <DmChatScreen target={dmChat.entry.target} onClose={closeOverlay} />
         ) : null}
       </PushScreen>
-      <PushScreen open={overlay.kind === "legal"} onClose={closeOverlay}>
-        {shown.kind === "legal" ? <LegalScreen page={shown.page} onClose={closeOverlay} /> : null}
+      <PushScreen open={legal.open} onClose={closeOverlay} zIndex={72}>
+        {legal.entry ? <LegalScreen page={legal.entry.page} onClose={closeOverlay} /> : null}
       </PushScreen>
-      <PushScreen open={overlay.kind === "wallet"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("wallet")} onClose={closeOverlay} zIndex={70}>
         <WalletScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "shop"} onClose={closeOverlay}>
-        {shown.kind === "shop" ? (
-          <ShopScreen sellerId={shown.sellerId} sellerName={shown.sellerName} />
+      <PushScreen open={shop.open} onClose={closeOverlay} zIndex={70}>
+        {shop.entry ? (
+          <ShopScreen sellerId={shop.entry.sellerId} sellerName={shop.entry.sellerName} />
         ) : null}
       </PushScreen>
-      <PushScreen open={overlay.kind === "orders"} onClose={closeOverlay}>
-        <OrdersScreen orderId={shown.kind === "orders" ? shown.orderId : undefined} />
+      <PushScreen open={orders.open} onClose={closeOverlay} zIndex={70}>
+        <OrdersScreen orderId={orders.entry?.orderId} />
       </PushScreen>
-      <PushScreen open={overlay.kind === "earnings"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("earnings")} onClose={closeOverlay} zIndex={72}>
         <EarningsScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "settings"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("settings")} onClose={closeOverlay} zIndex={70}>
         <SettingsScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "help"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("help")} onClose={closeOverlay} zIndex={70}>
         <HelpScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "referral"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("referral")} onClose={closeOverlay} zIndex={70}>
         <ReferralScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "addresses"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("addresses")} onClose={closeOverlay} zIndex={70}>
         <AddressesScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "edit-profile"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("edit-profile")} onClose={closeOverlay} zIndex={70}>
         <EditProfileScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "certification"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("certification")} onClose={closeOverlay} zIndex={70}>
         <CertificationScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "delivery"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("delivery")} onClose={closeOverlay} zIndex={70}>
         <DeliverySettingsScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "delete-account"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("delete-account")} onClose={closeOverlay} zIndex={72}>
         <DeleteAccountScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "broadcast-setup"} onClose={closeOverlay}>
-        {shown.kind === "broadcast-setup" ? <BroadcastSetupScreen mode={shown.mode} /> : null}
+      <PushScreen open={broadcastSetup.open} onClose={closeOverlay} zIndex={70}>
+        {broadcastSetup.entry ? <BroadcastSetupScreen mode={broadcastSetup.entry.mode} /> : null}
       </PushScreen>
       <PushScreen
-        open={overlay.kind === "broadcast-live"}
+        open={broadcastLive.open}
         onClose={closeOverlay}
         zIndex={85}
         swipeBackEnabled={false}
       >
-        {shown.kind === "broadcast-live" ? (
+        {broadcastLive.entry ? (
           <Suspense fallback={<BroadcastLiveFallback />}>
             <BroadcastLiveScreen
-              liveId={shown.liveId}
-              roomName={shown.roomName}
-              title={shown.title}
-              identity={shown.identity}
-              displayName={shown.displayName}
-              facing={shown.facing}
+              liveId={broadcastLive.entry.liveId}
+              roomName={broadcastLive.entry.roomName}
+              title={broadcastLive.entry.title}
+              identity={broadcastLive.entry.identity}
+              displayName={broadcastLive.entry.displayName}
+              facing={broadcastLive.entry.facing}
             />
           </Suspense>
         ) : null}
       </PushScreen>
-      <PushScreen open={overlay.kind === "admin"} onClose={closeOverlay}>
+      <PushScreen open={isOverlayOpen("admin")} onClose={closeOverlay} zIndex={70}>
         <AdminDashboardScreen />
       </PushScreen>
-      <PushScreen open={overlay.kind === "live"} onClose={closeOverlay} zIndex={80}>
-        {shown.kind === "live" ? <LiveViewerScreen stream={shown.stream} /> : null}
+      <PushScreen open={live.open} onClose={closeOverlay} zIndex={80}>
+        {live.entry ? <LiveViewerScreen stream={live.entry.stream} /> : null}
       </PushScreen>
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />
