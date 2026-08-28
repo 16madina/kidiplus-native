@@ -22,6 +22,7 @@ import * as Haptics from "expo-haptics";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { AuctionFinalCountdown } from "../components/live/AuctionFinalCountdown";
+import { AuctionNowBar } from "../components/live/AuctionNowBar";
 import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
 import { GiftAnimationOverlay } from "../components/live/GiftAnimationOverlay";
@@ -616,38 +617,29 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           ) : null}
 
           {auctionLive || (featured?.mode === "fixed" && featured.status === "active") ? (
-            <Glass tone="gold" intensity={46} radius={20} padded>
-              <Text style={styles.productEyebrow}>
-                {auctionLive
-                  ? t("live.currentBid")
-                  : t("live.buyNow")}
-              </Text>
-              <Text style={styles.productTitle} numberOfLines={1}>
-                {featured!.name}
-              </Text>
-              <View style={styles.priceRow}>
-                <Text style={styles.price}>{fmt(Number(featured!.price ?? featured!.start_price))}</Text>
-                {auctionLive && room.timeLeft > 0 ? (
-                  <Text style={styles.timer}>{room.timeLeft}s</Text>
-                ) : null}
-              </View>
-              {room.lastBid && room.lastBid.productId === featured!.id ? (
-                <Text style={styles.bidder}>{room.lastBid.bidderName}</Text>
-              ) : null}
-            </Glass>
+            <AuctionNowBar
+              eyebrow={auctionLive ? t("live.currentBid") : t("live.buyNow")}
+              name={featured!.name}
+              imageUrl={featured!.image_url}
+              priceLabel={fmt(Number(featured!.price ?? featured!.start_price))}
+              bidderName={
+                auctionLive && room.lastBid && room.lastBid.productId === featured!.id
+                  ? room.lastBid.bidderName
+                  : null
+              }
+              secondsLeft={auctionLive && room.timeLeft > 0 ? room.timeLeft : null}
+            />
           ) : featured || room.products.length > 0 ? (
-            <Glass tone="dark" intensity={40} radius={16} padded>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                {featured?.image_url ? (
-                  <Image source={{ uri: featured.image_url }} style={{ width: 44, height: 44, borderRadius: 8 }} contentFit="cover" />
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.waitTxt}>
-                    {t("live.nextItemSoon", { name: featured?.name ? `${featured.name} ⏳` : "⏳" })}
-                  </Text>
-                </View>
-              </View>
-            </Glass>
+            <AuctionNowBar
+              eyebrow={t("live.nextItemSoon", { name: "⏳" })}
+              name={featured?.name ?? "⏳"}
+              imageUrl={featured?.image_url}
+              priceLabel={
+                featured
+                  ? fmt(Number(featured.price ?? featured.start_price ?? 0))
+                  : " "
+              }
+            />
           ) : null}
 
           <View style={[styles.chatRow, layout.narrow && { gap: 6 }]}>
@@ -828,22 +820,15 @@ const styles = StyleSheet.create({
   chatList: { gap: 4, marginBottom: 4 },
   chatBubble: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     maxWidth: "88%",
   },
   chatLine: { color: "#fff", fontSize: 13, fontWeight: "600" },
   chatUser: { color: GOLD, fontWeight: "800" },
   chatSystem: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "700" },
-  productEyebrow: { color: GOLD, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
-  productTitle: { color: "#fff", fontWeight: "700", marginTop: 4 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 4 },
-  price: { color: GOLD, fontSize: 20, fontWeight: "900" },
-  timer: { color: "#fff", fontWeight: "800", fontVariant: ["tabular-nums"] },
-  bidder: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700", marginTop: 2 },
-  waitTxt: { color: "rgba(255,255,255,0.85)", fontWeight: "700", textAlign: "center" },
   chatRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   input: { height: 44, color: "#fff", paddingHorizontal: 16 },
   bid: { height: 48, borderRadius: 999, minHeight: 48, width: "100%", overflow: "hidden" },

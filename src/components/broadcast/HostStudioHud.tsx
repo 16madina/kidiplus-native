@@ -40,6 +40,7 @@ import { LiveEffectsPreview } from "./LiveEffectsPreview";
 import { PosterGestureLayer } from "./PosterGestureLayer";
 import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
+import { AuctionNowBar } from "../live/AuctionNowBar";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
 import { GiftAnimationOverlay } from "../live/GiftAnimationOverlay";
@@ -308,74 +309,12 @@ export function HostStudioHud({
         ) : null}
       </View>
 
-      {featured ? (
-        <View
-          style={[
-            styles.featured,
-            {
-              top: insets.top + layout.featuredTopExtra,
-              width: layout.featuredWidth,
-            },
-          ]}
-        >
-          <Press
-            onPress={() => {
-              session.setFeaturedId(featured.id);
-              setProductsOpen(true);
-            }}
-            style={styles.featuredTap}
-          >
-            <View style={styles.featuredImgWrap}>
-              {featured.image_url ? (
-                <Image source={{ uri: featured.image_url }} style={styles.featuredImg} contentFit="cover" />
-              ) : (
-                <View style={[styles.featuredImg, styles.featuredPh]} />
-              )}
-              <View style={styles.featuredTag}>
-                <Text style={styles.featuredTagTxt}>{t("live.featured").toUpperCase()}</Text>
-              </View>
-            </View>
-            <Text numberOfLines={1} style={styles.featuredName}>
-              {featured.name}
-            </Text>
-          </Press>
-          {auctionOnFeatured ? (
-            <>
-              <Text style={styles.featuredMeta}>
-                {`${t("live.currentBid")} · ${fmt(featured.price)}`}
-              </Text>
-              <View style={styles.featuredPriceRow}>
-                <Text style={styles.featuredPrice}>{fmt(featured.start_price)}</Text>
-                <Text style={[styles.featuredTimer, session.timeLeft <= 3 && { color: "#ff6b6b" }]}>
-                  {String(session.timeLeft).padStart(2, "0")}s
-                </Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text numberOfLines={1} style={styles.featuredIdle}>
-                {featured.mode === "auction"
-                  ? `${fmt(featured.start_price)} · ${featured.timer_seconds}s`
-                  : `${fmt(featured.price)} · stock ${Math.max(0, featured.stock)}`}
-              </Text>
-              <Press
-                onPress={() => void runFeaturedAction(featured)}
-                style={styles.featuredCta}
-                disabled={busyId === featured.id}
-              >
-                <Text style={styles.featuredCtaTxt}>{featuredCta(featured)}</Text>
-              </Press>
-            </>
-          )}
-        </View>
-      ) : null}
-
       <View
         pointerEvents="box-none"
         style={[
           styles.rail,
           {
-            top: insets.top + layout.railTopExtra,
+            top: insets.top + layout.featuredTopExtra,
             gap: layout.railGap,
           },
         ]}
@@ -477,6 +416,30 @@ export function HostStudioHud({
               </View>
             ))}
           </View>
+          {featured ? (
+            <AuctionNowBar
+              eyebrow={
+                auctionOnFeatured
+                  ? t("live.currentBid")
+                  : featured.mode === "fixed" && featured.status === "active"
+                    ? t("live.buyNow")
+                    : t("live.featured")
+              }
+              name={featured.name}
+              imageUrl={featured.image_url}
+              priceLabel={fmt(Number(featured.price ?? featured.start_price))}
+              bidderName={
+                auctionOnFeatured && session.lastBid && session.lastBid.productId === featured.id
+                  ? session.lastBid.bidderName
+                  : null
+              }
+              secondsLeft={auctionOnFeatured && session.timeLeft > 0 ? session.timeLeft : null}
+              onPress={() => {
+                session.setFeaturedId(featured.id);
+                setProductsOpen(true);
+              }}
+            />
+          ) : null}
           <View style={styles.composer}>
             <TextInput
               value={draft}
@@ -503,6 +466,15 @@ export function HostStudioHud({
               <Send size={17} color="#fff" />
             </Press>
           </View>
+          {featured && !auctionOnFeatured ? (
+            <Press
+              onPress={() => void runFeaturedAction(featured)}
+              style={styles.hostCta}
+              disabled={busyId === featured.id}
+            >
+              <Text style={styles.hostCtaTxt}>{featuredCta(featured)}</Text>
+            </Press>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
       ) : null}
@@ -806,44 +778,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   socialTxt: { color: NAVY, fontSize: 10, fontWeight: "900" },
-  featured: {
-    position: "absolute",
-    right: 8,
-    width: 108,
-    zIndex: 11,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 16,
-    padding: 6,
-  },
-  featuredTap: { minHeight: 0, minWidth: 0, alignItems: "stretch" },
-  featuredImgWrap: { borderRadius: 8, overflow: "hidden", marginBottom: 4 },
-  featuredImg: { height: 56, width: "100%", backgroundColor: "#222" },
-  featuredPh: { backgroundColor: "rgba(255,255,255,0.12)" },
-  featuredTag: {
-    position: "absolute",
-    left: 4,
-    top: 4,
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  featuredTagTxt: { color: NAVY, fontSize: 8.5, fontWeight: "800", letterSpacing: 0.3 },
-  featuredName: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
-  featuredMeta: { color: "rgba(255,255,255,0.6)", fontSize: 8.5, fontWeight: "700", textTransform: "uppercase", marginTop: 2 },
-  featuredPriceRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  featuredPrice: { color: "#fff", fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  featuredTimer: { color: "#fff", fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  featuredIdle: { color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 },
-  featuredCta: {
-    marginTop: 4,
-    height: 28,
-    minHeight: 28,
+  hostCta: {
+    height: 44,
+    minHeight: 44,
     minWidth: 0,
+    width: "100%",
     borderRadius: 999,
-    backgroundColor: "#fff",
+    backgroundColor: GOLD,
   },
-  featuredCtaTxt: { color: NAVY, fontSize: 10, fontWeight: "800" },
+  hostCtaTxt: { color: NAVY, fontSize: 15, fontWeight: "900" },
   rail: {
     position: "absolute",
     right: 10,
@@ -962,6 +905,7 @@ const styles = StyleSheet.create({
   },
   prodRowOn: { backgroundColor: "rgba(232,185,59,0.12)", borderRadius: 12, paddingHorizontal: 6 },
   prodImg: { width: 48, height: 48, borderRadius: 10, backgroundColor: "#eee" },
+  featuredPh: { backgroundColor: "rgba(255,255,255,0.12)" },
   prodName: { color: NAVY, fontWeight: "800", fontSize: 14 },
   prodMeta: { color: "#6B7289", fontSize: 11, marginTop: 2 },
   prodCta: {
