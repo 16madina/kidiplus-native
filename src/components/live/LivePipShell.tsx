@@ -59,10 +59,10 @@ export function LivePipShell({
         },
         onPanResponderMove: (_, g) => {
           if (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8) draggedRef.current = true;
-          const maxX = width - LIVE_PIP_MINI.width - LIVE_PIP_MINI.right - 8;
-          const maxY = height - LIVE_PIP_MINI.height - LIVE_PIP_MINI.bottom - insets.bottom - 8;
-          tx.value = Math.max(-maxX, Math.min(LIVE_PIP_MINI.right, startX.value + g.dx));
-          ty.value = Math.max(-maxY, Math.min(LIVE_PIP_MINI.bottom, startY.value + g.dy));
+          const originLeft = width - LIVE_PIP_MINI.width - LIVE_PIP_MINI.right;
+          const originTop = height - LIVE_PIP_MINI.height - LIVE_PIP_MINI.bottom - insets.bottom;
+          tx.value = Math.max(-originLeft + 8, Math.min(8, startX.value + g.dx));
+          ty.value = Math.max(-originTop + 8, Math.min(8, startY.value + g.dy));
         },
         onPanResponderRelease: () => {
           setTimeout(() => {
@@ -109,10 +109,12 @@ export function LivePipShell({
     if (floatingMini) {
       return {
         position: "absolute" as const,
+        top: height - LIVE_PIP_MINI.height - LIVE_PIP_MINI.bottom - insets.bottom,
+        left: width - LIVE_PIP_MINI.width - LIVE_PIP_MINI.right,
+        right: undefined,
+        bottom: undefined,
         width: LIVE_PIP_MINI.width,
         height: LIVE_PIP_MINI.height,
-        right: LIVE_PIP_MINI.right,
-        bottom: LIVE_PIP_MINI.bottom + insets.bottom,
         borderRadius: 18,
         zIndex: 55,
         overflow: "hidden" as const,
