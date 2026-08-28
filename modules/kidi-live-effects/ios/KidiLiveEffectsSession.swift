@@ -199,7 +199,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   func captureOutput(
     _ output: AVCaptureOutput,
     didOutput sampleBuffer: CMSampleBuffer,
-    from connection: AVCaptureConnection,
+    from connection: AVCaptureConnection
   ) {
     guard running else { return }
     guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -304,7 +304,6 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       bitsPerComponent: 8,
       bytesPerRow: w * 4,
       space: cs,
-      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
     ), let cg = ctx.makeImage() else { return nil }
     var mask = CIImage(cgImage: cg)
     let radius = max(1, CGFloat(w) * 0.008)
