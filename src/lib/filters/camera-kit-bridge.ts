@@ -3,7 +3,10 @@
 // les appels échouent proprement et l'UI garde les styles locaux.
 
 import { Platform } from "react-native";
-import { KidiCameraKit } from "kidi-camera-kit";
+// Relative path: Metro resolves this even if `npm install` has not yet
+// created node_modules/kidi-camera-kit (file: symlink). Native autolinking
+// still uses the package.json dependency.
+import { KidiCameraKit } from "../../../modules/kidi-camera-kit/src";
 import {
   hasSnapCameraKitConfig,
   snapApiToken,

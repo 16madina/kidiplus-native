@@ -3,8 +3,8 @@
 ## Présent
 - Module local `modules/kidi-camera-kit` (iOS Swift + Android Kotlin)
 - Token / Lens Group production (Info.plist + Android meta-data)
-- JS : `FilterProvider`, `FiltersCarousel`, bridge `kidi-camera-kit`
-- Autolinking via `"kidi-camera-kit": "file:./modules/kidi-camera-kit"`
+- JS : `FilterProvider`, `FiltersCarousel`, bridge → import relatif `modules/kidi-camera-kit/src`
+- Autolinking via `"kidi-camera-kit": "file:modules/kidi-camera-kit"` (+ alias Metro)
 - **iOS** : pas d’`import LiveKit` Swift (évite l’erreur CocoaPods). Preview + lenses Snap OK ; la vidéo live reste publiée par `@livekit/react-native`.
 
 ## Rebuild requis (appareil physique)
