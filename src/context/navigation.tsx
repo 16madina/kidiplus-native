@@ -30,14 +30,15 @@ export type OverlayKind =
   | "delete-account"
   | "broadcast-setup"
   | "broadcast-live"
-  | "admin";
+  | "admin"
+  | "blocked-users";
 
 export type Overlay =
   | { kind: "none" }
   | { kind: "live"; stream: LiveStream; list: LiveStream[]; index: number }
   | { kind: "activity"; tab?: "notifs" | "messages"; threadId?: string }
   | { kind: "dm-chat"; target: DmChatTarget }
-  | { kind: "legal"; page: "terms" | "privacy" }
+  | { kind: "legal"; page: "terms" | "privacy" | "community" | "safety" }
   | { kind: "shop"; sellerId?: string; sellerName?: string }
   | { kind: "wallet" }
   | { kind: "orders"; orderId?: string }
@@ -60,7 +61,8 @@ export type Overlay =
       displayName: string;
       facing: "front" | "back";
     }
-  | { kind: "admin" };
+  | { kind: "admin" }
+  | { kind: "blocked-users" };
 
 type OverlayEntry = Exclude<Overlay, { kind: "none" }>;
 

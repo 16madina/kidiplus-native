@@ -11,6 +11,7 @@ import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
 import { Glass, GlassIconButton } from "../components/Glass";
 import { UpcomingLivesRow } from "../components/UpcomingLivesRow";
+import { EmailConfirmBanner } from "../components/EmailConfirmBanner";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
@@ -98,6 +99,7 @@ export function HomeScreen() {
         contentContainerStyle={{ paddingBottom: TAB_SAFE_PADDING + insets.bottom }}
       >
         <View style={{ height: 8 }} />
+        <EmailConfirmBanner />
         <CategoryTiles active={category} onChange={setCategory} />
         <View style={{ height: 12 }} />
         <FilterPills active={filter} onChange={setFilter} onOpenFilters={() => setFilterSheetOpen(true)} />

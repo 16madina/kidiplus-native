@@ -11,6 +11,8 @@ import { NavigationProvider } from "./src/context/navigation";
 import { PushProvider } from "./src/context/push";
 import { FilterProvider } from "./src/lib/filters/filter-context";
 import { LiveEffectsProvider } from "./src/lib/filters/live-effects-context";
+import { ForceUpdateGate } from "./src/components/ForceUpdateGate";
+import { ModerationGate } from "./src/components/ModerationGate";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { AuthFlow } from "./src/screens/AuthFlow";
 import { AppShell } from "./src/AppShell";
@@ -57,19 +59,23 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.fill}>
       <SafeAreaProvider>
-        <LanguageProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <NavigationProvider>
-                <FilterProvider>
-                  <LiveEffectsProvider>
-                    <Root />
-                  </LiveEffectsProvider>
-                </FilterProvider>
-              </NavigationProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </LanguageProvider>
+        <ForceUpdateGate>
+          <LanguageProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <NavigationProvider>
+                  <FilterProvider>
+                    <LiveEffectsProvider>
+                      <ModerationGate>
+                        <Root />
+                      </ModerationGate>
+                    </LiveEffectsProvider>
+                  </FilterProvider>
+                </NavigationProvider>
+              </AuthProvider>
+            </ThemeProvider>
+          </LanguageProvider>
+        </ForceUpdateGate>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

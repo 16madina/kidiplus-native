@@ -30,6 +30,7 @@ import { DeliverySettingsScreen } from "./screens/DeliverySettingsScreen";
 import { BroadcastSetupScreen } from "./screens/BroadcastSetupScreen";
 import { DeleteAccountScreen } from "./screens/DeleteAccountScreen";
 import { AdminDashboardScreen } from "./screens/AdminDashboardScreen";
+import { BlockedUsersScreen } from "./screens/BlockedUsersScreen";
 import { DmChatScreen } from "./screens/DmChatScreen";
 import { GOLD, NAVY } from "./theme";
 
@@ -180,6 +181,9 @@ export function AppShell() {
             />
           </Suspense>
         ) : null}
+      </PushScreen>
+      <PushScreen open={isOverlayOpen("blocked-users")} onClose={closeOverlay} zIndex={72}>
+        <BlockedUsersScreen />
       </PushScreen>
       <PushScreen open={isOverlayOpen("admin")} onClose={closeOverlay} zIndex={70}>
         <AdminDashboardScreen />

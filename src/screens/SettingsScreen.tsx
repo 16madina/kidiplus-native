@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Bell, ChevronRight, Moon, Sun, Trash2 } from "lucide-react-native";
+import { Bell, ChevronRight, Moon, ShieldBan, Sun, Trash2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
 import { CurrencySheet } from "../components/CurrencySheet";
@@ -21,7 +21,7 @@ export function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { closeOverlay, openOverlay } = useNav();
   const push = usePush();
-  const [legal, setLegal] = useState<null | "terms" | "privacy">(null);
+  const [legal, setLegal] = useState<null | "terms" | "privacy" | "community" | "safety">(null);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
@@ -139,6 +139,13 @@ export function SettingsScreen() {
           <View style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{user?.email ?? "—"}</Text>
           </View>
+          <Press onPress={() => openOverlay({ kind: "blocked-users" })} style={styles.row}>
+            <ShieldBan size={18} color={colors.foreground} />
+            <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>
+              {t("blocked.title", { defaultValue: "Utilisateurs bloqués" })}
+            </Text>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Press>
           <Press
             onPress={() => {
               closeOverlay();
@@ -167,6 +174,18 @@ export function SettingsScreen() {
           </Press>
           <Press onPress={() => setLegal("privacy")} style={styles.row}>
             <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>{t("profile.menu.privacy")}</Text>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Press>
+          <Press onPress={() => setLegal("community")} style={styles.row}>
+            <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>
+              {t("profile.menu.community", { defaultValue: "Directives communauté" })}
+            </Text>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Press>
+          <Press onPress={() => setLegal("safety")} style={styles.row}>
+            <Text style={[styles.rowTitle, { flex: 1, color: colors.foreground }]}>
+              {t("profile.menu.safety", { defaultValue: "Sécurité" })}
+            </Text>
             <ChevronRight size={18} color={colors.mutedForeground} />
           </Press>
         </SurfaceCard>
