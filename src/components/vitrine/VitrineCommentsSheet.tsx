@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   Modal,
   Platform,
   Share,
@@ -71,6 +72,7 @@ export function VitrineCommentsSheet({
     if (!res.ok) return;
     setBody("");
     setReplyTo(null);
+    Keyboard.dismiss();
     setRows((prev) => [...prev, res.comment]);
     onCountChange?.(rows.length + 1);
   };

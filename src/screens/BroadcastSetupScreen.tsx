@@ -30,6 +30,7 @@ import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
 import { SetupCamera } from "../components/broadcast/SetupCamera";
 import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
+import { LiveEffectsOverlay } from "../components/broadcast/LiveEffectsOverlay";
 import { FiltersCarousel } from "../components/broadcast/FiltersCarousel";
 import { ScheduleLiveScreen } from "./ScheduleLiveScreen";
 import { useAuth } from "../context/auth";
@@ -188,6 +189,7 @@ function GoLiveSetup() {
       ) : (
         <SetupCamera facing={facing} tint={tint} />
       )}
+      <LiveEffectsOverlay />
       {!showFilters ? (
         <LinearGradient colors={["rgba(5,6,12,0.15)", "rgba(5,6,12,0.55)"]} style={FILL} pointerEvents="none" />
       ) : null}

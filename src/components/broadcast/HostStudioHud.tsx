@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -36,6 +37,7 @@ import { BattleInviteSheet } from "./BattleInviteSheet";
 import { FiltersCarousel } from "./FiltersCarousel";
 import { SnapCameraPreview } from "./SnapCameraPreview";
 import { PosterGestureLayer } from "./PosterGestureLayer";
+import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
@@ -195,6 +197,7 @@ export function HostStudioHud({
           <SnapCameraPreview facing="front" />
         </View>
       ) : null}
+      <LiveEffectsOverlay />
       <PosterGestureLayer />
       {giftFlash ? (
         <View
@@ -465,12 +468,14 @@ export function HostStudioHud({
               onSubmitEditing={() => {
                 session.sendChat(draft);
                 setDraft("");
+                Keyboard.dismiss();
               }}
             />
             <Press
               onPress={() => {
                 session.sendChat(draft);
                 setDraft("");
+                Keyboard.dismiss();
               }}
               style={styles.sendBtn}
               accessibilityLabel={t("live.sendMessage")}
