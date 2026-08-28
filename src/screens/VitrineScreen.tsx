@@ -11,7 +11,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Compass, Heart, Home, MessageCircle, MoreVertical, Plus, Share2, Store, Volume2, VolumeX } from "lucide-react-native";
+import { Compass, Heart, Home, MessageCircle, MoreVertical, Plus, Share2, Store } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -322,7 +322,6 @@ function VitrinePostSlide({
   const [liked, setLiked] = useState(post.likedByMe);
   const [likes, setLikes] = useState(post.likes);
   const [comments, setComments] = useState(post.comments);
-  const [muted, toggleMuted] = useVitrineSound();
   const [reportOpen, setReportOpen] = useState(false);
   const busyLike = useRef(false);
 
@@ -388,23 +387,10 @@ function VitrinePostSlide({
   };
 
   return (
-    <View style={{ width, height, backgroundColor: "#000" }} onTouchStart={unlockVitrineSound}>
+    <View style={{ width, height, backgroundColor: "#000" }}>
       <VitrineMedia post={post} active={active} />
-      <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} />
-      <View style={[styles.modMenu, { top: insets.top + 12 }]}>
-        <GlassIconButton tone="dark" onPress={openModeration}>
-          <MoreVertical size={18} color="#fff" />
-        </GlassIconButton>
-      </View>
-      <View style={[styles.side, { bottom: insets.bottom + 28 }]}>
-        <Action
-          icon={muted ? <VolumeX size={26} color="#fff" /> : <Volume2 size={26} color="#fff" />}
-          label={muted ? t("vitrine.muted") : t("vitrine.sound")}
-          onPress={() => {
-            if (muted) unlockVitrineSound();
-            else toggleMuted();
-          }}
-        />
+      <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} pointerEvents="none" />
+      <View pointerEvents="box-none" style={[styles.side, { bottom: insets.bottom + 28 }]}>
         <Action
           icon={<Heart size={26} color={liked ? LIVE_RED : "#fff"} fill={liked ? LIVE_RED : "none"} />}
           label={String(likes)}
@@ -417,8 +403,13 @@ function VitrinePostSlide({
         />
         <Action icon={<Share2 size={26} color="#fff" />} label={t("vitrine.share")} />
         <Action icon={<Store size={26} color="#fff" />} label={t("vitrine.shop")} onPress={onShop} />
+        <Action
+          icon={<MoreVertical size={26} color="#fff" />}
+          label=" "
+          onPress={openModeration}
+        />
       </View>
-      <View style={[styles.meta, { bottom: insets.bottom + 28 }]}>
+      <View pointerEvents="box-none" style={[styles.meta, { bottom: insets.bottom + 28 }]}>
         <Glass tone="dark" intensity={38} radius={16} padded>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {isHttpUrl(post.avatarUrl) ? (
@@ -473,10 +464,16 @@ function VitrineVideo({
     p.audioMixingMode = "doNotMix";
   });
   const [muted] = useVitrineSound();
+  const [userPaused, setUserPaused] = useState(false);
+
+  // Reset pause when the slide becomes active again / changes.
+  useEffect(() => {
+    if (active) setUserPaused(false);
+  }, [active, uri]);
 
   useEffect(() => {
     try {
-      if (!active) {
+      if (!active || userPaused) {
         player.muted = true;
         player.volume = 0;
         player.pause();
@@ -488,7 +485,7 @@ function VitrineVideo({
     } catch {
       /* player already released */
     }
-  }, [active, muted, player]);
+  }, [active, muted, userPaused, player]);
 
   useEffect(() => {
     return () => {
@@ -502,6 +499,12 @@ function VitrineVideo({
     };
   }, [player]);
 
+  const onTapVideo = () => {
+    // First tap also unlocks sound (TikTok-style user gesture).
+    unlockVitrineSound();
+    setUserPaused((p) => !p);
+  };
+
   return (
     <View style={FILL}>
       {poster ? <Image source={{ uri: poster }} style={FILL} contentFit="cover" /> : null}
@@ -512,6 +515,18 @@ function VitrineVideo({
         nativeControls={false}
         fullscreenOptions={{ enable: false }}
       />
+      <Press
+        onPress={onTapVideo}
+        haptic="none"
+        style={[FILL, { minHeight: 0, minWidth: 0 }]}
+        accessibilityRole="button"
+        accessibilityLabel={userPaused ? "Play" : "Pause"}
+      />
+      {userPaused ? (
+        <View pointerEvents="none" style={styles.pauseBadge}>
+          <Text style={styles.pauseTxt}>❚❚</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -558,11 +573,23 @@ const styles = StyleSheet.create({
   catActive: { color: "#fff" },
   underline: { height: 2, backgroundColor: GOLD, marginTop: 4, borderRadius: 1 },
   bottomGrad: { position: "absolute", left: 0, right: 0, bottom: 0, height: 220 },
-  modMenu: { position: "absolute", right: 12, zIndex: 20 },
-  side: { position: "absolute", right: 10, alignItems: "center", gap: 14 },
+  side: { position: "absolute", right: 10, alignItems: "center", gap: 12, zIndex: 12 },
   action: { minHeight: 0, minWidth: 0, alignItems: "center" },
   actionLabel: { color: "#fff", fontSize: 11, fontWeight: "700", marginTop: 2 },
-  meta: { position: "absolute", left: 16, right: 80 },
+  meta: { position: "absolute", left: 16, right: 80, zIndex: 11 },
+  pauseBadge: {
+    ...FILL,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pauseTxt: {
+    color: "rgba(255,255,255,0.88)",
+    fontSize: 42,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
   av: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: GOLD },
   avFallback: { backgroundColor: "rgba(232,185,59,0.28)", alignItems: "center", justifyContent: "center" },
   avInitials: { color: "#fff", fontSize: 11, fontWeight: "800" },
