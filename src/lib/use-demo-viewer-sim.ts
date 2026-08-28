@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ViewerRoomState, ViewerActions } from "./live-viewer";
 import type { LiveProductRow } from "./live-host";
 import type { GiftKey } from "./gifts";
-import { nextBidAmount, type Currency } from "./money";
+import { nextBidAmount, maxBidAmount, roundForCurrency, type Currency } from "./money";
 
 const DEMO_NAMES = [
   "Mariama", "Yves", "Awa", "Kevin", "Fatou", "Lucas",
@@ -191,10 +191,13 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
   }, [pushChat]);
 
   const registerBid = useCallback(
-    (bidderId: string, bidderName: string) => {
+    (bidderId: string, bidderName: string, amount?: number) => {
       const product = productsRef.current[featuredIdxRef.current];
       if (!product || product.mode !== "auction" || phaseRef.current !== "auction") return null;
-      const next = nextBidAmount(priceRef.current, currency);
+      const min = nextBidAmount(priceRef.current, currency);
+      const cap = maxBidAmount(Number(product.start_price ?? priceRef.current), currency);
+      const next = amount != null ? roundForCurrency(amount, currency) : min;
+      if (next < min || next > cap) return null;
       setCurrentPrice(next);
       setLastBid({
         productId: product.id,
@@ -244,8 +247,8 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
     pushChat("Moi", "❤️");
   };
 
-  const placeBid = async () => {
-    const amount = registerBid("me", "Moi");
+  const placeBid = async (opts?: { amount?: number }) => {
+    const amount = registerBid("me", "Moi", opts?.amount);
     if (amount == null) return { ok: false as const, error: "Aucune enchère en cours" };
     pushChat("Moi", `Enchère ${amount} 🔥`);
     return { ok: true as const, amount };

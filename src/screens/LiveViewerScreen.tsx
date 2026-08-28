@@ -14,15 +14,16 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Gavel, Gift, Heart, MoreVertical, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
+import { Gavel, Gift, Heart, MoreVertical, Plus, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import * as Haptics from "expo-haptics";
 import { Press } from "../components/Press";
-import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
+import { Glass, GlassIconButton } from "../components/Glass";
 import { AuctionFinalCountdown } from "../components/live/AuctionFinalCountdown";
 import { AuctionNowBar } from "../components/live/AuctionNowBar";
+import { CustomBidPanel } from "../components/live/CustomBidPanel";
 import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
 import { GiftAnimationOverlay } from "../components/live/GiftAnimationOverlay";
@@ -103,6 +104,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [giftsOpen, setGiftsOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
   const [payOrder, setPayOrder] = useState<OrderView | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -152,6 +154,10 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     const id = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(id);
   }, [toast]);
+
+  useEffect(() => {
+    if (!auctionLive) setCustomOpen(false);
+  }, [auctionLive]);
 
   // Auto-leave if the host is already blocked (Apple 1.2 / web parity).
   useEffect(() => {
@@ -285,14 +291,16 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     return false;
   };
 
-  const onBid = async () => {
+  const onBid = async (amount?: number) => {
+    const bidAmount = amount ?? nextBid;
     // Demo lives: bid without account/wallet gates so the full auction
     // flow (bid -> sudden death -> winner) is reviewable by Apple.
     if (s.fictitious) {
       setBusy(true);
       try {
-        const res = await room.placeBid();
+        const res = await room.placeBid({ amount: bidAmount });
         if (res.ok) {
+          setCustomOpen(false);
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
         } else {
           setToast(t("live.waitingForSeller"));
@@ -317,7 +325,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     }
     if (!gateDelivery()) return;
 
-    const need = convertMoney(nextBid, currency, walletCurrency);
+    const need = convertMoney(bidAmount, currency, walletCurrency);
     if ((user.walletBalance ?? 0) < need) {
       setToast(t("live.bidInsufficientFunds"));
       setTopUpOpen(true);
@@ -326,10 +334,12 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
 
     setBusy(true);
     try {
-      const res = await room.placeBid();
+      const res = await room.placeBid({ amount: bidAmount });
       if (!res.ok) {
         if (res.error === "already_highest") setToast(t("live.highestBidder"));
-        else if (res.error === "no_address") {
+        else if (res.minNext != null) {
+          setToast(t("bid.custom.priceChanged", { amount: fmt(res.minNext) }));
+        } else if (res.error === "no_address") {
           Alert.alert(
             t("address.title", "Adresses"),
             t("delivery.noAddressBlock", "Ajoute une adresse de livraison"),
@@ -340,11 +350,14 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           res.error === "delivery_blocked"
         ) {
           setToast(t("delivery.notInYourCountry", "Livraison indisponible dans ton pays"));
+        } else if (res.error === "amount_too_high" || res.error === "above_cap") {
+          setToast(t("bid.custom.aboveCap", { amount: fmt(bidAmount) }));
         } else {
           setToast(res.error === "auction_ended" ? t("live.auctionEndedBid", "L'enchère est terminée.") : t("live.bidFailed"));
         }
         return;
       }
+      setCustomOpen(false);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     } finally {
       setBusy(false);
@@ -682,28 +695,66 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           </View>
 
           {featured && auctionLive ? (
-            <Press
-              style={[styles.bid, { height: layout.vs(48) }]}
-              onPress={() => void onBid()}
-              disabled={busy || isHighest}
-            >
-              <LinearGradient colors={["#F7CE5A", "#E8B93B", "#D9A73A"]} style={styles.bidGrad}>
-                <LinearGradient
-                  colors={["rgba(255,255,255,0.5)", "rgba(255,255,255,0)"]}
-                  style={styles.bidShine}
-                  pointerEvents="none"
+            <>
+              {customOpen && !isHighest ? (
+                <CustomBidPanel
+                  currentPrice={Number(featured.price ?? featured.start_price ?? 0)}
+                  startPrice={Number(featured.start_price ?? featured.price ?? 0)}
+                  currency={currency}
+                  busy={busy}
+                  onClose={() => setCustomOpen(false)}
+                  onConfirm={(amount) => void onBid(amount)}
                 />
-                <Gavel size={18} color={NAVY} />
-                <Text style={[styles.bidText, { fontSize: layout.s(15) }]} numberOfLines={1}>
-                  {isHighest
-                    ? t("live.youLead")
-                    : t("live.bidAt", { amount: fmt(nextBid) })}
-                </Text>
-              </LinearGradient>
-            </Press>
+              ) : null}
+              <View style={[styles.bidRow, layout.narrow && { gap: 6 }]}>
+                <Press
+                  style={[styles.sideBtn, { width: layout.icon, height: layout.icon }]}
+                  onPress={() => void onBid()}
+                  disabled={busy || isHighest}
+                  accessibilityLabel={t("bid.custom.plus")}
+                >
+                  <Glass tone="dark" intensity={40} radius={999} style={{ width: layout.icon, height: layout.icon }}>
+                    <View style={styles.sideInner}>
+                      <Plus size={18} color="#fff" />
+                    </View>
+                  </Glass>
+                </Press>
+                <Press
+                  style={styles.maxBtn}
+                  onPress={() => setCustomOpen((v) => !v)}
+                  disabled={busy || isHighest}
+                  accessibilityLabel={t("bid.custom.open")}
+                >
+                  <Glass tone={customOpen ? "gold" : "dark"} intensity={40} radius={999}>
+                    <View style={[styles.maxInner, { height: layout.icon }]}>
+                      <Text style={[styles.maxTxt, customOpen && { color: NAVY }]}>{t("bid.custom.short")}</Text>
+                    </View>
+                  </Glass>
+                </Press>
+                <Press
+                  style={[styles.bid, { height: layout.icon, flex: 1 }]}
+                  onPress={() => void onBid()}
+                  disabled={busy || isHighest}
+                >
+                  <LinearGradient colors={["#F7CE5A", "#E8B93B", "#D9A73A"]} style={[styles.bidGrad, { height: layout.icon }]}>
+                    <LinearGradient
+                      colors={["rgba(255,255,255,0.5)", "rgba(255,255,255,0)"]}
+                      style={styles.bidShine}
+                      pointerEvents="none"
+                    />
+                    <Gavel size={16} color={NAVY} />
+                    <Text style={[styles.bidText, { fontSize: layout.s(14) }]} numberOfLines={1}>
+                      {isHighest
+                        ? t("live.youLead")
+                        : t("live.bidAt", { amount: fmt(nextBid) })}
+                    </Text>
+                  </LinearGradient>
+                </Press>
+              </View>
+            </>
           ) : featured && featured.mode === "fixed" && featured.status === "active" ? (
             <Press
-              style={[styles.bid, { height: layout.vs(48) }]}
+              style={[styles.bid, { height: layout.vs(48), width: "100%" }]}
               onPress={() => void onBuy()}
               disabled={busy}
             >
@@ -830,19 +881,26 @@ const styles = StyleSheet.create({
   chatUser: { color: GOLD, fontWeight: "800" },
   chatSystem: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "700" },
   chatRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  bidRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%" },
+  sideBtn: { minWidth: 0, minHeight: 0, alignItems: "center", justifyContent: "center" },
+  sideInner: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
+  maxBtn: { minWidth: 0, minHeight: 0 },
+  maxInner: { paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
+  maxTxt: { color: "#fff", fontWeight: "800", fontSize: 13 },
   input: { height: 44, color: "#fff", paddingHorizontal: 16 },
-  bid: { height: 48, borderRadius: 999, minHeight: 48, width: "100%", overflow: "hidden" },
+  bid: { height: 44, borderRadius: 999, minHeight: 44, overflow: "hidden" },
   bidGrad: {
-    height: 48,
+    height: 44,
     borderRadius: 999,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.45)",
     width: "100%",
+    paddingHorizontal: 10,
   },
   bidShine: { position: "absolute", left: 0, right: 0, top: 0, height: 20 },
   bidText: { color: NAVY, fontWeight: "900", fontSize: 16 },

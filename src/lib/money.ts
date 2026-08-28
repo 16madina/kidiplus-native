@@ -53,6 +53,25 @@ export function nextBidAmount(currentPrice: number, currency: Currency): number 
   return roundForCurrency(currentPrice + step, currency);
 }
 
+/** Increment size for +/− / Plus (EUR: 0,50 € under 10 €, then 1 €). */
+export function bidStepFor(currentPrice: number, currency: Currency): number {
+  const rules = bidRulesFor(currency);
+  return currentPrice < rules.threshold ? rules.smallStep : rules.step;
+}
+
+/** Upper cap: max(100× start price, currency floor). Mirrors server `place_live_bid`. */
+export function maxBidAmount(startPrice: number, currency: Currency): number {
+  const floor = currency === "XOF" ? 1_000_000 : currency === "CAD" ? 3000 : 2000;
+  return Math.max((startPrice || 0) * 100, floor);
+}
+
+/** Parse a typed bid ("250", "250,00", "250.5") into a major-unit amount. */
+export function parseBidAmount(raw: string, currency: Currency): number | null {
+  const n = Number(String(raw).replace(/[^\d.,-]/g, "").replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return roundForCurrency(n, currency);
+}
+
 /** Wallet top-up presets per currency (mirrors kidiplus.com). */
 export function topUpPresets(currency: Currency): number[] {
   switch (currency) {
