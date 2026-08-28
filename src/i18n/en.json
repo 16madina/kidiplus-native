@@ -1156,7 +1156,7 @@
     "title": "Payment",
     "item": "Item",
     "platformFee": "Service fee",
-    "feeNote": "You pay the listed price. Stripe and PayPal collect it; KiDi+ keeps {{pct}}% from the seller (they receive 90%). If you or the seller used a referral code, that {{pct}}% goes to their referral card.",
+    "feeNote": "You pay the listed price. Fastest in live: top up your wallet, then pay from balance. KiDi+ keeps {{pct}}% from the seller (not from you).",
     "processingFee": "Processing fee",
     "total": "Total",
     "payNow": "Pay {{total}}",
@@ -1288,7 +1288,8 @@
       "withdrawal": "Withdrawal"
     },
     "currencyMismatch": "Wallet in {{currency}}",
-    "explainer": "Balance for buying and bidding in the app. Not withdrawable to your bank.",
+    "explainer": "Balance for buying and bidding in the app, instantly. Top up by card or PayPal. Not withdrawable to your bank — withdraw sales in My earnings.",
+    "maxHint": "Anti-fraud cap: {{max}}.",
     "toEarningsLink": "Want to withdraw your sales? → My earnings",
     "withdrawCta": "Withdraw",
     "withdrawHint": "Withdraw your wallet balance to your bank, PayPal or mobile money."
@@ -1298,7 +1299,7 @@
     "available": "Available balance",
     "pending": "Pending delivery",
     "escrowExplainer": "Funds are released when the buyer confirms delivery (auto after 7 days).",
-    "splitExplainer": "On every sale, Stripe or PayPal collects the payment. KiDi+ keeps {{pct}}% of the price (excluding shipping) and pays you the rest. If the buyer or you used a referral code, that {{pct}}% goes to their referral card instead of KiDi+.",
+    "splitExplainer": "The buyer pays the listed price (often from their wallet). KiDi+ keeps {{pct}}% of the item price (not shipping) and credits you the rest in escrow. After delivery you can withdraw. Stripe Connect (bank) is automatic; PayPal / Wave go through the team.",
     "withdraw": "Withdraw earnings",
     "explainer": "Your sales revenue — withdrawable to your bank.",
     "price": "Price",
@@ -1337,6 +1338,7 @@
     "paypalEmail": "PayPal email address",
     "paypalEmailPlaceholder": "you@example.com",
     "paypalHint": "The email associated with your PayPal account.",
+    "paypalReviewHint": "Your request is reviewed by the KiDi+ team (anti-fraud 🟢/🟡/🔴). Then PayPal sends the money. It is not automatic.",
     "paypalXofHint": "You'll receive ≈ {{eur}} on your PayPal (official fixed rate, no markup).",
     "paypalReceived": "Received on PayPal",
     "submit": "Confirm request",
@@ -1379,6 +1381,14 @@
     "confirmReject": "Reject this request? The amount will be credited back to the seller.",
     "markedPaid": "Marked as paid",
     "markedRejected": "Request rejected",
+    "paypal": {
+      "send": "💸 Send via PayPal",
+      "confirmTitle": "Send via PayPal?",
+      "confirmBody": "Anti-fraud check OK? The payout goes immediately to the seller’s PayPal. KiDi+ already kept the 10%.",
+      "confirm": "Confirm send",
+      "sent": "PayPal payout sent",
+      "failed": "PayPal send failed"
+    },
     "tabs": {
       "overview": "Overview",
       "users": "Users",

@@ -78,7 +78,8 @@ export async function requestPayout(
 
 const PAYPAL_PAYOUT_API = "https://kidiplus.com";
 
-/** Same POST /api/paypal-payout as Lovable's admin "Envoyer via PayPal". */
+/** Admin-only: POST /api/paypal-payout (server requires profiles.is_admin).
+ *  Seller withdrawals must NOT call this — anti-fraud review happens first. */
 export async function dispatchPaypalPayout(payoutId: string): Promise<{
   ok: boolean;
   alreadySent?: boolean;

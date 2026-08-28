@@ -33,6 +33,7 @@ import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { GOLD, NAVY, initials } from "../theme";
 import { formatMoney } from "../lib/money";
+import { dispatchPaypalPayout } from "../lib/earnings";
 import { countryFlag, countryName } from "../lib/countries";
 import {
   adminEndLive,
@@ -490,6 +491,11 @@ function VerifyTab({ flash }: { flash: (s: string) => void }) {
   );
 }
 
+function paypalEmail(p: AdminPayoutRow): string {
+  const d = p.destination ?? {};
+  return (d.paypalEmail || d.email || "").trim();
+}
+
 function PaymentsTab({ flash }: { flash: (s: string) => void }) {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
@@ -507,7 +513,33 @@ function PaymentsTab({ flash }: { flash: (s: string) => void }) {
             @{p.seller_handle || p.seller_name} · {formatMoney(p.amount, p.currency, i18n.language)}
           </Text>
           <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{p.method} · {p.status}</Text>
+          {p.method === "paypal" && paypalEmail(p) ? (
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{paypalEmail(p)}</Text>
+          ) : null}
           <View style={styles.rowBtns}>
+            {p.method === "paypal" ? (
+              <ActionPill
+                label={t("admin.paypal.send")}
+                onPress={() => {
+                  Alert.alert(
+                    t("admin.paypal.confirmTitle"),
+                    t("admin.paypal.confirmBody"),
+                    [
+                      { text: t("common.cancel"), style: "cancel" },
+                      {
+                        text: t("admin.paypal.confirm"),
+                        onPress: () => {
+                          void dispatchPaypalPayout(p.id).then((r) => {
+                            flash(r.ok ? t("admin.paypal.sent") : r.error || t("admin.paypal.failed"));
+                            load();
+                          });
+                        },
+                      },
+                    ],
+                  );
+                }}
+              />
+            ) : null}
             <ActionPill
               label={t("admin.markPaid")}
               onPress={async () => {

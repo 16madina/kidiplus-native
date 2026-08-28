@@ -72,6 +72,8 @@ export type AdminPayoutRow = {
   method: string;
   status: string;
   requested_at: string;
+  destination?: Record<string, string> | null;
+  source?: string;
 };
 
 export async function fetchAdminPayouts(status: string | null = "requested"): Promise<AdminPayoutRow[]> {

@@ -1156,7 +1156,7 @@
     "title": "Paiement",
     "item": "Article",
     "platformFee": "Frais de service",
-    "feeNote": "Tu paies le prix affiché. Stripe et PayPal encaissent, KiDi+ retient {{pct}} % sur le vendeur (90 % lui sont versés). Si toi ou le vendeur avez un parrain, ces {{pct}} % vont sur sa carte parrainage.",
+    "feeNote": "Tu paies le prix affiché. Le plus simple en live : recharger le portefeuille, puis payer au solde. KiDi+ retient {{pct}} % sur le vendeur (pas sur toi).",
     "processingFee": "Frais de traitement",
     "total": "Total",
     "payNow": "Payer {{total}}",
@@ -1289,7 +1289,8 @@
       "withdrawal": "Retrait"
     },
     "currencyMismatch": "Portefeuille en {{currency}}",
-    "explainer": "Solde pour acheter et enchérir dans l'app. Non retirable vers ta banque.",
+    "explainer": "Solde pour acheter et enchérir dans l'app, instantanément. Recharge par carte ou PayPal. Non retirable vers ta banque — tes ventes se retirent dans Mes gains.",
+    "maxHint": "Plafond anti-fraude : {{max}}.",
     "toEarningsLink": "Tu veux retirer tes ventes ? → Mes gains",
     "withdrawCta": "Retirer",
     "withdrawHint": "Retire ton solde de portefeuille vers ta banque, PayPal ou mobile money."
@@ -1299,7 +1300,7 @@
     "available": "Solde disponible",
     "pending": "En attente de livraison",
     "escrowExplainer": "Les gains sont libérés à la confirmation de livraison (auto après 7 jours).",
-    "splitExplainer": "Sur chaque vente, Stripe ou PayPal encaisse le paiement. KiDi+ retient {{pct}} % du prix (hors livraison) et te verse le reste. Si l’acheteur ou toi avez un parrain, ces {{pct}} % vont sur sa carte parrainage au lieu de KiDi+.",
+    "splitExplainer": "L'acheteur paie le prix affiché (souvent depuis son portefeuille). KiDi+ retient {{pct}} % du prix de l'article (pas de la livraison) et te crédite le reste en séquestre. Après livraison, tu peux retirer. Stripe Connect (banque) est automatique ; PayPal / Wave passent par l'équipe.",
     "withdraw": "Retirer mes gains",
     "explainer": "Revenus de tes ventes — retirables vers ta banque.",
     "price": "Prix",
@@ -1338,6 +1339,7 @@
     "paypalEmail": "Adresse e-mail PayPal",
     "paypalEmailPlaceholder": "prenom@exemple.com",
     "paypalHint": "L'e-mail associé à ton compte PayPal.",
+    "paypalReviewHint": "Ta demande passe par l'équipe KiDi+ (contrôle anti-fraude 🟢/🟡/🔴). Ensuite PayPal envoie l'argent. Ce n'est pas automatique.",
     "paypalXofHint": "Tu recevras ≈ {{eur}} sur ton PayPal (taux fixe officiel, sans marge).",
     "paypalReceived": "Reçu sur PayPal",
     "submit": "Confirmer la demande",
@@ -1380,6 +1382,14 @@
     "confirmReject": "Rejeter cette demande ? Le montant sera recrédité au vendeur.",
     "markedPaid": "Marqué comme payé",
     "markedRejected": "Demande rejetée",
+    "paypal": {
+      "send": "💸 Envoyer via PayPal",
+      "confirmTitle": "Envoyer via PayPal ?",
+      "confirmBody": "Contrôle anti-fraude OK ? L'envoi part immédiatement vers le PayPal du vendeur. KiDi+ garde les 10 % déjà retenus.",
+      "confirm": "Confirmer l'envoi",
+      "sent": "Payout PayPal envoyé",
+      "failed": "Envoi PayPal impossible"
+    },
     "tabs": {
       "overview": "Vue d'ensemble",
       "users": "Utilisateurs",

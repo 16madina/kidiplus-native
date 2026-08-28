@@ -12,6 +12,7 @@ import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { useNav } from "../context/navigation";
 import { formatMoney, normalizeCurrency, topUpPresets } from "../lib/money";
+import { MAX_WALLET_BALANCE } from "../lib/fees";
 import { fetchMyWalletTransactions, formatWalletAmount, type WalletTxView } from "../lib/wallet";
 import { GOLD, NAVY } from "../theme";
 
@@ -69,6 +70,11 @@ export function WalletScreen() {
           <Text style={[styles.eyebrow, { color: dark ? GOLD : NAVY }]}>{t("wallet.currentBalance")}</Text>
           <Text style={[styles.balance, { color: colors.foreground }]}>{formatMoney(balance, currency, i18n.language)}</Text>
           <Text style={[styles.hint, { color: colors.mutedForeground }]}>{t("wallet.explainer")}</Text>
+          <Text style={[styles.hint, { color: colors.mutedForeground, marginTop: 6 }]}>
+            {t("wallet.maxHint", {
+              max: formatMoney(MAX_WALLET_BALANCE[currency], currency, i18n.language),
+            })}
+          </Text>
         </Glass>
 
         <Text style={[styles.section, { color: colors.foreground }]}>{t("wallet.topup.chooseAmount")}</Text>

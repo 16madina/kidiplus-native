@@ -19,7 +19,6 @@ import { formatMoney } from "../../lib/money";
 import { payoutMinimumFor } from "../../lib/fees";
 import {
   requestPayout,
-  dispatchPaypalPayout,
   type PayoutMethod,
   type PayoutSource,
 } from "../../lib/earnings";
@@ -118,25 +117,9 @@ export function WithdrawSheet({
       }
       return;
     }
-    if (method === "paypal") {
-      const sent = await dispatchPaypalPayout(res.payoutId);
-      setBusy(false);
-      if (!sent.ok) {
-        onDone(
-          t("payout.paypalQueued", {
-            defaultValue:
-              "Demande enregistrée. PayPal n'a pas encore pu envoyer le virement — il partira automatiquement, tu n'as rien à valider.",
-          }),
-        );
-        return;
-      }
-      onDone(
-        t("payout.paypalSent", {
-          defaultValue: "PayPal envoie l'argent sur le compte indiqué. Tu n'as rien à accepter ni à marquer comme payé.",
-        }),
-      );
-      return;
-    }
+    // Stripe Connect: automatic Transfer — KYC already done by Stripe.
+    // PayPal / Wave / Orange / IBAN: request only. Admin reviews anti-fraud
+    // signals then sends (PayPal via POST /api/paypal-payout). Never auto-send PayPal.
     if (method === "stripe_connect") {
       const sent = await dispatchConnectPayout(res.payoutId);
       setBusy(false);
@@ -229,10 +212,7 @@ export function WithdrawSheet({
                     placeholder={t("payout.paypalEmailPlaceholder")}
                   />
                   <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
-                    {t("payout.paypalAutoHint", {
-                      defaultValue:
-                        "PayPal envoie le virement tout seul sur cette adresse. Tu n'as pas à l'accepter ni à le marquer comme payé.",
-                    })}
+                    {t("payout.paypalReviewHint")}
                   </Text>
                 </>
               ) : connect ? (

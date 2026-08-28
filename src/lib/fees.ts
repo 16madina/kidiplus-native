@@ -1,14 +1,16 @@
-// Platform economics — mirrors kidiplus.com `src/lib/fees.ts`.
+// Platform economics — display constants only.
+// Money movement is ALWAYS computed on kidiplus.com / Supabase
+// (`computeFees` + `public.platform_fee_rate()`). The native app must not
+// invent charges, application fees, or seller_net — it shows server values.
 //
-// COMMISSION MODEL:
-//   - Buyer pays the item price. total = amount (+ shipping).
-//   - Platform commission (PLATFORM_FEE_PERCENT) is deducted from the seller.
-//     seller_net = amount − platform_fee (+ shipping, which is pass-through).
-//   - Stripe Connect destination charges keep the same cut as `application_fee_amount`.
-//   - PayPal captures the full amount on the platform account; SQL then credits
-//     seller_net to escrow. Same 10 % / 90 % split.
-//   - When the buyer or seller used a referral code, `credit_referral_for_order`
-//     sends that 10 % to the referrer's referral card instead of KiDi+.
+// RULE: buyer pays listed price. KiDi+ keeps 10% of the ITEM (not shipping).
+// Seller receives 90% + full delivery. Example: 100 + 15 shipping →
+// buyer 115, KiDi+ 10, seller 105.
+//
+// Typical live path: buyer tops up wallet (Stripe/PayPal) → wallet pays the
+// order instantly → 90% goes to seller_balances.pending (escrow).
+// Stripe Connect destination charges are only for rare direct-card checkouts
+// when the seller already has an active Express account.
 
 import { isZeroDecimal, normalizeCurrency, roundForCurrency, type Currency } from "./money";
 
@@ -23,6 +25,17 @@ export const PAYOUT_MINIMUMS: Record<Currency, number> = {
   USD: 12,
   GBP: 10,
 };
+
+/** Anti-fraud caps mirrored in SQL `credit_wallet_topup` / `request_payout`. */
+export const MAX_WALLET_BALANCE: Record<Currency, number> = {
+  XOF: 1_000_000,
+  EUR: 2_000,
+  CAD: 3_000,
+  USD: 2_200,
+  GBP: 1_800,
+};
+export const MAX_TOPUP_PER_DAY: Record<Currency, number> = MAX_WALLET_BALANCE;
+export const MAX_PAYOUT_PER_DAY: Record<Currency, number> = MAX_WALLET_BALANCE;
 
 export function payoutMinimumFor(currency: string | null | undefined): number {
   return PAYOUT_MINIMUMS[normalizeCurrency(currency)];

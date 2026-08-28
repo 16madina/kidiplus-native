@@ -1,5 +1,4 @@
 import type { MockOrder } from "../mock/account";
-import { computeFees } from "./fees";
 import { formatMoney, normalizeCurrency, type Currency } from "./money";
 import { resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
@@ -66,8 +65,7 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
   const currency = normalizeCurrency(row.currency);
   const itemAmount = Number(row.amount ?? 0);
   const deliveryFee = Number(row.delivery_fee ?? 0);
-  const fallback = computeFees(itemAmount, deliveryFee, currency);
-  const total = Number(row.total ?? fallback.total);
+  const total = Number(row.total ?? itemAmount + deliveryFee);
   return {
     id: row.id,
     name: row.item_name,
@@ -81,8 +79,8 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
     total,
     itemAmount,
     deliveryFee,
-    platformFee: row.platform_fee != null ? Number(row.platform_fee) : fallback.platformFee,
-    sellerNet: row.seller_net != null ? Number(row.seller_net) : fallback.sellerNet,
+    platformFee: Number(row.platform_fee ?? 0),
+    sellerNet: Number(row.seller_net ?? 0),
     currency,
     kind: row.kind === "auction" ? "auction" : "fixed",
     paymentDeadline: row.payment_deadline,
