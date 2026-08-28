@@ -856,11 +856,7 @@
     "replySent": "Réponse publiée",
     "videoUnsupported": "Vidéo illisible sur cet appareil (format non supporté)",
     "videoLoadFailed": "La vidéo met du temps à charger",
-    "retry": "Réessayer",
-    "badge": {
-      "demo": "Démo",
-      "scheduled": "Programmé"
-    }
+    "retry": "Réessayer"
   },
   "publish": {
     "title": "Publier",
