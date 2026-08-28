@@ -578,7 +578,12 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           <GlassIconButton size={layout.icon} tone="dark" onPress={openMore}>
             <MoreVertical size={18} color="#fff" />
           </GlassIconButton>
-          <GlassIconButton size={layout.icon} tone="dark" onPress={ended ? closeLive : minimizeLive}>
+          <GlassIconButton
+            size={layout.icon}
+            tone="dark"
+            accessibilityLabel={ended ? t("live.leave") : t("live.minimize")}
+            onPress={ended ? closeLive : minimizeLive}
+          >
             <X size={20} color="#fff" />
           </GlassIconButton>
         </View>
