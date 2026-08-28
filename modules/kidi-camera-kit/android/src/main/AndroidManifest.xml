@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera Kit needs the camera; LiveKit publishing also needs the mic.
+         The host app (expo-camera / @config-plugins/react-native-webrtc)
+         already requests these, but this module is self-contained even if
+         used on its own. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application>
+        <!--
+          Snap Camera Kit API token, read by KidiCameraKitSession when the JS
+          side does not pass `apiToken` to `initialize()`. Override this from
+          the host app's AndroidManifest.xml (merged by the manifest merger)
+          or via a config plugin, e.g.:
+
+            <meta-data
+                android:name="com.snap.camerakit.api.token"
+                android:value="YOUR_SNAP_CAMERA_KIT_API_TOKEN" />
+
+          Left unset here: an empty/missing value simply means initialize()
+          must be called with an explicit `apiToken` argument from JS.
+        -->
+    </application>
+</manifest>

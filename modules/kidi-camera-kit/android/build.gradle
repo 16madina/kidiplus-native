@@ -1,0 +1,40 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.kidiplus.camerakit'
+version = '1.0.0'
+
+android {
+  namespace "com.kidiplus.camerakit"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+
+  // Camera Kit ships Java 8 bytecode; keep the module compiling at the same
+  // level so consumers don't need to enable desugaring just for this module.
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+
+  kotlinOptions {
+    jvmTarget = "1.8"
+  }
+}
+
+dependencies {
+  def cameraKitVersion = "1.50.0"
+
+  // Snap Camera Kit: core session + CameraX-backed image processor source.
+  implementation "com.snap.camerakit:camerakit:$cameraKitVersion"
+  implementation "com.snap.camerakit:support-camerax:$cameraKitVersion"
+
+  // LiveKit: external video capturer used to publish Camera Kit's filtered
+  // output as the local video track.
+  implementation "io.livekit:livekit-android:2.28.0"
+
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+}

@@ -1,8 +1,9 @@
 // Bridge JS ↔ module natif Snap Camera Kit (Expo).
-// Tant que le module natif n'est pas lié au binary (prebuild + SDK Snap),
+// Tant que le module n'est pas lié au binary (prebuild + SDK Snap),
 // les appels échouent proprement et l'UI garde les styles locaux.
 
-import { NativeModules, Platform } from "react-native";
+import { Platform } from "react-native";
+import { KidiCameraKit } from "kidi-camera-kit";
 import {
   hasSnapCameraKitConfig,
   snapApiToken,
@@ -19,61 +20,35 @@ export type BridgeLens = {
   previewUrl?: string;
 };
 
-type KidiCameraKitNative = {
-  initialize(apiToken: string, groupIds: string[]): Promise<void>;
-  loadLenses(groupIds: string[]): Promise<{
-    lenses: Array<{
-      id: string;
-      groupId: string;
-      name: string;
-      iconUrl?: string;
-      previewUrl?: string;
-    }>;
-  }>;
-  applyLens(lensId: string, groupId: string): Promise<void>;
-  clearLens(): Promise<void>;
-  startPreview(mirrored: boolean, facing: "user" | "environment"): Promise<void>;
-  stopPreview(): Promise<void>;
-  flipCamera(): Promise<{ flipped: boolean; facing: "user" | "environment" }>;
-  isAvailable(): Promise<{ available: boolean; supported: boolean; hasToken: boolean }>;
-  getStatus(): Promise<{
-    ready: boolean;
-    initialized: boolean;
-    sessionStarted: boolean;
-    captureRunning: boolean;
-  }>;
-};
-
-const native: KidiCameraKitNative | undefined = NativeModules.KidiCameraKit;
-
 let lensesCache: BridgeLens[] | null = null;
 let initPromise: Promise<void> | null = null;
 
 export function isNativeCameraKitLinked(): boolean {
-  return !!native && typeof native.initialize === "function";
+  return !!KidiCameraKit && typeof KidiCameraKit.initialize === "function";
 }
 
 export function isCameraKitSupported(): boolean {
   if (!hasSnapCameraKitConfig()) return false;
-  // Web: no WASM Camera Kit in Expo RN web yet.
   if (Platform.OS === "web") return false;
   return isNativeCameraKitLinked();
 }
 
-async function ensureInitialized(): Promise<KidiCameraKitNative> {
-  if (!native) {
+async function ensureInitialized() {
+  if (!KidiCameraKit) {
     throw new Error(
       "Module Camera Kit natif absent — rebuild l’app (expo prebuild + SDK Snap).",
     );
   }
   if (!initPromise) {
-    initPromise = native.initialize(snapApiToken(), SNAP_LENS_GROUP_IDS).catch((e) => {
-      initPromise = null;
-      throw e;
-    });
+    initPromise = KidiCameraKit.initialize(snapApiToken(), SNAP_LENS_GROUP_IDS)
+      .then(() => undefined)
+      .catch((e) => {
+        initPromise = null;
+        throw e;
+      });
   }
   await initPromise;
-  return native;
+  return KidiCameraKit;
 }
 
 export function clearBridgeLensesCache() {
@@ -96,9 +71,9 @@ export async function loadBridgeLenses(force = false): Promise<BridgeLens[]> {
 
 export async function applyBridgeLens(lens: Pick<Lens, "lensId" | "groupId" | "isSnapLens">) {
   if (!lens.isSnapLens || lens.lensId === "none") {
-    if (isNativeCameraKitLinked()) {
+    if (KidiCameraKit) {
       try {
-        await native!.clearLens();
+        await KidiCameraKit.clearLens();
       } catch {
         /* ignore */
       }
@@ -110,9 +85,9 @@ export async function applyBridgeLens(lens: Pick<Lens, "lensId" | "groupId" | "i
 }
 
 export async function clearBridgeLens() {
-  if (!isNativeCameraKitLinked()) return;
+  if (!KidiCameraKit) return;
   try {
-    await native!.clearLens();
+    await KidiCameraKit.clearLens();
   } catch {
     /* ignore */
   }
@@ -124,10 +99,19 @@ export async function startBridgePreview(facing: "user" | "environment") {
 }
 
 export async function stopBridgePreview() {
-  if (!isNativeCameraKitLinked()) return;
+  if (!KidiCameraKit) return;
   try {
-    await native!.stopPreview();
+    await KidiCameraKit.stopPreview();
   } catch {
     /* ignore */
   }
+}
+
+export async function setBridgePublishEnabled(opts: {
+  enabled: boolean;
+  roomUrl?: string;
+  token?: string;
+}) {
+  const mod = await ensureInitialized();
+  await mod.setPublishEnabled(opts.enabled, opts.roomUrl ?? null, opts.token ?? null);
 }
