@@ -470,7 +470,7 @@
       "title": "Filters",
       "none": "None",
       "refresh": "Refresh",
-      "nativePending": "Snap AR filters: native rebuild required. Local styles available."
+      "nativePending": "Snap AR filters: run npm run rebuild:ios then try again."
     },
     "setup": {
       "titlePlaceholder": "Live title…",

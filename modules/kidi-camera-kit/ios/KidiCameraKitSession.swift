@@ -47,6 +47,10 @@ final class KidiCameraKitSession: NSObject {
     private var publishEnabled = false
     private var idleStopWork: DispatchWorkItem?
 
+    /// RN `KidiCameraKitPreviewView` host. When set, PreviewView is attached
+    /// here instead of behind the opaque React root (which would hide AR).
+    private weak var previewHost: UIView?
+
     /// Public Snap client token + default lens group. Used when JS omits
     /// arguments or Info.plist keys are missing from the built binary.
     private static let embeddedApiToken =
@@ -479,17 +483,32 @@ private extension KidiCameraKitSession {
         }
     }
 
-    /// No Capacitor `bridge.viewController` anymore: attach behind the RN
-    /// hierarchy by inserting into the key window's root view controller.
+    func registerPreviewHost(_ host: UIView) {
+        previewHost = host
+        if let preview = previewView {
+            attachPreview(preview)
+        }
+    }
+
+    func unregisterPreviewHost(_ host: UIView) {
+        guard previewHost === host else { return }
+        previewHost = nil
+        previewView?.removeFromSuperview()
+    }
+
+    func layoutPreview(in bounds: CGRect) {
+        previewView?.frame = bounds
+    }
+
+    /// Prefer the Expo RN preview host; fall back to key-window root.
     func attachPreview(_ preview: UIView) {
-        guard let host = Self.keyWindowRootView() else { return }
+        guard let host = previewHost ?? Self.keyWindowRootView() else { return }
         if preview.superview !== host {
             preview.removeFromSuperview()
             preview.frame = host.bounds
             host.insertSubview(preview, at: 0)
         } else {
             preview.frame = host.bounds
-            host.sendSubviewToBack(preview)
         }
     }
 

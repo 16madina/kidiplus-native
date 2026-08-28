@@ -1,24 +1,39 @@
-# Camera Kit (Snap) — module Expo natif
+# Snap Camera Kit — rebuild natif (filtres AR)
 
-## Présent
-- Module local `modules/kidi-camera-kit` (iOS Swift + Android Kotlin)
-- Token / Lens Group production (Info.plist + Android meta-data)
-- JS : `FilterProvider`, `FiltersCarousel`, bridge → import relatif `modules/kidi-camera-kit/src`
-- Autolinking via `"kidi-camera-kit": "file:modules/kidi-camera-kit"` (+ alias Metro)
-- **iOS** : pas d’`import LiveKit` Swift (évite l’erreur CocoaPods). Preview + lenses Snap OK ; la vidéo live reste publiée par `@livekit/react-native`.
+Les lenses Snap AR ne marchent **pas** dans Expo Go. Il faut un binary qui
+lie le module `modules/kidi-camera-kit` (SCSDKCameraKit).
 
-## Rebuild requis (appareil physique)
+## iPhone (Mac + Xcode)
+
 ```bash
+cd ~/kidiplus-native
 git pull
-npx expo prebuild --clean
+npm install
+npm run rebuild:ios
+```
+
+Équivalent :
+
+```bash
+npx expo prebuild --clean --platform ios
 npx expo run:ios --device
 ```
 
-## iOS deps
-- CocoaPods : `SCCameraKit` (via podspec)
-- LiveKit Swift SPM **non** requis pour compiler
+Choisis ton iPhone dans la liste. Si l’appareil est « busy », débranche /
+rebranche, attends 30s, relance.
 
-## Android deps
-- `com.snap.camerakit:camerakit:1.50.0` + `support-camerax`
-- `io.livekit:livekit-android` (publish natif Android encore dans le module)
-- JitPack (config plugin `withCameraKit.js`)
+## Après le rebuild
+
+1. Ouvre **Lancer un live** (setup).
+2. Tu dois voir la preview Snap (pas expo-camera).
+3. Tape **Filtre** → carrousel des lenses du groupe `df287f43-…`.
+4. Applique une lens : AR visible sur ton visage.
+
+Si le carrousel dit encore « rebuild natif requis », le module n’est pas
+dans le binary → refais `npm run rebuild:ios` (pas seulement `expo start`).
+
+## Android
+
+```bash
+npm run rebuild:android
+```

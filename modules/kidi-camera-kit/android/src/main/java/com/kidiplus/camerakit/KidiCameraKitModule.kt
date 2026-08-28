@@ -31,7 +31,11 @@ class KidiCameraKitModule : Module() {
         return KidiCameraKitSession(
             context = reactContext,
             activityProvider = { appContext.currentActivity },
-        ).also { it.listener = SessionEventBridge() }
+        ).also {
+            it.listener = SessionEventBridge()
+            KidiCameraKitSessionHolder.session = it
+            KidiCameraKitSessionHolder.previewHost?.let { host -> it.setPreviewHost(host) }
+        }
     }
 
     /** Forwards [KidiCameraKitSession.Listener] callbacks to `sendEvent`. */
@@ -80,6 +84,9 @@ class KidiCameraKitModule : Module() {
 
         OnDestroy {
             cameraKitSession?.onHostDestroy()
+            if (KidiCameraKitSessionHolder.session === cameraKitSession) {
+                KidiCameraKitSessionHolder.session = null
+            }
             cameraKitSession = null
         }
 
@@ -126,5 +133,7 @@ class KidiCameraKitModule : Module() {
         AsyncFunction("setPublishEnabled") Coroutine { enabled: Boolean, roomUrl: String?, token: String? ->
             requireSession().setPublishEnabled(enabled, roomUrl, token)
         }
+
+        View(KidiCameraKitPreviewView::class) {}
     }
 }

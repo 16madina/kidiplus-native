@@ -1,4 +1,7 @@
-import { requireOptionalNativeModule } from "expo-modules-core";
+import { requireOptionalNativeModule, requireNativeViewManager } from "expo-modules-core";
+import type { ComponentType } from "react";
+import type { ViewProps } from "react-native";
+import { Platform } from "react-native";
 
 export type KidiCameraKitNativeModule = {
   initialize(apiToken: string, groupIds: string[]): Promise<{ initialized: boolean }>;
@@ -28,5 +31,17 @@ export type KidiCameraKitNativeModule = {
 /** Present only after a native rebuild that links this Expo module. */
 export const KidiCameraKit: KidiCameraKitNativeModule | null =
   requireOptionalNativeModule<KidiCameraKitNativeModule>("KidiCameraKit");
+
+/** Native Snap PreviewView / TextureView — null until rebuild / on web. */
+export const KidiCameraKitPreviewNative: ComponentType<ViewProps> | null =
+  Platform.OS === "web"
+    ? null
+    : (() => {
+        try {
+          return requireNativeViewManager<ViewProps>("KidiCameraKit");
+        } catch {
+          return null;
+        }
+      })();
 
 export default KidiCameraKit;

@@ -115,6 +115,7 @@ class KidiCameraKitSession(
 
     // Preview (display) state
     private var previewView: TextureView? = null
+    private var previewHost: ViewGroup? = null
     private var previewOutput: Closeable? = null
     private var previewRequested = false
     private var previewStarted = false
@@ -689,16 +690,46 @@ class KidiCameraKitSession(
         callbacks.forEach { cb -> runCatching { cb(ok) } }
     }
 
-    /** Inserts the TextureView BEHIND the Activity's content root (index 0)
-     * and connects it as a Camera Kit preview output as soon as its
-     * SurfaceTexture exists. There is no WebView to hide here: the RN layer
-     * is expected to keep its own background transparent where the camera
-     * should show through, and to reveal it once [Listener.onFirstFrame]
-     * fires. */
+    /** RN ExpoView host for the TextureView (preferred over activity content). */
+    fun setPreviewHost(host: ViewGroup?) {
+        runOnUi {
+            previewHost = host
+            val view = previewView ?: return@runOnUi
+            (view.parent as? ViewGroup)?.removeView(view)
+            if (host != null) {
+                host.addView(
+                    view,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Inserts the TextureView into the RN ExpoView host when available,
+     * otherwise behind the Activity content root (legacy fallback). */
     private fun attachPreviewView() {
-        if (previewView != null) return
+        if (previewView != null) {
+            // Re-parent if host changed.
+            val view = previewView ?: return
+            val parent = previewHost ?: activity?.findViewById(android.R.id.content)
+            if (parent != null && view.parent !== parent) {
+                (view.parent as? ViewGroup)?.removeView(view)
+                parent.addView(
+                    view,
+                    0,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+            return
+        }
         val act = activity ?: return
-        val parent = act.findViewById<ViewGroup>(android.R.id.content) ?: return
+        val parent = previewHost ?: act.findViewById<ViewGroup>(android.R.id.content) ?: return
         val view = TextureView(act).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,

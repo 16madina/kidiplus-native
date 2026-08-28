@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -15,7 +16,7 @@ import {
   isCameraKitSupported,
   loadBridgeLenses,
 } from "./camera-kit-bridge";
-import { LENSES, NONE_LENS, type Lens } from "./lenses-catalog";
+import { NONE_LENS, type Lens } from "./lenses-catalog";
 
 type FilterContextValue = {
   activeLens: Lens;
@@ -45,7 +46,9 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     if (loadStartedRef.current && !force) return;
     if (!isCameraKitSupported()) {
       setSnapLenses([]);
-      setLensesError(null);
+      setLensesError(
+        "Module Snap AR absent — lance npm run rebuild:ios sur ton Mac.",
+      );
       return;
     }
     loadStartedRef.current = true;
@@ -77,6 +80,10 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       .finally(() => setLensesLoading(false));
   }, []);
 
+  useEffect(() => {
+    runLoad(false);
+  }, [runLoad]);
+
   const loadLenses = useCallback(() => runLoad(false), [runLoad]);
   const refreshLenses = useCallback(() => {
     clearBridgeLensesCache();
@@ -95,11 +102,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     void clearBridgeLens();
   }, []);
 
-  // Comme le web : Aucun + lenses Snap (si dispo) + styles locaux (toujours).
-  const lenses = useMemo(
-    () => [NONE_LENS, ...snapLenses, ...LENSES.filter((l) => l.lensId !== "none")],
-    [snapLenses],
-  );
+  // Snap AR only — pas de styles locaux (teintes CSS).
+  const lenses = useMemo(() => [NONE_LENS, ...snapLenses], [snapLenses]);
 
   const value = useMemo<FilterContextValue>(
     () => ({

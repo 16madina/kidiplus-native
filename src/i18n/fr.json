@@ -470,7 +470,7 @@
       "title": "Filtres",
       "none": "Aucun",
       "refresh": "Actualiser",
-      "nativePending": "Filtres AR Snap : rebuild natif requis. Styles locaux disponibles."
+      "nativePending": "Filtres Snap AR : lance npm run rebuild:ios puis réessaie."
     },
     "setup": {
       "titlePlaceholder": "Titre du live…",

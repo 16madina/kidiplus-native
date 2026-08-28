@@ -82,7 +82,7 @@ export function FiltersCarousel({
         <Text style={styles.banner}>
           {t(
             "broadcast.filters.nativePending",
-            "Filtres AR Snap : rebuild natif requis. Styles locaux disponibles.",
+            "Filtres Snap AR : lance npm run rebuild:ios puis réessaie.",
           )}
         </Text>
       ) : null}

@@ -29,11 +29,13 @@ import { GlassIconButton } from "../components/Glass";
 import { AddProductSheet } from "../components/broadcast/AddProductSheet";
 import { ShopPickerSheet } from "../components/broadcast/ShopPickerSheet";
 import { SetupCamera } from "../components/broadcast/SetupCamera";
+import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { FiltersCarousel } from "../components/broadcast/FiltersCarousel";
 import { ScheduleLiveScreen } from "./ScheduleLiveScreen";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useFilter } from "../lib/filters/filter-context";
+import { isCameraKitSupported } from "../lib/filters/camera-kit-bridge";
 import {
   BROADCAST_CATEGORY_FR,
   BROADCAST_CATEGORY_KEYS,
@@ -62,8 +64,9 @@ function GoLiveSetup() {
   const insets = useSafeAreaInsets();
   const { closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
-  const { tint } = useFilter();
+  const { tint, cameraKitReady } = useFilter();
   const currency = user?.walletCurrency ?? "EUR";
+  const useSnapPreview = isCameraKitSupported() && cameraKitReady;
 
   const [title, setTitle] = useState(user?.displayName?.trim() ? `${user.displayName} 💎 KiDi+` : "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");
@@ -180,6 +183,8 @@ function GoLiveSetup() {
             <Text style={styles.rtmpBody}>{t("broadcast.rtmp.previewBody")}</Text>
           </View>
         </View>
+      ) : useSnapPreview ? (
+        <SnapCameraPreview facing={facing} />
       ) : (
         <SetupCamera facing={facing} tint={tint} />
       )}

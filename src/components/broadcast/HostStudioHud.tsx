@@ -34,6 +34,7 @@ import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
 import { FiltersCarousel } from "./FiltersCarousel";
+import { SnapCameraPreview } from "./SnapCameraPreview";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
@@ -86,7 +87,7 @@ export function HostStudioHud({
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { user } = useAuth();
-  const { tint, activeLens } = useFilter();
+  const { activeLens, cameraKitReady } = useFilter();
   const session = useHostLiveSession({ liveId, identity, displayName });
   const [draft, setDraft] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -188,8 +189,10 @@ export function HostStudioHud({
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
-      {tint && tint !== "transparent" && !activeLens.isSnapLens ? (
-        <View pointerEvents="none" style={[FILL, { backgroundColor: tint, zIndex: 1 }]} />
+      {cameraKitReady && (filtersOpen || activeLens.isSnapLens) ? (
+        <View style={[FILL, { zIndex: 2 }]} pointerEvents="none">
+          <SnapCameraPreview facing="front" />
+        </View>
       ) : null}
       {giftFlash ? (
         <View

@@ -102,5 +102,7 @@ public class KidiCameraKitModule: Module {
         AsyncFunction("isAvailable") { () -> [String: Any] in
             self.session.isAvailable()
         }
+
+        View(KidiCameraKitPreviewView.self) {}
     }
 }
