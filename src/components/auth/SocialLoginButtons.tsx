@@ -1,9 +1,20 @@
-import { Platform, StyleSheet, Text, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
+import { Linking, Platform, StyleSheet, Text, View } from "react-native";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { Press } from "../Press";
-import { supabase, SUPABASE_URL } from "../../lib/supabase";
+import { supabase } from "../../lib/supabase";
 
 const REDIRECT_URI = "kidiplus://auth/callback";
+
+async function openAuthUrl(url: string) {
+  if (requireOptionalNativeModule("ExpoWebBrowser")) {
+    try {
+      const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
+      await WebBrowser.openAuthSessionAsync(url, REDIRECT_URI);
+      return;
+    } catch { /* fall through */ }
+  }
+  await Linking.openURL(url);
+}
 
 async function signInWithProvider(provider: "apple" | "google") {
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -14,7 +25,7 @@ async function signInWithProvider(provider: "apple" | "google") {
     },
   });
   if (error || !data.url) return;
-  await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URI);
+  await openAuthUrl(data.url);
 }
 
 export function SocialLoginButtons() {

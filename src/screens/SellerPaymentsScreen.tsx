@@ -9,7 +9,7 @@ import {
   TriangleAlert,
 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import * as WebBrowser from "expo-web-browser";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { OverlayHeader } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
@@ -17,6 +17,17 @@ import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { supabase } from "../lib/supabase";
 import { GOLD, NAVY } from "../theme";
+
+async function openUrl(url: string) {
+  if (requireOptionalNativeModule("ExpoWebBrowser")) {
+    try {
+      const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
+      await WebBrowser.openBrowserAsync(url);
+      return;
+    } catch { /* fall through */ }
+  }
+  await Linking.openURL(url);
+}
 
 type ConnectStatus = "none" | "pending" | "active" | "restricted";
 
@@ -92,11 +103,7 @@ export function SellerPaymentsScreen() {
     const url = await startOnboarding();
     setBusy(false);
     if (url) {
-      try {
-        await WebBrowser.openBrowserAsync(url);
-      } catch {
-        void Linking.openURL(url);
-      }
+      await openUrl(url);
       void refresh();
     }
   };
