@@ -16,6 +16,7 @@ import { BrandBadge } from "../BrandBadge";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
 import { convertMoney, formatMoney, normalizeCurrency } from "../../lib/money";
+import { PLATFORM_FEE_PERCENT } from "../../lib/fees";
 import { mapPayError } from "../../lib/pay-errors";
 import {
   confirmOrderCheckout,
@@ -207,6 +208,9 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
                 <Row label={t("delivery.fee")} value={fmt(order.deliveryFee)} muted={colors.mutedForeground} fg={colors.foreground} />
               ) : null}
               <Row label={t("pay.total")} value={fmt(order.total)} bold muted={colors.mutedForeground} fg={colors.foreground} />
+              <Text style={{ color: colors.mutedForeground, fontSize: 11, lineHeight: 15, marginTop: 8 }}>
+                {t("pay.feeNote", { pct: PLATFORM_FEE_PERCENT })}
+              </Text>
             </View>
 
             <Text style={[styles.methodTitle, { color: colors.mutedForeground }]}>{t("pay.method.title")}</Text>

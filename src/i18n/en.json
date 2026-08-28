@@ -1023,7 +1023,9 @@
       "resendSent": "Link sent again. Check your inbox.",
       "supabaseConfirmHint": "Account created, but no session yet. Turn off “Confirm email” in Supabase Auth (KiDi+ uses its own confirmation).",
       "terms": "By continuing, you agree to our terms and privacy policy.",
-      "promoCode": "Promo code (optional)"
+      "promoCode": "Referral code (optional)",
+      "promoHint": "If you have a partner’s code, enter it here. That activates referral: 10% of each of your purchases and sales goes to their referral card, instead of KiDi+.",
+      "promoValid": "✓ Code {{code}} — referral activated"
     },
     "emailConfirm": {
       "banner": "Confirm your email address",
@@ -1154,10 +1156,11 @@
     "title": "Payment",
     "item": "Item",
     "platformFee": "Service fee",
+    "feeNote": "You pay the listed price. Stripe and PayPal collect it; KiDi+ keeps {{pct}}% from the seller (they receive 90%). If you or the seller used a referral code, that {{pct}}% goes to their referral card.",
     "processingFee": "Processing fee",
     "total": "Total",
     "payNow": "Pay {{total}}",
-    "secure": "Secure payment by Stripe",
+    "secure": "Secure payment by Stripe and PayPal",
     "doneHint": "A confirmation email is on the way.",
     "kind": {
       "auction": "Auction won",
@@ -1295,6 +1298,7 @@
     "available": "Available balance",
     "pending": "Pending delivery",
     "escrowExplainer": "Funds are released when the buyer confirms delivery (auto after 7 days).",
+    "splitExplainer": "On every sale, Stripe or PayPal collects the payment. KiDi+ keeps {{pct}}% of the price (excluding shipping) and pays you the rest. If the buyer or you used a referral code, that {{pct}}% goes to their referral card instead of KiDi+.",
     "withdraw": "Withdraw earnings",
     "explainer": "Your sales revenue — withdrawable to your bank.",
     "price": "Price",
@@ -1972,18 +1976,18 @@
       "withdrawEmpty": "Withdraw (no earnings yet)",
       "withdrawWeb": "OTP withdrawal is coming in the app. For now, withdraw on kidiplus.com."
     },
-    "intro": "Share your code. For every signup, you earn the KiDi+ commission on their first orders.",
+    "intro": "Share your code. When someone enters it at signup, 10% of each of their purchases and sales goes to your referral card — instead of KiDi+.",
     "quota": "Quota",
     "claim": {
       "entry": "Claim my referral code 🤝",
       "title": "Become a KiDi+ partner",
-      "intro": "Earn the KiDi+ commission on the first orders of every person who signs up with your code.",
+      "intro": "Scratch your partner vial to activate your code. Then 10% of every purchase and sale from people who used it lands here, on your referral card.",
       "tokenLabel": "Activation code",
       "hint": "Already got an activation code? Enter it below. Otherwise, request a referral code further down.",
       "partnerLabel": "KiDi+ Partner",
-      "scratchHint": "Scratch to enter your code 🪙",
+      "scratchHint": "Scratch the vial to enter your code 🪙",
       "scratchSkip": "Enter the code manually",
-      "scratchTitle": "Scratch the card and enter your code",
+      "scratchTitle": "Scratch the vial and enter your code",
       "scratchSubtitle": "Your partner activation code was sent to you by the KiDi+ team.",
       "cta": "Claim my code",
       "badFormat": "Expected format: XXXX-XXXX",
@@ -2114,7 +2118,7 @@
     "steps": {
       "one": "Create your secure Stripe seller account.",
       "two": "Verify your identity and add your bank account.",
-      "three": "Get paid automatically — KiDi+ keeps a 10% commission."
+      "three": "Stripe and PayPal collect the payment: KiDi+ keeps 10%, the seller receives 90%."
     },
     "countryLabel": "Your seller account country",
     "countryHint": "Pick the country of your bank / business. It can't be changed once the Stripe account is created."

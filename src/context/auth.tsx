@@ -14,7 +14,7 @@ import i18n from "../i18n";
 import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
 import { resolveAvatarUrl } from "../lib/storage";
 import { fetchMyWallet } from "../lib/wallet";
-import { applyPromoCode } from "../lib/referrals";
+import { applyPromoCodeWithRetry } from "../lib/referrals";
 import { normalizeCurrency, type Currency } from "../lib/money";
 
 const GUEST_KEY = "kidiplus.guestMode";
@@ -191,8 +191,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(GUEST_KEY).catch(() => undefined);
     const pending = await AsyncStorage.getItem(PENDING_PROMO_KEY).catch(() => null);
     if (pending?.trim()) {
-      void applyPromoCode(pending).finally(() => {
-        void AsyncStorage.removeItem(PENDING_PROMO_KEY);
+      void applyPromoCodeWithRetry(pending).then((applied) => {
+        const done =
+          applied.ok ||
+          applied.error === "already_referred" ||
+          applied.error === "invalid_code" ||
+          applied.error === "self_referral" ||
+          applied.error === "window_expired";
+        if (done) {
+          void AsyncStorage.removeItem(PENDING_PROMO_KEY);
+        }
       });
     }
   }, []);
@@ -295,14 +303,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           .eq("id", uid);
       }
+      if (input.promoCode?.trim()) {
+        await AsyncStorage.setItem(PENDING_PROMO_KEY, input.promoCode.trim()).catch(() => undefined);
+      }
       if (!data.session || !data.user) {
-        if (input.promoCode?.trim()) {
-          await AsyncStorage.setItem(PENDING_PROMO_KEY, input.promoCode.trim()).catch(() => undefined);
-        }
         return { needsEmailConfirmation: true };
       }
       if (input.promoCode?.trim()) {
-        void applyPromoCode(input.promoCode);
+        const applied = await applyPromoCodeWithRetry(input.promoCode);
+        if (applied.ok || applied.error === "already_referred") {
+          await AsyncStorage.removeItem(PENDING_PROMO_KEY).catch(() => undefined);
+        }
       }
       await hydrate(data.user);
       setAuthOverlay(false);

@@ -1023,7 +1023,9 @@
       "resendSent": "Lien renvoyé. Vérifie ta boîte mail.",
       "supabaseConfirmHint": "Compte créé, mais la session n’est pas ouverte. Désactive « Confirm email » dans Supabase Auth (KiDi+ utilise sa propre confirmation).",
       "terms": "En continuant, tu acceptes nos conditions et notre politique de confidentialité.",
-      "promoCode": "Code promo (optionnel)"
+      "promoCode": "Code parrainage (optionnel)",
+      "promoHint": "Si tu as le code d’un partenaire, entre-le ici. Tu actives le parrainage : 10 % de chacun de tes achats et de tes ventes iront sur sa carte parrainage, au lieu de KiDi+.",
+      "promoValid": "✓ Code {{code}} — parrainage activé"
     },
     "emailConfirm": {
       "banner": "Confirme ton adresse email",
@@ -1154,10 +1156,11 @@
     "title": "Paiement",
     "item": "Article",
     "platformFee": "Frais de service",
+    "feeNote": "Tu paies le prix affiché. Stripe et PayPal encaissent, KiDi+ retient {{pct}} % sur le vendeur (90 % lui sont versés). Si toi ou le vendeur avez un parrain, ces {{pct}} % vont sur sa carte parrainage.",
     "processingFee": "Frais de traitement",
     "total": "Total",
     "payNow": "Payer {{total}}",
-    "secure": "Paiement sécurisé par Stripe",
+    "secure": "Paiement sécurisé par Stripe et PayPal",
     "doneHint": "Un email de confirmation te sera envoyé.",
     "kind": {
       "auction": "Enchère gagnée",
@@ -1296,6 +1299,7 @@
     "available": "Solde disponible",
     "pending": "En attente de livraison",
     "escrowExplainer": "Les gains sont libérés à la confirmation de livraison (auto après 7 jours).",
+    "splitExplainer": "Sur chaque vente, Stripe ou PayPal encaisse le paiement. KiDi+ retient {{pct}} % du prix (hors livraison) et te verse le reste. Si l’acheteur ou toi avez un parrain, ces {{pct}} % vont sur sa carte parrainage au lieu de KiDi+.",
     "withdraw": "Retirer mes gains",
     "explainer": "Revenus de tes ventes — retirables vers ta banque.",
     "price": "Prix",
@@ -1973,18 +1977,18 @@
       "withdrawEmpty": "Retirer (aucun gain)",
       "withdrawWeb": "Le retrait OTP arrive dans l’app. En attendant, retire tes gains sur kidiplus.com."
     },
-    "intro": "Partage ton code. Pour chaque inscrit, tu gagnes la commission KiDi+ sur ses premières commandes.",
+    "intro": "Partage ton code. Dès qu’un utilisateur l’entre à l’inscription, 10 % de chacun de ses achats et de ses ventes vont sur ta carte parrainage — à la place de KiDi+.",
     "quota": "Quota",
     "claim": {
       "entry": "Réclamer mon code influenceur 🤝",
       "title": "Deviens partenaire KiDi+",
-      "intro": "Reçois la commission KiDi+ sur les premières commandes de chaque personne qui s'inscrit avec ton code.",
+      "intro": "Gratte ta fiole partenaire pour activer ton code. Ensuite, 10 % de chaque achat et de chaque vente de tes filleuls arrivent ici, sur ta carte parrainage.",
       "tokenLabel": "Code d'activation",
       "hint": "As-tu déjà reçu un code d'activation ? Entre-le ci-dessous. Sinon, tu peux demander un code de parrainage plus bas.",
       "partnerLabel": "KiDi+ Partenaire",
-      "scratchHint": "Gratte pour entrer ton code 🪙",
+      "scratchHint": "Gratte la fiole pour entrer ton code 🪙",
       "scratchSkip": "Entrer le code manuellement",
-      "scratchTitle": "Gratte la carte et entre ton code",
+      "scratchTitle": "Gratte la fiole et entre ton code",
       "scratchSubtitle": "Ton code d'activation partenaire t'a été envoyé par l'équipe KiDi+.",
       "cta": "Réclamer mon code",
       "badFormat": "Format attendu : XXXX-XXXX",
@@ -2115,7 +2119,7 @@
     "steps": {
       "one": "Crée ton compte vendeur sécurisé Stripe.",
       "two": "Vérifie ton identité et ajoute ton compte bancaire.",
-      "three": "Reçois tes ventes automatiquement — KiDi+ garde 10 % de commission."
+      "three": "Stripe et PayPal encaissent : KiDi+ retient 10 %, le vendeur reçoit 90 %."
     },
     "countryLabel": "Pays de ton compte vendeur",
     "countryHint": "Choisis le pays de ta banque / de ton entreprise. Il ne pourra plus être modifié après la création du compte Stripe."

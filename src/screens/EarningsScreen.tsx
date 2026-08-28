@@ -1,36 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { GoldButton } from "../components/Buttons";
-import { FormField } from "../components/FormField";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
+import { WithdrawSheet } from "../components/seller/WithdrawSheet";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { formatMoney, normalizeCurrency } from "../lib/money";
-import {
-  fetchMyBalance,
-  fetchMyPayouts,
-  requestPayout,
-  dispatchPaypalPayout,
-  type PayoutMethod,
-  type PayoutRow,
-  type SellerBalance,
-} from "../lib/earnings";
-import { dispatchConnectPayout } from "../lib/stripe-connect";
-import { defaultPayoutMethod, payoutMethodsForCurrency } from "../lib/payout-methods";
+import { PLATFORM_FEE_PERCENT, feePercentOf } from "../lib/fees";
+import { fetchMyBalance, fetchMyPayouts, type PayoutRow, type SellerBalance } from "../lib/earnings";
+import { fetchMySales, type OrderView } from "../lib/orders";
 import { GOLD, NAVY } from "../theme";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -46,8 +28,10 @@ export function EarningsScreen() {
   const { user } = useAuth();
   const [balance, setBalance] = useState<SellerBalance | null>(null);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [sales, setSales] = useState<OrderView[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [tab, setTab] = useState<"sales" | "payouts">("sales");
   const [toast, setToast] = useState<string | null>(null);
 
   const flash = (msg: string) => {
@@ -58,9 +42,10 @@ export function EarningsScreen() {
   const reload = useCallback(async () => {
     const id = user?.id;
     if (!id) return;
-    const [b, p] = await Promise.all([fetchMyBalance(id), fetchMyPayouts(id)]);
+    const [b, p, s] = await Promise.all([fetchMyBalance(id), fetchMyPayouts(id), fetchMySales(id)]);
     setBalance(b);
-    setPayouts(p);
+    setPayouts(p.filter((row) => (row.source ?? "seller") === "seller"));
+    setSales(s.filter((o) => o.rawStatus === "paid" || o.status === "paid" || o.status === "shipped" || o.status === "delivered"));
     setLoading(false);
   }, [user?.id]);
 
@@ -69,7 +54,7 @@ export function EarningsScreen() {
   }, [reload]);
 
   const currency = normalizeCurrency(balance?.currency ?? user?.walletCurrency);
-  const fmt = (n: number) => formatMoney(n, currency, i18n.language);
+  const fmt = (n: number, cur?: string) => formatMoney(n, cur ?? currency, i18n.language);
   const available = Number(balance?.available ?? 0);
   const pending = Number(balance?.pending ?? 0);
 
@@ -94,6 +79,9 @@ export function EarningsScreen() {
             <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
               {t("gains.escrowExplainer")}
             </Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+              {t("gains.splitExplainer", { pct: PLATFORM_FEE_PERCENT })}
+            </Text>
             <GoldButton
               label={t("gains.withdraw")}
               onPress={() => {
@@ -104,10 +92,97 @@ export function EarningsScreen() {
                 setWithdrawOpen(true);
               }}
             />
-            <Text style={[styles.section, { color: colors.mutedForeground }]}>
-              {t("gains.tabs.payouts").toUpperCase()}
-            </Text>
-            {payouts.length === 0 ? (
+            <View style={styles.tabs}>
+              {(["sales", "payouts"] as const).map((key) => {
+                const on = tab === key;
+                return (
+                  <Press
+                    key={key}
+                    onPress={() => setTab(key)}
+                    style={[
+                      styles.tab,
+                      {
+                        borderColor: on ? NAVY : colors.border,
+                        backgroundColor: on ? NAVY : colors.card,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: on ? "#fff" : colors.foreground, fontWeight: "800", fontSize: 12 }}>
+                      {t(`gains.tabs.${key}`)}
+                    </Text>
+                  </Press>
+                );
+              })}
+            </View>
+            {tab === "sales" ? (
+              sales.length === 0 ? (
+                <Text style={{ color: colors.mutedForeground }}>{t("sales.empty")}</Text>
+              ) : (
+                sales.map((o) => {
+                  const released = o.fulfillment === "delivered" || o.status === "delivered";
+                  const pct = feePercentOf(o.itemAmount, o.platformFee);
+                  return (
+                    <SurfaceCard key={o.id}>
+                      <View style={styles.saleHead}>
+                        {o.image ? (
+                          <Image source={{ uri: o.image }} style={styles.thumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.thumb, { backgroundColor: colors.border }]} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text numberOfLines={1} style={{ fontWeight: "700", color: colors.foreground }}>
+                            {o.name}
+                          </Text>
+                          <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 2 }}>
+                            {o.seller} · {o.when}
+                          </Text>
+                          <Text
+                            style={{
+                              marginTop: 4,
+                              alignSelf: "flex-start",
+                              overflow: "hidden",
+                              borderRadius: 999,
+                              paddingHorizontal: 8,
+                              paddingVertical: 2,
+                              fontSize: 10,
+                              fontWeight: "800",
+                              color: released ? "#1B7A3A" : "#B45309",
+                              backgroundColor: released ? "rgba(27,122,58,0.12)" : "rgba(180,83,9,0.12)",
+                            }}
+                          >
+                            {released ? t("gains.moneyState.released") : t("gains.moneyState.pending")}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.breakdown}>
+                        <BreakdownCell
+                          label={t("gains.price")}
+                          value={fmt(o.itemAmount, o.currency)}
+                          muted={colors.mutedForeground}
+                          fg={colors.foreground}
+                          bg={colors.background}
+                        />
+                        <BreakdownCell
+                          label={`KiDi+ −${pct}%`}
+                          value={`−${fmt(o.platformFee, o.currency)}`}
+                          muted={colors.mutedForeground}
+                          fg={colors.mutedForeground}
+                          bg={colors.background}
+                        />
+                        <BreakdownCell
+                          label={t("gains.net")}
+                          value={fmt(o.sellerNet, o.currency)}
+                          muted={colors.mutedForeground}
+                          fg={colors.foreground}
+                          bg="rgba(232,185,59,0.16)"
+                          strong
+                        />
+                      </View>
+                    </SurfaceCard>
+                  );
+                })
+              )
+            ) : payouts.length === 0 ? (
               <Text style={{ color: colors.mutedForeground }}>{t("payout.emptyHistory")}</Text>
             ) : (
               payouts.map((p) => (
@@ -153,6 +228,7 @@ export function EarningsScreen() {
         onClose={() => setWithdrawOpen(false)}
         available={available}
         currency={currency}
+        source="seller"
         onDone={(msg) => {
           setWithdrawOpen(false);
           flash(msg);
@@ -164,237 +240,28 @@ export function EarningsScreen() {
   );
 }
 
-function WithdrawSheet({
-  open,
-  onClose,
-  available,
-  currency,
-  onDone,
+function BreakdownCell({
+  label,
+  value,
+  muted,
+  fg,
+  bg,
+  strong,
 }: {
-  open: boolean;
-  onClose: () => void;
-  available: number;
-  currency: string;
-  onDone: (msg: string) => void;
+  label: string;
+  value: string;
+  muted: string;
+  fg: string;
+  bg: string;
+  strong?: boolean;
 }) {
-  const { t, i18n } = useTranslation();
-  const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const [method, setMethod] = useState<PayoutMethod>("paypal");
-  const [amount, setAmount] = useState("");
-  const [phone, setPhone] = useState("");
-  const [holder, setHolder] = useState("");
-  const [email, setEmail] = useState("");
-  const [iban, setIban] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const methods = payoutMethodsForCurrency(currency);
-
-  useEffect(() => {
-    if (open) {
-      setAmount(String(available || ""));
-      setError(null);
-      setMethod(defaultPayoutMethod(currency));
-    }
-  }, [open, available, currency]);
-
-  const mobile = method === "wave" || method === "orange_money";
-  const connect = method === "stripe_connect";
-
-  const submit = async () => {
-    setError(null);
-    const n = Number(String(amount).replace(",", "."));
-    if (!Number.isFinite(n) || n <= 0) {
-      setError(t("payout.errors.generic"));
-      return;
-    }
-    if (n > available) {
-      setError(t("payout.errors.aboveAvailable"));
-      return;
-    }
-    const destination: Record<string, string> = {};
-    if (mobile) {
-      if (!phone.trim()) {
-        setError(t("payout.errors.missingDestination"));
-        return;
-      }
-      destination.phone = phone.trim();
-      if (holder.trim()) destination.holder = holder.trim();
-    } else if (method === "paypal") {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        setError(t("payout.errors.invalidEmail"));
-        return;
-      }
-      // Lovable stores the recipient as paypalEmail (not email).
-      destination.paypalEmail = email.trim();
-    } else if (method === "stripe_connect") {
-      // Stripe Connect destination is resolved server-side from the seller account.
-    } else {
-      if (!iban.trim()) {
-        setError(t("payout.errors.missingDestination"));
-        return;
-      }
-      destination.iban = iban.trim();
-      if (holder.trim()) destination.holder = holder.trim();
-    }
-    setBusy(true);
-    const res = await requestPayout(n, method, destination, "seller");
-    if (!res.ok) {
-      setBusy(false);
-      if (res.min != null) {
-        setError(t("payout.errors.belowMin", { min: formatMoney(res.min, currency, i18n.language) }));
-      } else {
-        setError(res.error || t("payout.errors.generic"));
-      }
-      return;
-    }
-    // Auto-send: PayPal Payouts / Stripe Connect transfer — no admin "mark as paid".
-    if (method === "paypal") {
-      const sent = await dispatchPaypalPayout(res.payoutId);
-      setBusy(false);
-      if (!sent.ok) {
-        onDone(
-          t("payout.paypalQueued", {
-            defaultValue:
-              "Demande enregistrée. PayPal n'a pas encore pu envoyer le virement — il partira automatiquement, tu n'as rien à valider.",
-          }),
-        );
-        return;
-      }
-      onDone(
-        t("payout.paypalSent", {
-          defaultValue: "PayPal envoie l'argent sur le compte indiqué. Tu n'as rien à accepter ni à marquer comme payé.",
-        }),
-      );
-      return;
-    }
-    if (method === "stripe_connect") {
-      const sent = await dispatchConnectPayout(res.payoutId);
-      setBusy(false);
-      if (!sent.ok) {
-        onDone(
-          t("payout.connectQueued", {
-            defaultValue:
-              "Demande enregistrée. Le virement Stripe n'est pas parti tout de suite — notre système le retraitera.",
-          }),
-        );
-        return;
-      }
-      onDone(
-        t("payout.connectSent", {
-          defaultValue: "Virement Stripe envoyé vers ton compte bancaire.",
-        }),
-      );
-      return;
-    }
-    setBusy(false);
-    onDone(`${t("payout.successTitle")} ${t("payout.successBody")}`);
-  };
-
   return (
-    <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.sheetRoot}>
-        <Press haptic="none" onPress={onClose} style={styles.sheetDim} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
-            <View style={styles.sheetHead}>
-              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{t("payout.title")}</Text>
-              <Press onPress={onClose} style={styles.sheetClose}>
-                <X size={18} color={colors.foreground} />
-              </Press>
-            </View>
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 10 }}>
-              {t("payout.available")} : {formatMoney(available, currency, i18n.language)}
-            </Text>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 12 }}>
-              <View>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("payout.method.label")}</Text>
-                <View style={styles.methods}>
-                  {methods.map((m) => {
-                    const on = method === m;
-                    return (
-                      <Press
-                        key={m}
-                        onPress={() => setMethod(m)}
-                        style={[
-                          styles.methodPill,
-                          { borderColor: on ? NAVY : colors.border, backgroundColor: on ? NAVY : colors.card },
-                        ]}
-                      >
-                        <Text style={{ color: on ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
-                          {t(`payout.method.${m}`)}
-                        </Text>
-                      </Press>
-                    );
-                  })}
-                </View>
-              </View>
-              <FormField
-                required
-                label={t("payout.amount")}
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="decimal-pad"
-              />
-              {mobile ? (
-                <>
-                  <FormField
-                    required
-                    label={t("payout.phone")}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    placeholder={t("payout.phonePlaceholder")}
-                  />
-                  <FormField label={t("payout.holder")} value={holder} onChangeText={setHolder} />
-                </>
-              ) : method === "paypal" ? (
-                <>
-                  <FormField
-                    required
-                    label={t("payout.paypalEmail")}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    placeholder={t("payout.paypalEmailPlaceholder")}
-                  />
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
-                    {t("payout.paypalAutoHint", {
-                      defaultValue:
-                        "PayPal envoie le virement tout seul sur cette adresse. Tu n'as pas à l'accepter ni à le marquer comme payé.",
-                    })}
-                  </Text>
-                </>
-              ) : connect ? (
-                <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
-                  {t("payout.stripeConnectHint", {
-                    defaultValue:
-                      "Le virement part vers ton compte bancaire Stripe Connect (Europe / Amérique / UK).",
-                  })}
-                </Text>
-              ) : (
-                <>
-                  <FormField required label="IBAN" value={iban} onChangeText={setIban} autoCapitalize="characters" />
-                  <FormField label={t("payout.holder")} value={holder} onChangeText={setHolder} />
-                </>
-              )}
-              {error ? (
-                <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10 }}>
-                  <Text style={{ color: "#9B1C1C", fontSize: 13, fontWeight: "600" }}>{error}</Text>
-                </View>
-              ) : null}
-              <GoldButton
-                label={busy ? t("common.loading") : t("payout.submit")}
-                onPress={() => void submit()}
-                disabled={busy}
-              />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+    <View style={[styles.cell, { backgroundColor: bg }]}>
+      <Text style={{ color: muted, fontSize: 10, fontWeight: "700" }}>{label}</Text>
+      <Text style={{ color: fg, fontSize: strong ? 13 : 12, fontWeight: "800", marginTop: 2, fontVariant: ["tabular-nums"] }}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -404,35 +271,16 @@ const styles = StyleSheet.create({
   row2: { flexDirection: "row", gap: 10 },
   k: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase", color: GOLD },
   v: { fontSize: 22, fontWeight: "900", marginTop: 6 },
-  section: { fontSize: 11, fontWeight: "800", letterSpacing: 0.6, marginTop: 10 },
-  line: { flexDirection: "row", alignItems: "center", gap: 10 },
-  sheetRoot: { flex: 1, justifyContent: "flex-end" },
-  sheetDim: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    minHeight: 0,
-    minWidth: 0,
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontWeight: "800" },
-  sheetClose: { width: 36, height: 36, minWidth: 36, minHeight: 36 },
-  label: { marginBottom: 6, fontSize: 12, fontWeight: "600" },
-  methods: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  methodPill: {
-    minHeight: 36,
-    minWidth: 0,
-    paddingHorizontal: 12,
+  tabs: { flexDirection: "row", gap: 8, marginTop: 6 },
+  tab: {
+    flex: 1,
+    minHeight: 40,
     borderRadius: 999,
     borderWidth: 1,
   },
+  saleHead: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  thumb: { width: 52, height: 52, borderRadius: 12 },
+  breakdown: { flexDirection: "row", gap: 6, marginTop: 10 },
+  cell: { flex: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 6, alignItems: "center" },
+  line: { flexDirection: "row", alignItems: "center", gap: 10 },
 });

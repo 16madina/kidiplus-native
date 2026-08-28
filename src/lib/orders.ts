@@ -1,4 +1,5 @@
 import type { MockOrder } from "../mock/account";
+import { computeFees } from "./fees";
 import { formatMoney, normalizeCurrency, type Currency } from "./money";
 import { resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
@@ -15,6 +16,8 @@ type OrderRow = {
   item_image: string | null;
   amount: number | null;
   delivery_fee: number | null;
+  platform_fee: number | null;
+  seller_net: number | null;
   total: number | null;
   currency: string | null;
   status: OrderStatus;
@@ -35,6 +38,8 @@ export type OrderView = MockOrder & {
   total: number;
   itemAmount: number;
   deliveryFee: number;
+  platformFee: number;
+  sellerNet: number;
   currency: Currency;
   kind: "auction" | "fixed";
   paymentDeadline: string | null;
@@ -59,7 +64,10 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
   const image =
     (await resolveStoredImage("shop-products", row.item_image, ["live-products", "live-covers"])) ?? "";
   const currency = normalizeCurrency(row.currency);
-  const total = Number(row.total ?? row.amount ?? 0);
+  const itemAmount = Number(row.amount ?? 0);
+  const deliveryFee = Number(row.delivery_fee ?? 0);
+  const fallback = computeFees(itemAmount, deliveryFee, currency);
+  const total = Number(row.total ?? fallback.total);
   return {
     id: row.id,
     name: row.item_name,
@@ -71,8 +79,10 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
     rawStatus: row.status,
     fulfillment: row.fulfillment_status,
     total,
-    itemAmount: Number(row.amount ?? 0),
-    deliveryFee: Number(row.delivery_fee ?? 0),
+    itemAmount,
+    deliveryFee,
+    platformFee: row.platform_fee != null ? Number(row.platform_fee) : fallback.platformFee,
+    sellerNet: row.seller_net != null ? Number(row.seller_net) : fallback.sellerNet,
     currency,
     kind: row.kind === "auction" ? "auction" : "fixed",
     paymentDeadline: row.payment_deadline,
@@ -80,7 +90,7 @@ async function toOrderView(row: OrderRow, counterparty: string): Promise<OrderVi
 }
 
 const ORDER_SELECT = `
-  id, item_name, item_image, amount, delivery_fee, total, currency, status, fulfillment_status,
+  id, item_name, item_image, amount, delivery_fee, platform_fee, seller_net, total, currency, status, fulfillment_status,
   payment_deadline, kind, created_at, seller_id, buyer_id,
   seller:profiles!orders_seller_id_fkey(display_name, handle),
   buyer:profiles!orders_buyer_id_fkey(display_name, handle)

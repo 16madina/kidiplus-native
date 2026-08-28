@@ -23,6 +23,7 @@ import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { ReferralWalletCard } from "../components/referral/ReferralWalletCard";
 import { ScratchCard } from "../components/referral/ScratchCard";
+import { WithdrawSheet } from "../components/seller/WithdrawSheet";
 import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { formatMoney, normalizeCurrency } from "../lib/money";
@@ -51,6 +52,7 @@ export function ReferralScreen() {
   const [earnings, setEarnings] = useState<ReferralEarningRow[]>([]);
   const [balance, setBalance] = useState<ReferralBalance | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const fallbackCurrency = user?.walletCurrency ?? "EUR";
 
   const flash = (msg: string) => {
@@ -114,7 +116,13 @@ export function ReferralScreen() {
             <ReferralWalletCard balance={balance} fallbackCurrency={fallbackCurrency} />
             <Press
               disabled={!balance || balance.available <= 0}
-              onPress={() => flash(t("referral.wallet.withdrawWeb"))}
+              onPress={() => {
+                if (!balance || balance.available <= 0) {
+                  flash(t("referral.wallet.withdrawEmpty"));
+                  return;
+                }
+                setWithdrawOpen(true);
+              }}
               style={[styles.withdraw, (!balance || balance.available <= 0) && { opacity: 0.5 }]}
             >
               <ArrowDownToLine size={15} color={NAVY} />
@@ -194,6 +202,18 @@ export function ReferralScreen() {
           </>
         )}
       </ScrollView>
+      <WithdrawSheet
+        open={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        available={balance?.available ?? 0}
+        currency={normalizeCurrency(balance?.currency ?? fallbackCurrency)}
+        source="referral"
+        onDone={(msg) => {
+          setWithdrawOpen(false);
+          flash(msg);
+          void reload();
+        }}
+      />
       <MockBanner text={toast} />
     </View>
   );

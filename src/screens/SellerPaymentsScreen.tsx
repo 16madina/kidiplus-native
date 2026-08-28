@@ -67,7 +67,7 @@ export function SellerPaymentsScreen() {
   const steps = [
     "Crée ton compte vendeur sécurisé Stripe.",
     "Vérifie ton identité et ajoute ton compte bancaire.",
-    "Reçois tes ventes automatiquement — KiDi+ garde 10 % de commission.",
+    "Stripe et PayPal encaissent le paiement : KiDi+ retient 10 %, le vendeur reçoit 90 %.",
   ];
 
   return (

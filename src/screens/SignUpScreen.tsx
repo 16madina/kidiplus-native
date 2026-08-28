@@ -76,7 +76,7 @@ export function SignUpScreen() {
         displayName: displayName.trim(),
         country,
         phone: phone.trim(),
-        promoCode: promoCode.trim() && promoValid ? promoCode.trim() : undefined,
+        promoCode: promoCode.trim() || undefined,
       });
       if (result.needsEmailConfirmation) {
         setInfo(t("auth.signUp.checkEmailBody"));
@@ -113,9 +113,12 @@ export function SignUpScreen() {
         <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>{t("auth.signUp.passwordHint")}</Text>
       </View>
       <AuthInput label={t("auth.signUp.promoCode")} autoCapitalize="characters" value={promoCode} onChangeText={setPromoCode} placeholder="KIDI-XXXX" />
+      <Text style={{ fontSize: 12, color: colors.mutedForeground, lineHeight: 16, marginTop: -4 }}>
+        {t("auth.signUp.promoHint")}
+      </Text>
       {promoCode.trim() && promoValid !== null ? (
         <Text style={{ fontSize: 12, fontWeight: "700", color: promoValid ? "#1B7A3A" : "#C0392B" }}>
-          {promoValid ? `✓ ${promoCode.trim().toUpperCase()}` : t("referral.claim.errInvalid")}
+          {promoValid ? t("auth.signUp.promoValid", { code: promoCode.trim().toUpperCase() }) : t("referral.claim.errInvalid")}
         </Text>
       ) : null}
       {info ? (

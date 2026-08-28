@@ -70,6 +70,29 @@ export async function applyPromoCode(code: string): Promise<{ ok: boolean; error
   }
 }
 
+/** Profile row can lag a few hundred ms after signup — retry transient RPC errors. */
+export async function applyPromoCodeWithRetry(
+  code: string,
+  attempts = 6,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = code.trim();
+  if (!c) return { ok: false, error: "invalid_code" };
+  let last: { ok: boolean; error?: string } = { ok: false, error: "unknown" };
+  for (let i = 0; i < attempts; i++) {
+    last = await applyPromoCode(c);
+    if (last.ok || last.error === "already_referred") return { ok: true };
+    if (
+      last.error === "invalid_code" ||
+      last.error === "self_referral" ||
+      last.error === "window_expired"
+    ) {
+      return last;
+    }
+    await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+  }
+  return last;
+}
+
 export async function fetchMyPromoCodes(): Promise<PromoCodeStats[]> {
   try {
     const data = await rpc("my_promo_codes", {});
