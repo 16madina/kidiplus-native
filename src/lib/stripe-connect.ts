@@ -1,21 +1,26 @@
-// Stripe Connect onboarding — same kidiplus.com HTTP APIs as the web seller wallet.
+// Stripe Connect — same /api/connect/* contract as kidiplus.com stripe-connect-client.
 import { Linking } from "react-native";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { supabase } from "./supabase";
+import { paymentsEnvHeaders } from "./stripe-web";
 
 const API_BASE = "https://kidiplus.com";
-const RETURN_URL = "kidiplus://connect-return";
-const REFRESH_URL = "kidiplus://connect-refresh";
 const WEB_FALLBACK = "https://kidiplus.com";
 
 export type ConnectStatus = "none" | "pending" | "active" | "restricted";
 
 export type ConnectState = {
+  ok: boolean;
   connected: boolean;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  eligible: boolean;
+  connectUnavailable: boolean;
   status: ConnectStatus;
+  currency: string;
   error?: string;
+  message?: string;
 };
 
 async function bearer(): Promise<string | null> {
@@ -23,13 +28,12 @@ async function bearer(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-async function postJson(path: string, body: Record<string, unknown> = {}): Promise<{
-  ok: boolean;
-  status: number;
-  json: Record<string, unknown>;
-}> {
+async function postConnect(
+  path: string,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
   const token = await bearer();
-  if (!token) return { ok: false, status: 401, json: { error: "not_signed_in" } };
+  if (!token) return { error: "unauthorized" };
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
@@ -37,65 +41,105 @@ async function postJson(path: string, body: Record<string, unknown> = {}): Promi
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
         Origin: "https://kidiplus.com",
-        "X-Payments-Env": "live",
+        ...paymentsEnvHeaders(),
       },
       body: JSON.stringify(body),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    return { ok: res.ok, status: res.status, json };
-  } catch {
-    return { ok: false, status: 0, json: { error: "network" } };
+    if (!res.ok && !json.error) return { error: "http_error", message: `HTTP ${res.status}` };
+    return json;
+  } catch (e) {
+    return { error: "network_error", message: e instanceof Error ? e.message : "network" };
   }
 }
 
-function readError(json: Record<string, unknown>, fallback: string): string {
-  const e = json.error ?? json.message ?? json.detail;
-  return typeof e === "string" && e.trim() ? e.trim() : fallback;
+function asStatus(value: unknown): ConnectStatus {
+  if (value === "active" || value === "pending" || value === "restricted" || value === "none") {
+    return value;
+  }
+  return "none";
 }
 
 export async function fetchConnectStatus(): Promise<ConnectState> {
   const empty: ConnectState = {
+    ok: false,
     connected: false,
     chargesEnabled: false,
     payoutsEnabled: false,
+    detailsSubmitted: false,
+    eligible: false,
+    connectUnavailable: false,
     status: "none",
+    currency: "EUR",
   };
-  const { ok, json } = await postJson("/api/connect/status");
-  if (!ok) {
-    return { ...empty, error: readError(json, "Impossible de lire le statut Stripe Connect.") };
+  const json = await postConnect("/api/connect/status");
+  if (json.ok === false || json.error) {
+    return {
+      ...empty,
+      error: String(json.error ?? "unknown"),
+      message: typeof json.message === "string" ? json.message : undefined,
+    };
   }
-  const chargesEnabled = Boolean(json.chargesEnabled ?? json.charges_enabled);
-  const payoutsEnabled = Boolean(json.payoutsEnabled ?? json.payouts_enabled);
-  const connected = Boolean(json.connected ?? json.accountId ?? json.account_id);
-  const status: ConnectStatus =
-    chargesEnabled && payoutsEnabled ? "active" : connected ? "pending" : "none";
-  return { connected, chargesEnabled, payoutsEnabled, status };
+  const chargesEnabled = Boolean(json.chargesEnabled);
+  const payoutsEnabled = Boolean(json.payoutsEnabled);
+  const detailsSubmitted = Boolean(json.detailsSubmitted);
+  const status =
+    asStatus(json.status) !== "none"
+      ? asStatus(json.status)
+      : chargesEnabled && payoutsEnabled
+        ? "active"
+        : detailsSubmitted
+          ? "pending"
+          : "none";
+  return {
+    ok: true,
+    connected: status !== "none",
+    chargesEnabled,
+    payoutsEnabled,
+    detailsSubmitted,
+    eligible: Boolean(json.eligible),
+    connectUnavailable: Boolean(json.connectUnavailable),
+    status,
+    currency: String(json.currency ?? "EUR"),
+  };
 }
 
-export async function startConnectOnboarding(): Promise<{ url: string | null; error?: string }> {
-  const paths = ["/api/connect/onboard", "/api/stripe/connect/onboard", "/api/connect/account-link"];
-  const body = {
-    returnUrl: RETURN_URL,
-    refreshUrl: REFRESH_URL,
-    return_url: `${API_BASE}/`,
-    refresh_url: `${API_BASE}/`,
-    native: true,
-  };
-  let lastError = "Connect not ready";
-  for (const path of paths) {
-    const { ok, json } = await postJson(path, body);
-    const url = String(json.url ?? json.onboardingUrl ?? json.accountLink ?? json.link ?? "");
-    if (ok && url.startsWith("http")) return { url };
-    lastError = readError(json, lastError);
+function mapOnboardError(code: string | undefined, message?: string): string {
+  if (code === "connect_currency_unsupported" || code === "connect_country_unsupported") {
+    return "Stripe Connect n'est pas disponible pour ton pays / ta devise. Utilise PayPal ou un virement.";
   }
-  return { url: null, error: lastError };
+  if (code === "connect_not_enabled") {
+    return message?.trim() || "Stripe Connect n'est pas activé sur ce compte. Réessaie ou ouvre kidiplus.com.";
+  }
+  if (message?.trim()) return message.trim();
+  if (code && code !== "unknown") return code;
+  return "Impossible d'ouvrir l'onboarding Stripe. Réessaie.";
+}
+
+export async function startConnectOnboarding(country?: string | null): Promise<{
+  url: string | null;
+  error?: string;
+}> {
+  const body = country && country.trim() ? { country: country.trim().toUpperCase() } : {};
+  const json = await postConnect("/api/connect/onboard", body);
+  const url = typeof json.url === "string" ? json.url : "";
+  if (json.ok && url.startsWith("http")) return { url };
+  return {
+    url: null,
+    error: mapOnboardError(
+      typeof json.error === "string" ? json.error : undefined,
+      typeof json.message === "string" ? json.message : undefined,
+    ),
+  };
 }
 
 export async function openConnectUrl(url: string): Promise<void> {
+  // Web uses Capacitor Browser.open (popover) — same idea: in-app browser,
+  // Stripe returns to https://kidiplus.com, then the seller comes back and refreshes.
   if (requireOptionalNativeModule("ExpoWebBrowser")) {
     try {
       const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
-      await WebBrowser.openAuthSessionAsync(url, RETURN_URL, { preferEphemeralSession: false });
+      await WebBrowser.openBrowserAsync(url);
       return;
     } catch {
       /* fall through */

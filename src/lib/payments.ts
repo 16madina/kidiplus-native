@@ -5,6 +5,7 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { supabase } from "./supabase";
 import { normalizeCurrency, type Currency } from "./money";
 import { PAYPAL_REDIRECT_SCHEME, parsePaypalDoneUrl } from "./pay-errors";
+import { normalizePublishableKey, paymentsEnvHeaders } from "./stripe-web";
 
 const API_BASE = "https://kidiplus.com";
 
@@ -44,17 +45,11 @@ async function bearer(): Promise<string | null> {
 
 export type ApiFail = { ok: false; error: string; message?: string };
 
-/**
- * Match kidiplus.com web: tell the Worker which Stripe account to use.
- * Without this, managed-only resolution can miss the live gateway and
- * return `stripe_not_configured`.
- */
-const STRIPE_PAYMENTS_ENV = "live" as const;
-
 function isStripePath(path: string): boolean {
   return (
     path.startsWith("/api/wallet-topup") ||
     path.startsWith("/api/checkout") ||
+    path.startsWith("/api/connect") ||
     path.includes("wallet-topup") ||
     path.includes("/checkout")
   );
@@ -63,7 +58,6 @@ function isStripePath(path: string): boolean {
 async function api<T>(
   path: string,
   body: Record<string, unknown>,
-  opts?: { paymentsEnv?: "live" | "auto" },
 ): Promise<{ ok: true; data: T } | ApiFail> {
   const token = await bearer();
   if (!token) return { ok: false, error: "not_signed_in" };
@@ -73,11 +67,8 @@ async function api<T>(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        // RN sometimes omits Origin; kidiplus.com CORS allows this host.
         Origin: "https://kidiplus.com",
-        ...(isStripePath(path) && opts?.paymentsEnv !== "auto"
-          ? { "X-Payments-Env": STRIPE_PAYMENTS_ENV }
-          : {}),
+        ...(isStripePath(path) ? paymentsEnvHeaders() : {}),
       },
       body: JSON.stringify(body),
     });
@@ -133,14 +124,14 @@ export type CheckoutIntent = {
   currency: string;
 };
 
-function hasPublishableKey(data: { publishableKey?: string } | undefined): boolean {
-  return typeof data?.publishableKey === "string" && data.publishableKey.trim().startsWith("pk_");
+function withPublishableKey<T extends { publishableKey?: string }>(data: T): T {
+  return { ...data, publishableKey: normalizePublishableKey(data.publishableKey) };
 }
 
 export async function createOrderCheckout(orderId: string) {
-  const first = await api<CheckoutIntent>("/api/checkout", { orderId });
-  if (first.ok && hasPublishableKey(first.data)) return first;
-  return api<CheckoutIntent>("/api/checkout", { orderId }, { paymentsEnv: "auto" });
+  const res = await api<CheckoutIntent>("/api/checkout", { orderId });
+  if (!res.ok) return res;
+  return { ok: true as const, data: withPublishableKey(res.data) };
 }
 
 export async function confirmOrderCheckout(paymentIntentId: string) {
@@ -157,9 +148,9 @@ export type TopupIntent = {
 };
 
 export async function createWalletTopup(amount: number) {
-  const first = await api<TopupIntent>("/api/wallet-topup", { amount });
-  if (first.ok && hasPublishableKey(first.data)) return first;
-  return api<TopupIntent>("/api/wallet-topup", { amount }, { paymentsEnv: "auto" });
+  const res = await api<TopupIntent>("/api/wallet-topup", { amount });
+  if (!res.ok) return res;
+  return { ok: true as const, data: withPublishableKey(res.data) };
 }
 
 export async function confirmWalletTopup(paymentIntentId: string) {

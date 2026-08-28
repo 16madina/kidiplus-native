@@ -11,6 +11,7 @@ import {
 import { OverlayHeader } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
+import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import {
   fetchConnectStatus,
@@ -23,6 +24,7 @@ import { GOLD, NAVY } from "../theme";
 
 export function SellerPaymentsScreen() {
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<ConnectStatus>("none");
@@ -32,7 +34,7 @@ export function SellerPaymentsScreen() {
     setLoading(true);
     const r = await fetchConnectStatus();
     setStatus(r.status);
-    setError(r.error ?? null);
+    setError(r.ok ? null : r.message || r.error || null);
     setLoading(false);
   }, []);
 
@@ -43,19 +45,14 @@ export function SellerPaymentsScreen() {
   const onboard = async () => {
     setBusy(true);
     setError(null);
-    const res = await startConnectOnboarding();
+    const res = await startConnectOnboarding(user?.country);
     setBusy(false);
     if (res.url) {
       await openConnectUrl(res.url);
       void refresh();
       return;
     }
-    const msg = res.error || "Connect not ready";
-    setError(
-      /not ready/i.test(msg)
-        ? "Stripe Connect n'est pas encore activé côté serveur (kidiplus.com). Tu peux le configurer sur le site, puis actualiser ici."
-        : msg,
-    );
+    setError(res.error ?? null);
   };
 
   const badge =
