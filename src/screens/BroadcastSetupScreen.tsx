@@ -220,8 +220,12 @@ function GoLiveSetup() {
       </View>
 
       {!showFilters ? (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        pointerEvents="box-none"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 14) }]} pointerEvents="auto">
           <View style={styles.drag} />
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -466,6 +470,8 @@ const styles = StyleSheet.create({
   sheet: {
     marginTop: "auto",
     maxHeight: "62%",
+    zIndex: 40,
+    elevation: 40,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,

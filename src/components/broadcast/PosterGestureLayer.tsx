@@ -1,37 +1,42 @@
 import { useCallback, useEffect } from "react";
-import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { Dimensions, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { useLiveEffects, clampPosterTransform } from "../../lib/filters/live-effects-context";
+import { applyPosterPan, applyPosterPinch } from "../../lib/filters/poster-gesture";
 import { GOLD } from "../../theme";
 
 const POSTER_W = 200;
 const POSTER_H = 160;
 
 /**
- * Draggable / pinchable poster overlay. Must not pass JS refs into worklets
- * (that crashed Reanimated and killed the app). Shared values only.
+ * Same contract as kidiplus.com: one finger drags the poster, two fingers pinch
+ * to scale. Gestures run on the preview overlay (not only the 200×160 frame)
+ * so a pinch actually fits. Taps do not move the image.
  */
 export function PosterGestureLayer() {
   const { t } = useTranslation();
   const { posterUrl, posterMode, posterTransform, setPosterTransform } = useLiveEffects();
+  const win = Dimensions.get("window");
 
-  const boxW = useSharedValue(1);
-  const boxH = useSharedValue(1);
+  const boxW = useSharedValue(win.width);
+  const boxH = useSharedValue(win.height);
   const tx = useSharedValue(posterTransform.x);
   const ty = useSharedValue(posterTransform.y);
   const sc = useSharedValue(posterTransform.scale);
-  const startX = useSharedValue(0);
-  const startY = useSharedValue(0);
-  const startSc = useSharedValue(1);
+  const startX = useSharedValue(posterTransform.x);
+  const startY = useSharedValue(posterTransform.y);
+  const startSc = useSharedValue(posterTransform.scale);
 
   useEffect(() => {
     tx.value = posterTransform.x;
     ty.value = posterTransform.y;
     sc.value = posterTransform.scale;
-  }, [posterTransform.x, posterTransform.y, posterTransform.scale, sc, tx, ty]);
+    // Reset only when a new poster is picked — never while the finger is down.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- posterUrl is the reset key
+  }, [posterUrl]);
 
   const commit = useCallback(
     (x: number, y: number, scale: number) => {
@@ -41,15 +46,25 @@ export function PosterGestureLayer() {
   );
 
   const pan = Gesture.Pan()
+    .minDistance(12)
+    .maxPointers(1)
     .onBegin(() => {
       startX.value = tx.value;
       startY.value = ty.value;
+      startSc.value = sc.value;
     })
     .onUpdate((e) => {
-      const w = Math.max(1, boxW.value);
-      const h = Math.max(1, boxH.value);
-      tx.value = Math.min(0.95, Math.max(0.05, startX.value + e.translationX / w));
-      ty.value = Math.min(0.95, Math.max(0.05, startY.value + e.translationY / h));
+      const next = applyPosterPan({
+        originX: startX.value,
+        originY: startY.value,
+        originScale: startSc.value,
+        translationX: e.translationX,
+        translationY: e.translationY,
+        boxW: boxW.value,
+        boxH: boxH.value,
+      });
+      tx.value = next.x;
+      ty.value = next.y;
     })
     .onEnd(() => {
       runOnJS(commit)(tx.value, ty.value, sc.value);
@@ -57,10 +72,12 @@ export function PosterGestureLayer() {
 
   const pinch = Gesture.Pinch()
     .onBegin(() => {
+      startX.value = tx.value;
+      startY.value = ty.value;
       startSc.value = sc.value;
     })
     .onUpdate((e) => {
-      sc.value = Math.min(3, Math.max(0.35, startSc.value * e.scale));
+      sc.value = applyPosterPinch(startSc.value, e.scale);
     })
     .onEnd(() => {
       runOnJS(commit)(tx.value, ty.value, sc.value);
@@ -75,23 +92,26 @@ export function PosterGestureLayer() {
   }));
 
   const onLayout = (e: LayoutChangeEvent) => {
-    boxW.value = e.nativeEvent.layout.width;
-    boxH.value = e.nativeEvent.layout.height;
+    const { width, height } = e.nativeEvent.layout;
+    if (width >= 64 && height >= 64) {
+      boxW.value = width;
+      boxH.value = height;
+    }
   };
 
   if (!posterUrl || posterMode === "off") return null;
 
   return (
-    <View pointerEvents="box-none" style={styles.layer} onLayout={onLayout}>
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.posterWrap, posterStyle]} collapsable={false}>
+    <GestureDetector gesture={gesture}>
+      <View style={styles.layer} onLayout={onLayout} collapsable={false}>
+        <Animated.View style={[styles.posterWrap, posterStyle]} pointerEvents="none">
           <Image source={{ uri: posterUrl }} style={styles.posterImg} contentFit="contain" />
         </Animated.View>
-      </GestureDetector>
-      <Text pointerEvents="none" style={styles.hint}>
-        {t("broadcast.effects.posterHint", "Glisse pour déplacer · Pince pour zoomer")}
-      </Text>
-    </View>
+        <Text pointerEvents="none" style={styles.hint}>
+          {t("broadcast.effects.posterHint", "Glisse pour déplacer · Pince pour zoomer")}
+        </Text>
+      </View>
+    </GestureDetector>
   );
 }
 
