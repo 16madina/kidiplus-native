@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import {
-  BadgeCheck,
-  Banknote,
-  ExternalLink,
-  RefreshCw,
-  ShieldCheck,
-  TriangleAlert,
-} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { GoldButton } from "../components/Buttons";
 import { FormField } from "../components/FormField";
@@ -18,49 +10,58 @@ import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import {
   emptyPayoutSetup,
+  formatConnectCountry,
+  isValidBankHolder,
   isValidIban,
   isValidPaypalEmail,
   isValidPayoutPhone,
   loadPayoutSetup,
+  maskIban,
+  maskPaypalEmail,
+  maskPayoutPhone,
   payoutMethodReady,
+  payoutSetupMethodsForCurrency,
   savePayoutSetup,
   type PayoutSetup,
 } from "../lib/payout-setup";
-import { payoutMethodsForCurrency } from "../lib/payout-methods";
 import {
   fetchConnectStatus,
   openConnectUrl,
-  openConnectWebFallback,
+  startConnectLoginLink,
   startConnectOnboarding,
+  subscribeConnectReturn,
   type ConnectStatus,
 } from "../lib/stripe-connect";
-import { GOLD, NAVY } from "../theme";
+import { GOLD } from "../theme";
 
-type SavedKey = "paypal" | "wave" | "orange" | "bank";
+type EditKey = "paypal" | "wave" | "orange" | "bank";
 
 export function SellerPaymentsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [saving, setSaving] = useState<SavedKey | null>(null);
-  const [saved, setSaved] = useState<SavedKey | null>(null);
+  const [saving, setSaving] = useState<EditKey | null>(null);
+  const [editing, setEditing] = useState<EditKey | null>(null);
   const [status, setStatus] = useState<ConnectStatus>("none");
+  const [connectCountry, setConnectCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
 
   const currency = user?.walletCurrency ?? "EUR";
-  const available = payoutMethodsForCurrency(currency);
+  const available = payoutSetupMethodsForCurrency(currency);
   const stripeReady = status === "active";
+  const locale = i18n.language?.startsWith("en") ? "en" : "fr";
+  const countryLabel = formatConnectCountry(connectCountry || user?.country, locale);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     const [connect, stored] = await Promise.all([
       fetchConnectStatus(),
       user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
     ]);
     setStatus(connect.status);
+    setConnectCountry(connect.country);
     setError(connect.ok ? null : connect.message || connect.error || null);
     setSetup(stored);
     setLoading(false);
@@ -70,6 +71,12 @@ export function SellerPaymentsScreen() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    return subscribeConnectReturn(() => {
+      void refresh();
+    });
+  }, [refresh]);
+
   const onboard = async () => {
     setBusy(true);
     setError(null);
@@ -77,30 +84,36 @@ export function SellerPaymentsScreen() {
     setBusy(false);
     if (res.url) {
       await openConnectUrl(res.url);
-      void refresh();
       return;
     }
     setError(res.error ?? null);
   };
 
-  const persist = async (key: SavedKey, next: PayoutSetup) => {
-    if (!user?.id) return;
-    setSaving(key);
-    setSetup(next);
-    await savePayoutSetup(user.id, next);
-    setSaving(null);
-    setSaved(key);
-    setTimeout(() => setSaved((cur) => (cur === key ? null : cur)), 1800);
+  const openDashboard = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await startConnectLoginLink();
+    setBusy(false);
+    if (res.url) {
+      await openConnectUrl(res.url);
+      return;
+    }
+    setError(res.error ?? t("sellerPayments.dashboardFail"));
   };
 
-  const badge =
-    status === "active"
-      ? { icon: <BadgeCheck size={18} color="#34d399" />, color: "#34d399", label: t("sellerPayments.statusActive") }
-      : status === "restricted"
-        ? { icon: <TriangleAlert size={18} color="#f59e0b" />, color: "#f59e0b", label: t("sellerPayments.statusRestricted") }
-        : status === "pending"
-          ? { icon: <ActivityIndicator size={14} color={GOLD} />, color: GOLD, label: t("sellerPayments.statusPending") }
-          : { icon: <Banknote size={18} color={GOLD} />, color: GOLD, label: t("sellerPayments.statusNone") };
+  const persist = async (key: EditKey, next: PayoutSetup) => {
+    if (!user?.id) return;
+    setSaving(key);
+    setError(null);
+    const res = await savePayoutSetup(user.id, next);
+    setSaving(null);
+    if (!res.ok) {
+      setError(res.error || t("sellerPayments.saveFail"));
+      return;
+    }
+    setSetup(next);
+    setEditing(null);
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -111,181 +124,188 @@ export function SellerPaymentsScreen() {
           {currency === "XOF" ? t("sellerPayments.xofHint") : t("sellerPayments.intlHint")}
         </Text>
 
-        <SurfaceCard>
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={GOLD} />
-              <Text style={[styles.hint, { color: colors.mutedForeground }]}>{t("sellerPayments.checking")}</Text>
-            </View>
-          ) : (
-            <View style={styles.statusRow}>
-              {badge.icon}
-              <Text style={[styles.statusLabel, { color: badge.color }]}>{badge.label}</Text>
-            </View>
-          )}
-        </SurfaceCard>
-
-        <SurfaceCard>
-          <View style={styles.stepsHeader}>
-            <ShieldCheck size={16} color={GOLD} />
-            <Text style={[styles.stepsTitle, { color: colors.foreground }]}>{t("sellerPayments.howTitle")}</Text>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={GOLD} />
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>{t("sellerPayments.checking")}</Text>
           </View>
-          {[t("sellerPayments.step1"), t("sellerPayments.step2"), t("sellerPayments.step3")].map((s, i) => (
-            <View key={i} style={styles.stepRow}>
-              <View style={styles.stepNum}>
-                <Text style={styles.stepNumText}>{i + 1}</Text>
-              </View>
-              <Text style={[styles.stepText, { color: colors.foreground }]}>{s}</Text>
-            </View>
-          ))}
-        </SurfaceCard>
+        ) : null}
 
         {available.includes("stripe_connect") ? (
           <MethodCard
             title={t("sellerPayments.stripeTitle")}
-            hint={t("sellerPayments.stripeHint")}
             ready={stripeReady}
-            readyLabel={t("sellerPayments.configured")}
-            pendingLabel={t("sellerPayments.notConfigured")}
+            dimmed={!stripeReady}
           >
-            {status !== "active" ? (
-              <Press onPress={() => void onboard()} style={styles.goldBtn}>
-                {busy ? (
-                  <ActivityIndicator size={16} color={NAVY} />
-                ) : (
-                  <Text style={styles.goldBtnText}>
-                    {status === "none" ? t("sellerPayments.configureStripe") : t("sellerPayments.resumeStripe")}
-                  </Text>
-                )}
-              </Press>
+            {stripeReady ? (
+              <>
+                <Text style={styles.readyLine}>
+                  {t("sellerPayments.stripeReady")}
+                  {countryLabel ? ` · ${countryLabel}` : ""}
+                </Text>
+                <OutlineButton
+                  label={busy ? t("common.loading") : t("sellerPayments.manage")}
+                  onPress={() => void openDashboard()}
+                  disabled={busy}
+                />
+              </>
             ) : (
-              <Press onPress={() => void onboard()} style={styles.goldBtn}>
-                <ExternalLink size={16} color={NAVY} />
-                <Text style={styles.goldBtnText}>{t("sellerPayments.openDashboard")}</Text>
-              </Press>
+              <>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {status === "pending"
+                    ? t("sellerPayments.statusPending")
+                    : status === "restricted"
+                      ? t("sellerPayments.statusRestricted")
+                      : t("sellerPayments.stripeHint")}
+                </Text>
+                <GoldButton
+                  label={
+                    busy
+                      ? t("common.loading")
+                      : status === "none"
+                        ? t("sellerPayments.configureBank")
+                        : t("sellerPayments.resumeStripe")
+                  }
+                  onPress={() => void onboard()}
+                  disabled={busy}
+                />
+              </>
             )}
-            {error ? (
-              <View style={styles.errBox}>
-                <Text style={styles.errTxt}>{error}</Text>
-                <Press onPress={() => void openConnectWebFallback()} style={styles.webBtn}>
-                  <ExternalLink size={14} color={NAVY} />
-                  <Text style={styles.goldBtnText}>{t("sellerPayments.webFallback")}</Text>
-                </Press>
-              </View>
-            ) : null}
-            <Press onPress={() => void refresh()} style={[styles.refreshBtn, { borderColor: colors.border }]}>
-              <RefreshCw size={15} color={colors.mutedForeground} />
-              <Text style={[styles.refreshText, { color: colors.mutedForeground }]}>{t("sellerPayments.refresh")}</Text>
-            </Press>
           </MethodCard>
         ) : null}
 
-        <MethodCard
-          title={t("sellerPayments.paypalTitle")}
-          hint={t("sellerPayments.paypalHint")}
-          ready={payoutMethodReady("paypal", setup, stripeReady)}
-          readyLabel={t("sellerPayments.configured")}
-          pendingLabel={t("sellerPayments.notConfigured")}
-        >
-          <FormField
-            required
-            label={t("payout.paypalEmail")}
-            value={setup.paypalEmail}
-            onChangeText={(paypalEmail) => setSetup((s) => ({ ...s, paypalEmail }))}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder={t("payout.paypalEmailPlaceholder")}
-          />
-          <SaveRow
-            busy={saving === "paypal"}
-            justSaved={saved === "paypal"}
-            disabled={!isValidPaypalEmail(setup.paypalEmail)}
-            onPress={() => void persist("paypal", setup)}
-          />
-        </MethodCard>
+        {available.includes("paypal") ? (
+          <MethodCard title={t("sellerPayments.paypalTitle")} ready={payoutMethodReady("paypal", setup, stripeReady)}>
+            {payoutMethodReady("paypal", setup, stripeReady) && editing !== "paypal" ? (
+              <>
+                <Text style={styles.readyLine}>
+                  {t("sellerPayments.paypalReady", { email: maskPaypalEmail(setup.paypalEmail) })}
+                </Text>
+                <OutlineButton label={t("sellerPayments.edit")} onPress={() => setEditing("paypal")} />
+              </>
+            ) : (
+              <>
+                <FormField
+                  required
+                  label={t("payout.paypalEmail")}
+                  value={setup.paypalEmail}
+                  onChangeText={(paypalEmail) => setSetup((s) => ({ ...s, paypalEmail }))}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholder={t("payout.paypalEmailPlaceholder")}
+                />
+                <GoldButton
+                  label={saving === "paypal" ? t("common.loading") : t("sellerPayments.save")}
+                  onPress={() => void persist("paypal", setup)}
+                  disabled={!isValidPaypalEmail(setup.paypalEmail) || saving === "paypal"}
+                />
+              </>
+            )}
+          </MethodCard>
+        ) : null}
 
-        <MethodCard
-          title={t("sellerPayments.waveTitle")}
-          hint={t("sellerPayments.waveHint")}
-          ready={payoutMethodReady("wave", setup, stripeReady)}
-          readyLabel={t("sellerPayments.configured")}
-          pendingLabel={t("sellerPayments.notConfigured")}
-        >
-          <FormField
-            required
-            label={t("payout.phone")}
-            value={setup.wavePhone}
-            onChangeText={(wavePhone) => setSetup((s) => ({ ...s, wavePhone }))}
-            keyboardType="phone-pad"
-            placeholder={t("payout.phonePlaceholder")}
-          />
-          <FormField
-            label={t("payout.holder")}
-            value={setup.waveHolder}
-            onChangeText={(waveHolder) => setSetup((s) => ({ ...s, waveHolder }))}
-          />
-          <SaveRow
-            busy={saving === "wave"}
-            justSaved={saved === "wave"}
-            disabled={!isValidPayoutPhone(setup.wavePhone)}
-            onPress={() => void persist("wave", setup)}
-          />
-        </MethodCard>
+        {available.includes("wave") ? (
+          <MethodCard title={t("sellerPayments.waveTitle")} ready={payoutMethodReady("wave", setup, stripeReady)}>
+            {payoutMethodReady("wave", setup, stripeReady) && editing !== "wave" ? (
+              <>
+                <Text style={styles.readyLine}>
+                  {t("sellerPayments.waveReady", { phone: maskPayoutPhone(setup.wavePhone) })}
+                </Text>
+                <OutlineButton label={t("sellerPayments.edit")} onPress={() => setEditing("wave")} />
+              </>
+            ) : (
+              <>
+                <FormField
+                  required
+                  label={t("payout.phone")}
+                  value={setup.wavePhone}
+                  onChangeText={(wavePhone) => setSetup((s) => ({ ...s, wavePhone }))}
+                  keyboardType="phone-pad"
+                  placeholder={t("payout.phonePlaceholder")}
+                />
+                <GoldButton
+                  label={saving === "wave" ? t("common.loading") : t("sellerPayments.save")}
+                  onPress={() => void persist("wave", setup)}
+                  disabled={!isValidPayoutPhone(setup.wavePhone) || saving === "wave"}
+                />
+              </>
+            )}
+          </MethodCard>
+        ) : null}
 
-        <MethodCard
-          title={t("sellerPayments.orangeTitle")}
-          hint={t("sellerPayments.orangeHint")}
-          ready={payoutMethodReady("orange_money", setup, stripeReady)}
-          readyLabel={t("sellerPayments.configured")}
-          pendingLabel={t("sellerPayments.notConfigured")}
-        >
-          <FormField
-            required
-            label={t("payout.phone")}
-            value={setup.orangeMoneyPhone}
-            onChangeText={(orangeMoneyPhone) => setSetup((s) => ({ ...s, orangeMoneyPhone }))}
-            keyboardType="phone-pad"
-            placeholder={t("payout.phonePlaceholder")}
-          />
-          <FormField
-            label={t("payout.holder")}
-            value={setup.orangeMoneyHolder}
-            onChangeText={(orangeMoneyHolder) => setSetup((s) => ({ ...s, orangeMoneyHolder }))}
-          />
-          <SaveRow
-            busy={saving === "orange"}
-            justSaved={saved === "orange"}
-            disabled={!isValidPayoutPhone(setup.orangeMoneyPhone)}
-            onPress={() => void persist("orange", setup)}
-          />
-        </MethodCard>
+        {available.includes("orange_money") ? (
+          <MethodCard title={t("sellerPayments.orangeTitle")} ready={payoutMethodReady("orange_money", setup, stripeReady)}>
+            {payoutMethodReady("orange_money", setup, stripeReady) && editing !== "orange" ? (
+              <>
+                <Text style={styles.readyLine}>
+                  {t("sellerPayments.orangeReady", { phone: maskPayoutPhone(setup.orangeMoneyPhone) })}
+                </Text>
+                <OutlineButton label={t("sellerPayments.edit")} onPress={() => setEditing("orange")} />
+              </>
+            ) : (
+              <>
+                <FormField
+                  required
+                  label={t("payout.phone")}
+                  value={setup.orangeMoneyPhone}
+                  onChangeText={(orangeMoneyPhone) => setSetup((s) => ({ ...s, orangeMoneyPhone }))}
+                  keyboardType="phone-pad"
+                  placeholder={t("payout.phonePlaceholder")}
+                />
+                <GoldButton
+                  label={saving === "orange" ? t("common.loading") : t("sellerPayments.save")}
+                  onPress={() => void persist("orange", setup)}
+                  disabled={!isValidPayoutPhone(setup.orangeMoneyPhone) || saving === "orange"}
+                />
+              </>
+            )}
+          </MethodCard>
+        ) : null}
 
-        <MethodCard
-          title={t("sellerPayments.bankTitle")}
-          hint={t("sellerPayments.bankHint")}
-          ready={payoutMethodReady("bank_transfer", setup, stripeReady)}
-          readyLabel={t("sellerPayments.configured")}
-          pendingLabel={t("sellerPayments.notConfigured")}
-        >
-          <FormField
-            required
-            label="IBAN"
-            value={setup.bankIban}
-            onChangeText={(bankIban) => setSetup((s) => ({ ...s, bankIban }))}
-            autoCapitalize="characters"
-          />
-          <FormField
-            label={t("payout.holder")}
-            value={setup.bankHolder}
-            onChangeText={(bankHolder) => setSetup((s) => ({ ...s, bankHolder }))}
-          />
-          <SaveRow
-            busy={saving === "bank"}
-            justSaved={saved === "bank"}
-            disabled={!isValidIban(setup.bankIban)}
-            onPress={() => void persist("bank", setup)}
-          />
-        </MethodCard>
+        {available.includes("bank_transfer") ? (
+          <MethodCard title={t("sellerPayments.bankTitle")} ready={payoutMethodReady("bank_transfer", setup, stripeReady)}>
+            {payoutMethodReady("bank_transfer", setup, stripeReady) && editing !== "bank" ? (
+              <>
+                <Text style={styles.readyLine}>
+                  {t("sellerPayments.bankReady", {
+                    iban: maskIban(setup.bankIban),
+                    holder: setup.bankHolder,
+                  })}
+                </Text>
+                <OutlineButton label={t("sellerPayments.edit")} onPress={() => setEditing("bank")} />
+              </>
+            ) : (
+              <>
+                <FormField
+                  required
+                  label="IBAN"
+                  value={setup.bankIban}
+                  onChangeText={(bankIban) => setSetup((s) => ({ ...s, bankIban }))}
+                  autoCapitalize="characters"
+                />
+                <FormField
+                  required
+                  label={t("payout.holder")}
+                  value={setup.bankHolder}
+                  onChangeText={(bankHolder) => setSetup((s) => ({ ...s, bankHolder }))}
+                />
+                <GoldButton
+                  label={saving === "bank" ? t("common.loading") : t("sellerPayments.save")}
+                  onPress={() => void persist("bank", setup)}
+                  disabled={
+                    !isValidIban(setup.bankIban) || !isValidBankHolder(setup.bankHolder) || saving === "bank"
+                  }
+                />
+              </>
+            )}
+          </MethodCard>
+        ) : null}
+
+        {error ? (
+          <View style={styles.errBox}>
+            <Text style={styles.errTxt}>{error}</Text>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -293,54 +313,51 @@ export function SellerPaymentsScreen() {
 
 function MethodCard({
   title,
-  hint,
   ready,
-  readyLabel,
-  pendingLabel,
+  dimmed,
   children,
 }: {
   title: string;
-  hint: string;
   ready: boolean;
-  readyLabel: string;
-  pendingLabel: string;
+  dimmed?: boolean;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const { colors } = useAppTheme();
+  const faded = dimmed ?? !ready;
   return (
-    <SurfaceCard>
+    <SurfaceCard style={faded ? { opacity: 0.72 } : undefined}>
       <View style={styles.methodHead}>
         <Text style={[styles.methodTitle, { color: colors.foreground }]}>{title}</Text>
-        <View style={[styles.pill, { backgroundColor: ready ? "rgba(52,211,153,0.16)" : "rgba(232,185,59,0.16)" }]}>
-          <Text style={[styles.pillText, { color: ready ? "#1B7A3A" : "#8A6A12" }]}>
-            {ready ? readyLabel : pendingLabel}
+        <View style={[styles.pill, { backgroundColor: ready ? "rgba(52,211,153,0.16)" : "rgba(148,163,184,0.18)" }]}>
+          <Text style={[styles.pillText, { color: ready ? "#1B7A3A" : "#64748B" }]}>
+            {ready ? t("sellerPayments.configured") : t("sellerPayments.notConfigured")}
           </Text>
         </View>
       </View>
-      <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>{hint}</Text>
       <View style={{ gap: 10 }}>{children}</View>
     </SurfaceCard>
   );
 }
 
-function SaveRow({
-  busy,
-  justSaved,
-  disabled,
+function OutlineButton({
+  label,
   onPress,
+  disabled,
 }: {
-  busy: boolean;
-  justSaved: boolean;
-  disabled: boolean;
+  label: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { colors } = useAppTheme();
   return (
-    <GoldButton
-      label={busy ? t("common.loading") : justSaved ? t("sellerPayments.saved") : t("sellerPayments.save")}
+    <Press
       onPress={onPress}
-      disabled={disabled || busy}
-    />
+      disabled={disabled}
+      style={[styles.outlineBtn, { borderColor: colors.border }, disabled && { opacity: 0.55 }]}
+    >
+      <Text style={[styles.outlineText, { color: colors.foreground }]}>{label}</Text>
+    </Press>
   );
 }
 
@@ -349,62 +366,26 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 14, paddingBottom: 48 },
   intro: { fontSize: 14, lineHeight: 20 },
   currencyHint: { fontSize: 12, lineHeight: 17, marginTop: -6 },
-  center: { alignItems: "center", gap: 8, paddingVertical: 12 },
+  center: { alignItems: "center", gap: 8, paddingVertical: 16 },
   hint: { fontSize: 13 },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
-  statusLabel: { fontSize: 15, fontWeight: "700" },
-  stepsHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  stepsTitle: { fontSize: 14, fontWeight: "700" },
-  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
-  stepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(232,185,59,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepNumText: { fontSize: 11, fontWeight: "800", color: GOLD },
-  stepText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  methodHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6 },
+  methodHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 },
   methodTitle: { fontSize: 15, fontWeight: "800", flex: 1 },
-  methodHint: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  methodHint: { fontSize: 12, lineHeight: 17 },
+  readyLine: { fontSize: 15, fontWeight: "700", color: "#1B7A3A", lineHeight: 21 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   pillText: { fontSize: 11, fontWeight: "800" },
-  goldBtn: {
-    height: 50,
+  outlineBtn: {
+    height: 46,
     borderRadius: 16,
-    backgroundColor: GOLD,
-    flexDirection: "row",
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  goldBtnText: { color: NAVY, fontSize: 15, fontWeight: "800" },
+  outlineText: { fontSize: 15, fontWeight: "800" },
   errBox: {
     backgroundColor: "#FDE8E8",
     borderRadius: 14,
     padding: 12,
-    gap: 10,
   },
   errTxt: { color: "#9B1C1C", fontSize: 13, fontWeight: "600", lineHeight: 18 },
-  webBtn: {
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: GOLD,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  refreshBtn: {
-    height: 46,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  refreshText: { fontSize: 14, fontWeight: "600" },
 });

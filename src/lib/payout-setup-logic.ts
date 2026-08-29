@@ -32,13 +32,13 @@ export function parsePayoutSetup(raw: unknown): PayoutSetup {
   if (!raw || typeof raw !== "object") return empty;
   const o = raw as Record<string, unknown>;
   return {
-    paypalEmail: asTrimmed(o.paypalEmail).toLowerCase(),
-    wavePhone: asTrimmed(o.wavePhone),
+    paypalEmail: asTrimmed(o.paypalEmail ?? o.payout_paypal_email).toLowerCase(),
+    wavePhone: asTrimmed(o.wavePhone ?? o.payout_wave_phone),
     waveHolder: asTrimmed(o.waveHolder),
-    orangeMoneyPhone: asTrimmed(o.orangeMoneyPhone),
+    orangeMoneyPhone: asTrimmed(o.orangeMoneyPhone ?? o.payout_om_phone),
     orangeMoneyHolder: asTrimmed(o.orangeMoneyHolder),
-    bankIban: asTrimmed(o.bankIban).toUpperCase().replace(/\s+/g, ""),
-    bankHolder: asTrimmed(o.bankHolder),
+    bankIban: asTrimmed(o.bankIban ?? o.payout_bank_iban).toUpperCase().replace(/\s+/g, ""),
+    bankHolder: asTrimmed(o.bankHolder ?? o.payout_bank_holder),
   };
 }
 
@@ -52,14 +52,21 @@ export function isValidPaypalEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+/** E.164-ish: leading + and at least 8 digits. */
 export function isValidPayoutPhone(phone: string): boolean {
-  return phone.replace(/\D/g, "").length >= 8;
+  const trimmed = phone.trim();
+  if (!trimmed.startsWith("+")) return false;
+  return trimmed.replace(/\D/g, "").length >= 8;
 }
 
-/** Loose IBAN check: country + check digits + BBAN. Does not compute the checksum. */
+/** IBAN: at least 15 characters after stripping spaces. Checksum is not verified. */
 export function isValidIban(iban: string): boolean {
   const compact = iban.replace(/\s+/g, "").toUpperCase();
-  return /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(compact);
+  return compact.length >= 15 && /^[A-Z]{2}[0-9A-Z]+$/.test(compact);
+}
+
+export function isValidBankHolder(holder: string): boolean {
+  return holder.trim().length >= 2;
 }
 
 export function isStripePayoutReady(status: string | null | undefined): boolean {
@@ -81,7 +88,7 @@ export function payoutMethodReady(
     case "orange_money":
       return isValidPayoutPhone(setup.orangeMoneyPhone);
     case "bank_transfer":
-      return isValidIban(setup.bankIban);
+      return isValidIban(setup.bankIban) && isValidBankHolder(setup.bankHolder);
     default:
       return false;
   }
@@ -145,4 +152,67 @@ export function applyDestinationToSetup(
     if (dest.holder != null) next.bankHolder = dest.holder.trim();
   }
   return parsePayoutSetup(next);
+}
+
+export function payoutSetupToProfilePatch(setup: PayoutSetup): Record<string, string> {
+  const next = parsePayoutSetup(setup);
+  return {
+    payout_paypal_email: next.paypalEmail,
+    payout_wave_phone: next.wavePhone,
+    payout_om_phone: next.orangeMoneyPhone,
+    payout_bank_iban: next.bankIban,
+    payout_bank_holder: next.bankHolder,
+  };
+}
+
+/** maria@gmail.com → m•••a@gmail.com */
+export function maskPaypalEmail(email: string): string {
+  const trimmed = email.trim();
+  const at = trimmed.indexOf("@");
+  if (at < 1) return "•••";
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  const first = local[0] ?? "";
+  const last = local.length > 1 ? local[local.length - 1] : "";
+  return `${first}•••${last}@${domain}`;
+}
+
+/** +2250700004523 → +225 •••• 4523 */
+export function maskPayoutPhone(phone: string): string {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 4) return "••••";
+  const last4 = digits.slice(-4);
+  const plus = trimmed.startsWith("+");
+  let cc = digits.slice(0, Math.max(1, digits.length - 4));
+  if (digits.startsWith("225")) cc = "225";
+  else if (digits.startsWith("1") && digits.length >= 11) cc = "1";
+  else cc = digits.slice(0, Math.min(3, cc.length));
+  return `${plus ? "+" : ""}${cc} •••• ${last4}`;
+}
+
+/** FR76…4589 → •••• 4589 */
+export function maskIban(iban: string): string {
+  const compact = iban.replace(/\s+/g, "").toUpperCase();
+  if (compact.length < 4) return "••••";
+  return `•••• ${compact.slice(-4)}`;
+}
+
+export function formatConnectCountry(
+  country: string | null | undefined,
+  locale = "fr",
+): string {
+  const code = (country ?? "").trim().toUpperCase();
+  if (!code || code.length !== 2) return code;
+  try {
+    const name = new Intl.DisplayNames([locale], { type: "region" }).of(code);
+    return name || code;
+  } catch {
+    return code;
+  }
+}
+
+export function isConnectReturnUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.startsWith("kidiplus://connect-return") || /connect-return/i.test(url);
 }

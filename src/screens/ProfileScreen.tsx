@@ -224,7 +224,6 @@ function AuthedProfile() {
         <Section title={t("profile.sections.boutique")}>
           <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
           <Row icon={<Truck size={18} color={colors.foreground} />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
-          <Row icon={<CreditCard size={18} color={colors.foreground} />} label={t("sellerPayments.title")} onPress={() => openOverlay({ kind: "seller-payments" })} />
           <Row icon={<BadgeCheck size={18} color={colors.foreground} />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
         </Section>
       ) : null}
@@ -232,6 +231,9 @@ function AuthedProfile() {
         <Row icon={<Wallet size={18} color={colors.foreground} />} label={t("profile.menu.wallet")} onPress={() => openOverlay({ kind: "wallet" })} />
         {user.isSeller ? (
           <Row icon={<Coins size={18} color={colors.foreground} />} label={t("profile.quick.earnings")} onPress={() => openOverlay({ kind: "earnings" })} />
+        ) : null}
+        {user.isSeller ? (
+          <Row icon={<CreditCard size={18} color={colors.foreground} />} label={t("sellerPayments.title")} onPress={() => openOverlay({ kind: "seller-payments" })} />
         ) : null}
       </Section>
       <Section title={t("profile.sections.purchases")}>

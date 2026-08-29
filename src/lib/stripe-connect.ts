@@ -1,11 +1,14 @@
 // Stripe Connect — same /api/connect/* contract as kidiplus.com stripe-connect-client.
-import { Linking } from "react-native";
-import { requireOptionalNativeModule } from "expo-modules-core";
+import { AppState, Linking } from "react-native";
 import { supabase } from "./supabase";
 import { paymentsEnvHeaders } from "./stripe-web";
+import { isConnectReturnUrl } from "./payout-setup-logic";
 
 const API_BASE = "https://kidiplus.com";
 const WEB_FALLBACK = "https://kidiplus.com";
+
+/** Native return after Stripe Express onboarding. Server should bounce here. */
+export const CONNECT_RETURN_SCHEME = "kidiplus://connect-return";
 
 export type ConnectStatus = "none" | "pending" | "active" | "restricted";
 
@@ -19,6 +22,7 @@ export type ConnectState = {
   connectUnavailable: boolean;
   status: ConnectStatus;
   currency: string;
+  country: string;
   error?: string;
   message?: string;
 };
@@ -60,6 +64,14 @@ function asStatus(value: unknown): ConnectStatus {
   return "none";
 }
 
+function asCountry(json: Record<string, unknown>): string {
+  for (const key of ["country", "accountCountry", "connectCountry"]) {
+    const v = json[key];
+    if (typeof v === "string" && v.trim()) return v.trim().toUpperCase();
+  }
+  return "";
+}
+
 export async function fetchConnectStatus(): Promise<ConnectState> {
   const empty: ConnectState = {
     ok: false,
@@ -71,6 +83,7 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     connectUnavailable: false,
     status: "none",
     currency: "EUR",
+    country: "",
   };
   const json = await postConnect("/api/connect/status");
   if (json.ok === false || json.error) {
@@ -101,6 +114,7 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     connectUnavailable: Boolean(json.connectUnavailable),
     status,
     currency: String(json.currency ?? "EUR"),
+    country: asCountry(json),
   };
 }
 
@@ -120,8 +134,26 @@ export async function startConnectOnboarding(country?: string | null): Promise<{
   url: string | null;
   error?: string;
 }> {
-  const body = country && country.trim() ? { country: country.trim().toUpperCase() } : {};
+  const body: Record<string, unknown> = {
+    native: true,
+    returnUrl: CONNECT_RETURN_SCHEME,
+    refreshUrl: CONNECT_RETURN_SCHEME,
+  };
+  if (country && country.trim()) body.country = country.trim().toUpperCase();
   const json = await postConnect("/api/connect/onboard", body);
+  const url = typeof json.url === "string" ? json.url : "";
+  if (json.ok && url.startsWith("http")) return { url };
+  return {
+    url: null,
+    error: mapOnboardError(
+      typeof json.error === "string" ? json.error : undefined,
+      typeof json.message === "string" ? json.message : undefined,
+    ),
+  };
+}
+
+export async function startConnectLoginLink(): Promise<{ url: string | null; error?: string }> {
+  const json = await postConnect("/api/connect/login-link");
   const url = typeof json.url === "string" ? json.url : "";
   if (json.ok && url.startsWith("http")) return { url };
   return {
@@ -142,21 +174,37 @@ export async function dispatchConnectPayout(payoutId: string): Promise<{ ok: boo
   };
 }
 
+/** Safari / Chrome — never an in-app WebView (Stripe / Google block those). */
 export async function openConnectUrl(url: string): Promise<void> {
-  // Web uses Capacitor Browser.open (popover) — same idea: in-app browser,
-  // Stripe returns to https://kidiplus.com, then the seller comes back and refreshes.
-  if (requireOptionalNativeModule("ExpoWebBrowser")) {
-    try {
-      const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
-      await WebBrowser.openBrowserAsync(url);
-      return;
-    } catch {
-      /* fall through */
-    }
-  }
   await Linking.openURL(url);
 }
 
 export async function openConnectWebFallback(): Promise<void> {
   await Linking.openURL(WEB_FALLBACK);
+}
+
+/** Deep link `kidiplus://connect-return` + app resume after Safari. */
+export function subscribeConnectReturn(onReturn: () => void): () => void {
+  let last = 0;
+  const fire = () => {
+    const now = Date.now();
+    if (now - last < 800) return;
+    last = now;
+    onReturn();
+  };
+
+  const linkSub = Linking.addEventListener("url", ({ url }) => {
+    if (isConnectReturnUrl(url)) fire();
+  });
+  void Linking.getInitialURL().then((url) => {
+    if (isConnectReturnUrl(url)) fire();
+  });
+  const appSub = AppState.addEventListener("change", (s) => {
+    if (s === "active") fire();
+  });
+
+  return () => {
+    linkSub.remove();
+    appSub.remove();
+  };
 }

@@ -31,6 +31,9 @@ import {
   emptyPayoutSetup,
   firstReadyPayoutMethod,
   isStripePayoutReady,
+  isValidBankHolder,
+  isValidIban,
+  isValidPayoutPhone,
   loadPayoutSetup,
   payoutMethodReady,
   savePayoutSetup,
@@ -159,7 +162,7 @@ export function WithdrawSheet({
           ),
         };
     if (mobile) {
-      if (!phone.trim()) {
+      if (!isValidPayoutPhone(phone)) {
         setError(t("payout.errors.missingDestination"));
         return;
       }
@@ -172,12 +175,12 @@ export function WithdrawSheet({
       }
       destination.paypalEmail = email.trim();
     } else if (!connect) {
-      if (!iban.trim()) {
+      if (!isValidIban(iban) || !isValidBankHolder(holder)) {
         setError(t("payout.errors.missingDestination"));
         return;
       }
       destination.iban = iban.trim();
-      if (holder.trim()) destination.holder = holder.trim();
+      destination.holder = holder.trim();
     }
     setBusy(true);
     if (user?.id && !connect) {
