@@ -241,7 +241,7 @@ export function AppShell() {
       <PushScreen open={isOverlayOpen("admin")} onClose={closeOverlay} zIndex={70}>
         <AdminDashboardScreen />
       </PushScreen>
-      <PushScreen open={isOverlayOpen("seller-payments")} onClose={closeOverlay} zIndex={70}>
+      <PushScreen open={isOverlayOpen("seller-payments")} onClose={closeOverlay} zIndex={80}>
         <SellerPaymentsScreen />
       </PushScreen>
       <PushScreen open={sellerProfile.open} onClose={closeOverlay} zIndex={72}>

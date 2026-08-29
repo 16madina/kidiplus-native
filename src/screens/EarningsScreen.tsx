@@ -8,11 +8,13 @@ import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { WithdrawSheet } from "../components/seller/WithdrawSheet";
 import { useAuth } from "../context/auth";
+import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { formatMoney, normalizeCurrency } from "../lib/money";
 import { PLATFORM_FEE_PERCENT, feePercentOf } from "../lib/fees";
 import { fetchMyBalance, fetchMyPayouts, type PayoutRow, type SellerBalance } from "../lib/earnings";
 import { fetchMySales, type OrderView } from "../lib/orders";
+import { loadWithdrawReadiness } from "../lib/payout-setup";
 import { GOLD, NAVY } from "../theme";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -26,6 +28,7 @@ export function EarningsScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const { user } = useAuth();
+  const { openOverlay } = useNav();
   const [balance, setBalance] = useState<SellerBalance | null>(null);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [sales, setSales] = useState<OrderView[]>([]);
@@ -85,13 +88,27 @@ export function EarningsScreen() {
             <GoldButton
               label={t("gains.withdraw")}
               onPress={() => {
-                if (available <= 0) {
-                  flash(t("payout.errors.insufficient"));
-                  return;
-                }
-                setWithdrawOpen(true);
+                void (async () => {
+                  if (available <= 0) {
+                    flash(t("payout.errors.insufficient"));
+                    return;
+                  }
+                  if (!user?.id) return;
+                  const gate = await loadWithdrawReadiness(user.id, currency);
+                  if (!gate.canWithdraw) {
+                    flash(t("gains.configurePayoutsFirst"));
+                    openOverlay({ kind: "seller-payments" });
+                    return;
+                  }
+                  setWithdrawOpen(true);
+                })();
               }}
             />
+            <Press onPress={() => openOverlay({ kind: "seller-payments" })} style={{ minHeight: 0 }}>
+              <Text style={{ color: NAVY, fontSize: 13, fontWeight: "700", textAlign: "center" }}>
+                {t("gains.configurePayouts")}
+              </Text>
+            </Press>
             <View style={styles.tabs}>
               {(["sales", "payouts"] as const).map((key) => {
                 const on = tab === key;
@@ -229,6 +246,7 @@ export function EarningsScreen() {
         available={available}
         currency={currency}
         source="seller"
+        onConfigure={() => openOverlay({ kind: "seller-payments" })}
         onDone={(msg) => {
           setWithdrawOpen(false);
           flash(msg);

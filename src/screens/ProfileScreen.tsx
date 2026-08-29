@@ -224,7 +224,7 @@ function AuthedProfile() {
         <Section title={t("profile.sections.boutique")}>
           <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
           <Row icon={<Truck size={18} color={colors.foreground} />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
-          <Row icon={<CreditCard size={18} color={colors.foreground} />} label="Configurer les paiements" onPress={() => openOverlay({ kind: "seller-payments" })} />
+          <Row icon={<CreditCard size={18} color={colors.foreground} />} label={t("sellerPayments.title")} onPress={() => openOverlay({ kind: "seller-payments" })} />
           <Row icon={<BadgeCheck size={18} color={colors.foreground} />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
         </Section>
       ) : null}

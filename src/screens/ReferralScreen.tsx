@@ -25,7 +25,9 @@ import { ReferralWalletCard } from "../components/referral/ReferralWalletCard";
 import { ScratchCard } from "../components/referral/ScratchCard";
 import { WithdrawSheet } from "../components/seller/WithdrawSheet";
 import { useAuth } from "../context/auth";
+import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
+import { loadWithdrawReadiness } from "../lib/payout-setup";
 import { formatMoney, normalizeCurrency } from "../lib/money";
 import {
   buildShareMessage,
@@ -47,6 +49,7 @@ import { GOLD, NAVY } from "../theme";
 export function ReferralScreen() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { openOverlay } = useNav();
   const { colors } = useAppTheme();
   const [codes, setCodes] = useState<PromoCodeStats[] | null>(null);
   const [earnings, setEarnings] = useState<ReferralEarningRow[]>([]);
@@ -117,11 +120,23 @@ export function ReferralScreen() {
             <Press
               disabled={!balance || balance.available <= 0}
               onPress={() => {
-                if (!balance || balance.available <= 0) {
-                  flash(t("referral.wallet.withdrawEmpty"));
-                  return;
-                }
-                setWithdrawOpen(true);
+                void (async () => {
+                  if (!balance || balance.available <= 0) {
+                    flash(t("referral.wallet.withdrawEmpty"));
+                    return;
+                  }
+                  if (!user?.id) return;
+                  const gate = await loadWithdrawReadiness(
+                    user.id,
+                    normalizeCurrency(balance.currency ?? fallbackCurrency),
+                  );
+                  if (!gate.canWithdraw) {
+                    flash(t("gains.configurePayoutsFirst"));
+                    openOverlay({ kind: "seller-payments" });
+                    return;
+                  }
+                  setWithdrawOpen(true);
+                })();
               }}
               style={[styles.withdraw, (!balance || balance.available <= 0) && { opacity: 0.5 }]}
             >
@@ -208,6 +223,7 @@ export function ReferralScreen() {
         available={balance?.available ?? 0}
         currency={normalizeCurrency(balance?.currency ?? fallbackCurrency)}
         source="referral"
+        onConfigure={() => openOverlay({ kind: "seller-payments" })}
         onDone={(msg) => {
           setWithdrawOpen(false);
           flash(msg);

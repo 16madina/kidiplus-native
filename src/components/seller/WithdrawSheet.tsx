@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { GoldButton } from "../Buttons";
 import { FormField } from "../FormField";
 import { Press } from "../Press";
+import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
 import { formatMoney } from "../../lib/money";
 import { payoutMinimumFor } from "../../lib/fees";
@@ -22,8 +23,19 @@ import {
   type PayoutMethod,
   type PayoutSource,
 } from "../../lib/earnings";
-import { dispatchConnectPayout } from "../../lib/stripe-connect";
+import { dispatchConnectPayout, fetchConnectStatus } from "../../lib/stripe-connect";
 import { defaultPayoutMethod, payoutMethodsForCurrency } from "../../lib/payout-methods";
+import {
+  applyDestinationToSetup,
+  destinationFromSetup,
+  emptyPayoutSetup,
+  firstReadyPayoutMethod,
+  isStripePayoutReady,
+  loadPayoutSetup,
+  payoutMethodReady,
+  savePayoutSetup,
+  type PayoutSetup,
+} from "../../lib/payout-setup";
 import { NAVY } from "../../theme";
 
 export function WithdrawSheet({
@@ -33,6 +45,7 @@ export function WithdrawSheet({
   currency,
   source = "seller",
   onDone,
+  onConfigure,
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,9 +53,11 @@ export function WithdrawSheet({
   currency: string;
   source?: PayoutSource;
   onDone: (msg: string) => void;
+  onConfigure?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [method, setMethod] = useState<PayoutMethod>("paypal");
   const [amount, setAmount] = useState("");
@@ -52,23 +67,71 @@ export function WithdrawSheet({
   const [iban, setIban] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
+  const [stripeReady, setStripeReady] = useState(false);
 
   const methods = payoutMethodsForCurrency(currency);
   const min = payoutMinimumFor(currency);
+  const ready = payoutMethodReady(method, setup, stripeReady);
+
+  const applyFields = (next: PayoutSetup, nextMethod: PayoutMethod) => {
+    if (nextMethod === "wave") {
+      setPhone(next.wavePhone);
+      setHolder(next.waveHolder);
+    } else if (nextMethod === "orange_money") {
+      setPhone(next.orangeMoneyPhone);
+      setHolder(next.orangeMoneyHolder);
+    } else if (nextMethod === "paypal") {
+      setEmail(next.paypalEmail);
+    } else if (nextMethod === "bank_transfer") {
+      setIban(next.bankIban);
+      setHolder(next.bankHolder);
+    }
+  };
 
   useEffect(() => {
-    if (open) {
-      setAmount(String(available || ""));
-      setError(null);
-      setMethod(defaultPayoutMethod(currency));
-    }
-  }, [open, available, currency]);
+    if (!open) return;
+    let cancelled = false;
+    setAmount(String(available || ""));
+    setError(null);
+    void (async () => {
+      const [stored, connect] = await Promise.all([
+        user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
+        fetchConnectStatus(),
+      ]);
+      if (cancelled) return;
+      const stripe = isStripePayoutReady(connect.status);
+      setSetup(stored);
+      setStripeReady(stripe);
+      const first = firstReadyPayoutMethod(methods, stored, stripe) ?? defaultPayoutMethod(currency);
+      setMethod(first);
+      applyFields(stored, first);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, available, currency, user?.id]);
+
+  const pickMethod = (next: PayoutMethod) => {
+    setMethod(next);
+    setError(null);
+    applyFields(setup, next);
+  };
+
+  const goConfigure = () => {
+    onClose();
+    onConfigure?.();
+  };
 
   const mobile = method === "wave" || method === "orange_money";
   const connect = method === "stripe_connect";
 
   const submit = async () => {
     setError(null);
+    if (!ready) {
+      goConfigure();
+      return;
+    }
     const n = Number(String(amount).replace(",", "."));
     if (!Number.isFinite(n) || n <= 0) {
       setError(t("payout.errors.generic"));
@@ -82,7 +145,19 @@ export function WithdrawSheet({
       setError(t("payout.errors.belowMin", { min: formatMoney(min, currency, i18n.language) }));
       return;
     }
-    const destination: Record<string, string> = {};
+    const destination: Record<string, string> = connect
+      ? {}
+      : {
+          ...destinationFromSetup(
+            method,
+            applyDestinationToSetup(setup, method, {
+              phone,
+              holder,
+              paypalEmail: email,
+              iban,
+            }),
+          ),
+        };
     if (mobile) {
       if (!phone.trim()) {
         setError(t("payout.errors.missingDestination"));
@@ -96,9 +171,7 @@ export function WithdrawSheet({
         return;
       }
       destination.paypalEmail = email.trim();
-    } else if (method === "stripe_connect") {
-      // Stripe Connect destination is resolved server-side from the seller account.
-    } else {
+    } else if (!connect) {
       if (!iban.trim()) {
         setError(t("payout.errors.missingDestination"));
         return;
@@ -107,6 +180,16 @@ export function WithdrawSheet({
       if (holder.trim()) destination.holder = holder.trim();
     }
     setBusy(true);
+    if (user?.id && !connect) {
+      const next = applyDestinationToSetup(setup, method, {
+        phone,
+        holder,
+        paypalEmail: email,
+        iban,
+      });
+      setSetup(next);
+      void savePayoutSetup(user.id, next);
+    }
     const res = await requestPayout(n, method, destination, source);
     if (!res.ok) {
       setBusy(false);
@@ -124,19 +207,10 @@ export function WithdrawSheet({
       const sent = await dispatchConnectPayout(res.payoutId);
       setBusy(false);
       if (!sent.ok) {
-        onDone(
-          t("payout.connectQueued", {
-            defaultValue:
-              "Demande enregistrée. Le virement Stripe n'est pas parti tout de suite — notre système le retraitera.",
-          }),
-        );
+        onDone(t("payout.connectQueued"));
         return;
       }
-      onDone(
-        t("payout.connectSent", {
-          defaultValue: "Virement Stripe envoyé vers ton compte bancaire.",
-        }),
-      );
+      onDone(t("payout.connectSent"));
       return;
     }
     setBusy(false);
@@ -164,13 +238,18 @@ export function WithdrawSheet({
                 <View style={styles.methods}>
                   {methods.map((m) => {
                     const on = method === m;
+                    const configured = payoutMethodReady(m, setup, stripeReady);
                     return (
                       <Press
                         key={m}
-                        onPress={() => setMethod(m)}
+                        onPress={() => pickMethod(m)}
                         style={[
                           styles.methodPill,
-                          { borderColor: on ? NAVY : colors.border, backgroundColor: on ? NAVY : colors.card },
+                          {
+                            borderColor: on ? NAVY : colors.border,
+                            backgroundColor: on ? NAVY : colors.card,
+                            opacity: configured ? 1 : 0.72,
+                          },
                         ]}
                       >
                         <Text style={{ color: on ? "#fff" : colors.foreground, fontWeight: "700", fontSize: 12 }}>
@@ -188,7 +267,16 @@ export function WithdrawSheet({
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
-              {mobile ? (
+              {!ready ? (
+                <View style={[styles.needBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>
+                    {t("payout.methodNotReady")}
+                  </Text>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+                    {t("payout.configureMethodHint")}
+                  </Text>
+                </View>
+              ) : mobile ? (
                 <>
                   <FormField
                     required
@@ -217,10 +305,7 @@ export function WithdrawSheet({
                 </>
               ) : connect ? (
                 <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
-                  {t("payout.stripeConnectHint", {
-                    defaultValue:
-                      "Le virement part vers ton compte bancaire Stripe Connect (Europe / Amérique / UK).",
-                  })}
+                  {t("payout.stripeConnectHint")}
                 </Text>
               ) : (
                 <>
@@ -234,8 +319,14 @@ export function WithdrawSheet({
                 </View>
               ) : null}
               <GoldButton
-                label={busy ? t("common.loading") : t("payout.submit")}
-                onPress={() => void submit()}
+                label={
+                  busy
+                    ? t("common.loading")
+                    : ready
+                      ? t("payout.submit")
+                      : t("payout.configureMethod")
+                }
+                onPress={() => void (ready ? submit() : goConfigure())}
                 disabled={busy}
               />
             </ScrollView>
@@ -275,5 +366,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
+  },
+  needBox: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 6,
   },
 });
