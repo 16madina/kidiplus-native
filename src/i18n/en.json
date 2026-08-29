@@ -1561,6 +1561,12 @@
     "endLive": "End live",
     "dismiss": "Dismiss",
     "approve": "Approve",
+    "approveRemove": "Approve and remove",
+    "takedownDone": "Content removed · the author was notified",
+    "takedownMarked": "Report actioned",
+    "takedownNeedSql": "Lives can be ended. To remove a photo/video/story, run the admin_action_report SQL in Supabase.",
+    "takedownLiveTitle": "Live removed",
+    "takedownLiveBody": "Your live was ended because it does not meet KiDi+ community standards.",
     "approxEurTotal": "≈ EUR (indicative)",
     "frozen": {
       "banner": "Your account is under review"

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, ChevronLeft, Gift, MessageCircle, Package, Radio, Trophy } from "lucide-react-native";
+import { Bell, ChevronLeft, Flag, Gift, MessageCircle, Package, Radio, Trophy } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
@@ -26,6 +26,7 @@ function iconFor(kind: string) {
   if (/gift/i.test(kind)) return Gift;
   if (/auction|win/i.test(kind)) return Trophy;
   if (/chat|message|dm/i.test(kind)) return MessageCircle;
+  if (/moderation|takedown/i.test(kind)) return Flag;
   return Bell;
 }
 

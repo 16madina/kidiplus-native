@@ -1562,6 +1562,12 @@
     "endLive": "Couper le live",
     "dismiss": "Classer",
     "approve": "Approuver",
+    "approveRemove": "Approuver et supprimer",
+    "takedownDone": "Contenu retiré · l’auteur a été notifié",
+    "takedownMarked": "Signalement traité",
+    "takedownNeedSql": "Le live peut être coupé. Pour supprimer photo/vidéo/story, exécute la migration SQL admin_action_report dans Supabase.",
+    "takedownLiveTitle": "Live retiré",
+    "takedownLiveBody": "Ton live a été interrompu car il ne respecte pas les normes de KiDi+.",
     "approxEurTotal": "≈ EUR (indicatif)",
     "frozen": {
       "banner": "Ton compte fait l'objet d'une vérification"

@@ -1,3 +1,4 @@
+import { mediaFromKind, parseReportContentRef, takedownCopy } from "./admin-takedown-logic";
 import { supabase } from "./supabase";
 
 type Rpc = { data: unknown; error: { message?: string } | null };
@@ -154,6 +155,7 @@ export type AdminLiveRow = {
   status: string;
   viewer_count: number;
   started_at: string;
+  seller_id?: string | null;
   seller_handle: string | null;
   seller_name: string | null;
   gmv: number;
@@ -212,9 +214,11 @@ export type ReportRow = {
   id: string;
   reporter_handle: string | null;
   target_type: string;
+  target_id?: string | null;
   target_label: string | null;
   target_user_id: string | null;
   reason: string;
+  note?: string | null;
   status: string;
   created_at: string;
 };
@@ -237,6 +241,55 @@ export async function adminResolveReport(
     _note: null,
   });
   return !!data?.ok;
+}
+
+export async function adminSendMessage(
+  userId: string,
+  title: string,
+  body: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const data = await rpc<{ ok?: boolean; error?: string }>("admin_send_message", {
+    _user_id: userId,
+    _title: title,
+    _body: body,
+  });
+  if (!data) return { ok: false, error: "rpc failed" };
+  return data.ok ? { ok: true } : { ok: false, error: data.error };
+}
+
+export async function adminActionReport(report: ReportRow): Promise<{
+  ok: boolean;
+  removed?: boolean;
+  error?: string;
+}> {
+  const { data, error } = (await supabase.rpc("admin_action_report", {
+    _report_id: report.id,
+  })) as { data: { ok?: boolean; removed?: boolean; error?: string } | null; error: { message?: string } | null };
+  if (!error) {
+    if (data?.ok) return { ok: true, removed: data.removed !== false };
+    return { ok: false, error: data?.error ?? "rpc failed" };
+  }
+
+  const ref = parseReportContentRef({
+    target_type: report.target_type,
+    target_id: report.target_id,
+    note: report.note,
+  });
+  let removed = false;
+  if (ref?.kind === "live") {
+    removed = await adminEndLive(ref.contentId);
+  }
+  const owner = report.target_user_id;
+  if (owner && ref) {
+    const copy = takedownCopy(ref.kind, mediaFromKind(ref.kind), "fr");
+    await adminSendMessage(owner, copy.title, copy.body);
+  }
+  const marked = await adminResolveReport(report.id, "actioned");
+  if (!marked && error) return { ok: false, error: error.message ?? data?.error ?? "rpc failed" };
+  if (ref && ref.kind !== "live" && !removed && error) {
+    return { ok: marked, removed: false, error: "need_sql" };
+  }
+  return { ok: marked, removed };
 }
 
 export async function adminIssueSanction(userId: string, type: "warning" | "suspension" | "ban", reason: string) {

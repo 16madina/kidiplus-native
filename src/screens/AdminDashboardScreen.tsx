@@ -38,10 +38,12 @@ import { formatMoney } from "../lib/money";
 import { dispatchPaypalPayout } from "../lib/earnings";
 import { countryFlag, countryName } from "../lib/countries";
 import {
+  adminActionReport,
   adminEndLive,
   adminIssueSanction,
   adminProcessPayout,
   adminResolveReport,
+  adminSendMessage,
   fetchAdminLives,
   fetchAdminPayouts,
   fetchAdminReports,
@@ -403,6 +405,11 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
           <Text style={{ color: colors.mutedForeground, marginTop: 4, fontSize: 12 }}>
             @{r.reporter_handle || "?"} → {r.target_label || r.target_type}
           </Text>
+          {r.note ? (
+            <Text style={{ color: colors.mutedForeground, marginTop: 4, fontSize: 12 }} numberOfLines={3}>
+              {r.note}
+            </Text>
+          ) : null}
           <View style={styles.rowBtns}>
             <ActionPill
               label={t("admin.dismiss", { defaultValue: "Classer" })}
@@ -412,14 +419,30 @@ function ReportsTab({ flash }: { flash: (s: string) => void }) {
                 flash("OK");
               }}
             />
+            <ActionPill
+              label={t("admin.approveRemove", { defaultValue: "Approuver et supprimer" })}
+              danger
+              onPress={async () => {
+                const res = await adminActionReport(r);
+                if (!res.ok) {
+                  flash(res.error === "need_sql" ? t("admin.takedownNeedSql") : res.error || "Erreur");
+                  return;
+                }
+                setRows((prev) => prev.filter((x) => x.id !== r.id));
+                flash(
+                  res.removed
+                    ? t("admin.takedownDone")
+                    : res.error === "need_sql"
+                      ? t("admin.takedownNeedSql")
+                      : t("admin.takedownMarked"),
+                );
+              }}
+            />
             {r.target_user_id ? (
               <ActionPill
                 label={t("moderation.userDetail.warn")}
-                danger
                 onPress={async () => {
                   await adminIssueSanction(r.target_user_id!, "warning", r.reason);
-                  await adminResolveReport(r.id, "actioned");
-                  setRows((prev) => prev.filter((x) => x.id !== r.id));
                   flash("OK");
                 }}
               />
@@ -612,8 +635,15 @@ function LivesTab({ flash }: { flash: (s: string) => void }) {
                 danger
                 onPress={async () => {
                   await adminEndLive(l.id);
+                  if (l.seller_id) {
+                    await adminSendMessage(
+                      l.seller_id,
+                      t("admin.takedownLiveTitle"),
+                      t("admin.takedownLiveBody"),
+                    );
+                  }
                   setRows((prev) => prev.map((x) => (x.id === l.id ? { ...x, status: "ended" } : x)));
-                  flash("OK");
+                  flash(t("admin.takedownDone"));
                 }}
               />
             </View>
