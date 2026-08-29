@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,21 +18,27 @@ import { Press } from "../Press";
 import { BrandBadge } from "../BrandBadge";
 import { useAuth } from "../../context/auth";
 import { useAppTheme } from "../../context/theme";
-import { convertMoney, formatMoney, normalizeCurrency, topUpPresets } from "../../lib/money";
+import { formatMoney, normalizeCurrency, topUpPresets } from "../../lib/money";
 import { mapPayError } from "../../lib/pay-errors";
 import {
+  capturePaypalTopup,
   confirmWalletTopup,
   createPaypalTopup,
   createWalletTopup,
   openPaypalCheckout,
   paypalAuthSessionAvailable,
-  topUpLimits,
 } from "../../lib/payments";
+import {
+  parseTopUpAmount,
+  paypalDebitEurFromXof,
+  topUpLimits,
+  topUpPayMethodsForCurrency,
+  type TopUpPayMethod,
+} from "../../lib/topup-logic";
 import { presentStripePayment, stripeAvailable } from "../../lib/stripe-native";
 import { GOLD } from "../../theme";
 
-const REBUILD_HINT =
-  "npm install && npx expo run:ios --device";
+const REBUILD_HINT = "npm install && npx expo run:ios --device";
 
 export function TopUpSheet({
   open,
@@ -49,13 +56,15 @@ export function TopUpSheet({
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
   const [amount, setAmount] = useState("");
-  const [busy, setBusy] = useState<null | "card" | "paypal">(null);
+  const [busy, setBusy] = useState<null | TopUpPayMethod>(null);
   const [error, setError] = useState<string | null>(null);
 
   const currency = normalizeCurrency(user?.walletCurrency);
+  const balance = user?.walletBalance ?? 0;
   const limits = topUpLimits(currency);
   const presets = topUpPresets(currency);
-  const showAfricaVisa = currency === "XOF";
+  const methods = topUpPayMethodsForCurrency(currency);
+  const xof = currency === "XOF";
 
   useEffect(() => {
     if (open) {
@@ -66,37 +75,32 @@ export function TopUpSheet({
   }, [open, initialAmount]);
 
   const parseAmount = (): number | null => {
-    const n = Number(String(amount).replace(",", "."));
-    if (!Number.isFinite(n) || n <= 0) {
-      setError(t("pay.errors.invalidAmount"));
-      return null;
-    }
-    if (n < limits.min || n > limits.max) {
+    const parsed = parseTopUpAmount(amount, currency);
+    if (parsed.ok) return parsed.amount;
+    if (parsed.reason === "range") {
       setError(
         t("wallet.topup.range", {
-          min: formatMoney(limits.min, currency, i18n.language),
-          max: formatMoney(limits.max, currency, i18n.language),
+          min: formatMoney(parsed.min, currency, i18n.language),
+          max: formatMoney(parsed.max, currency, i18n.language),
         }),
       );
       return null;
     }
-    return n;
+    setError(t("pay.errors.invalidAmount"));
+    return null;
   };
 
-  const topupCard = async () => {
+  const topupCard = async (method: TopUpPayMethod = "card") => {
     if (busy) return;
     const n = parseAmount();
     if (n == null) return;
     if (!stripeAvailable()) {
-      const msg = t("pay.rebuildForCard", {
-        defaultValue:
-          "Le paiement carte demande le nouveau build natif : npx expo run:ios --device. En attendant, utilise PayPal.",
-      });
+      const msg = t("pay.rebuildForCard");
       setError(msg);
-      Alert.alert(t("pay.rebuildTitle", { defaultValue: "Build natif requis" }), `${msg}\n\n${REBUILD_HINT}`);
+      Alert.alert(t("pay.rebuildTitle"), `${msg}\n\n${REBUILD_HINT}`);
       return;
     }
-    setBusy("card");
+    setBusy(method);
     setError(null);
     const intent = await createWalletTopup(n);
     if (!intent.ok) {
@@ -137,32 +141,18 @@ export function TopUpSheet({
     onDone(t("wallet.topup.success"));
   };
 
-  const topupAfricaVisa = () => {
-    Alert.alert(
-      t("pay.method.card"),
-      t("pay.method.useVisaCardHint", {
-        defaultValue: "Utilise ta carte Visa Wave / Orange / Djamo dans le formulaire carte.",
-      }),
-    );
-    void topupCard();
-  };
-
   const topupPaypal = async () => {
     if (busy) return;
     const n = parseAmount();
     if (n == null) return;
     if (!paypalAuthSessionAvailable()) {
-      // Safari shares cookies → merchant PayPal session causes self-pay error.
       const go = await new Promise<boolean>((resolve) => {
         Alert.alert(
           "PayPal",
-          t("pay.paypalMerchantHint", {
-            defaultValue:
-              "Connecte-toi avec un compte acheteur (pas le compte marchand KiDi+). Déconnecte-toi de PayPal dans Safari si besoin. Pour une session privée auto : rebuild npx expo run:ios --device.",
-          }),
+          t("pay.paypalMerchantHint"),
           [
-            { text: t("common.cancel", { defaultValue: "Annuler" }), style: "cancel", onPress: () => resolve(false) },
-            { text: t("common.continue", { defaultValue: "Continuer" }), onPress: () => resolve(true) },
+            { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
+            { text: t("common.continue"), onPress: () => resolve(true) },
           ],
         );
       });
@@ -182,6 +172,10 @@ export function TopUpSheet({
       if (!browser.cancelled) setError(mapPayError(browser.error, t));
       return;
     }
+    const paypalOrderId = res.data.paypalOrderId || browser.orderId;
+    if (paypalOrderId) {
+      await capturePaypalTopup(paypalOrderId);
+    }
     await refreshUser();
     setBusy(null);
     if (browser.status === "ok") {
@@ -193,17 +187,43 @@ export function TopUpSheet({
           : t("wallet.topup.success"),
       );
     } else {
-      onDone(t("wallet.topup.paypalPending", { defaultValue: "Paiement reçu — solde en cours de crédit." }));
+      onDone(t("wallet.topup.paypalPending"));
     }
   };
 
   const chosen = Number(String(amount).replace(",", ".")) || 0;
-  const paypalSub = showAfricaVisa
+  const paypalSub = xof
     ? t("wallet.topup.paypalXofSub", {
-        defaultValue: "Débité en euros : ≈ {{eur}} (taux fixe officiel)",
-        eur: formatMoney(convertMoney(Math.max(chosen, limits.min), "XOF", "EUR"), "EUR", i18n.language),
+        eur: formatMoney(paypalDebitEurFromXof(Math.max(chosen, limits.min)), "EUR", i18n.language),
       })
-    : t("pay.method.paypalSub", { defaultValue: "Payer avec ton compte PayPal" });
+    : t("pay.method.paypalSub");
+
+  const methodCopy: Record<
+    TopUpPayMethod,
+    { brand: "card" | "paypal" | "wave" | "orange" | "djamo"; label: string; subtitle: string }
+  > = {
+    card: {
+      brand: "card",
+      label: t("pay.method.card"),
+      subtitle: t("pay.method.cardSub"),
+    },
+    paypal: { brand: "paypal", label: "PayPal", subtitle: paypalSub },
+    wave_visa: {
+      brand: "wave",
+      label: t("pay.method.waveVisa"),
+      subtitle: t("pay.method.waveVisaSub"),
+    },
+    orange_visa: {
+      brand: "orange",
+      label: t("pay.method.orangeVisa"),
+      subtitle: t("pay.method.orangeVisaSub"),
+    },
+    djamo: {
+      brand: "djamo",
+      label: t("pay.method.djamo"),
+      subtitle: t("pay.method.djamoSub"),
+    },
+  };
 
   return (
     <Modal visible={open} animationType="slide" transparent onRequestClose={onClose}>
@@ -217,109 +237,80 @@ export function TopUpSheet({
                 <X size={18} color={colors.foreground} />
               </Press>
             </View>
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 10 }}>
-              {t("wallet.topup.range", {
-                min: formatMoney(limits.min, currency, i18n.language),
-                max: formatMoney(limits.max, currency, i18n.language),
-              })}
-            </Text>
-            <View style={styles.presets}>
-              {presets.map((p) => {
-                const on = String(p) === amount.trim();
-                return (
-                  <Press
-                    key={p}
-                    onPress={() => setAmount(String(p))}
-                    style={[
-                      styles.preset,
-                      { borderColor: on ? GOLD : colors.border, backgroundColor: on ? "rgba(232,185,59,0.12)" : colors.card },
-                    ]}
-                  >
-                    <Text style={{ fontWeight: "800", fontSize: 13, color: colors.foreground }}>
-                      {formatMoney(p, currency, i18n.language)}
-                    </Text>
-                  </Press>
-                );
-              })}
-            </View>
-            <TextInput
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              placeholder={t("wallet.topup.other")}
-              placeholderTextColor={colors.mutedForeground}
-              style={[
-                styles.input,
-                { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
-              ]}
-            />
-            <Text style={[styles.methodTitle, { color: colors.mutedForeground }]}>{t("pay.method.title")}</Text>
-            <View style={{ gap: 8 }}>
-              <MethodRow
-                icon={<BrandBadge brand="card" size={28} />}
-                label={t("pay.method.card")}
-                subtitle={t("pay.method.cardSub")}
-                busy={busy === "card"}
-                disabled={!!busy}
-                border={colors.border}
-                bg={colors.card}
-                fg={colors.foreground}
-                onPress={() => void topupCard()}
-              />
-              <MethodRow
-                icon={<BrandBadge brand="paypal" size={28} />}
-                label="PayPal"
-                subtitle={paypalSub}
-                busy={busy === "paypal"}
-                disabled={!!busy}
-                border={colors.border}
-                bg={colors.card}
-                fg={colors.foreground}
-                onPress={() => void topupPaypal()}
-              />
-              {showAfricaVisa ? (
-                <>
-                  <MethodRow
-                    icon={<BrandBadge brand="wave" size={28} />}
-                    label={t("pay.method.waveVisa")}
-                    subtitle={t("pay.method.waveVisaSub")}
-                    busy={busy === "card"}
-                    disabled={!!busy}
-                    border={colors.border}
-                    bg={colors.card}
-                    fg={colors.foreground}
-                    onPress={topupAfricaVisa}
-                  />
-                  <MethodRow
-                    icon={<BrandBadge brand="orange" size={28} />}
-                    label={t("pay.method.orangeVisa")}
-                    subtitle={t("pay.method.orangeVisaSub")}
-                    busy={busy === "card"}
-                    disabled={!!busy}
-                    border={colors.border}
-                    bg={colors.card}
-                    fg={colors.foreground}
-                    onPress={topupAfricaVisa}
-                  />
-                  <MethodRow
-                    icon={<BrandBadge brand="djamo" size={28} />}
-                    label={t("pay.method.djamo")}
-                    subtitle={t("pay.method.djamoSub")}
-                    busy={busy === "card"}
-                    disabled={!!busy}
-                    border={colors.border}
-                    bg={colors.card}
-                    fg={colors.foreground}
-                    onPress={topupAfricaVisa}
-                  />
-                </>
-              ) : null}
-            </View>
-            {error ? (
-              <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10, marginTop: 10 }}>
-                <Text style={{ color: "#9B1C1C", fontSize: 13, fontWeight: "600" }}>{error}</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 560 }} contentContainerStyle={{ gap: 10 }}>
+              <View style={[styles.balanceBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                <Text style={[styles.balanceLbl, { color: colors.mutedForeground }]}>
+                  {t("wallet.currentBalance")}
+                </Text>
+                <Text style={[styles.balanceVal, { color: colors.foreground }]}>
+                  {formatMoney(balance, currency, i18n.language)}
+                </Text>
               </View>
-            ) : null}
+              <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+                {t("wallet.topup.range", {
+                  min: formatMoney(limits.min, currency, i18n.language),
+                  max: formatMoney(limits.max, currency, i18n.language),
+                })}
+              </Text>
+              <View style={styles.presets}>
+                {presets.map((p) => {
+                  const on = String(p) === amount.trim();
+                  return (
+                    <Press
+                      key={p}
+                      onPress={() => setAmount(String(p))}
+                      style={[
+                        styles.preset,
+                        {
+                          borderColor: on ? GOLD : colors.border,
+                          backgroundColor: on ? "rgba(232,185,59,0.12)" : colors.card,
+                        },
+                      ]}
+                    >
+                      <Text style={{ fontWeight: "800", fontSize: 13, color: colors.foreground }}>
+                        {formatMoney(p, currency, i18n.language)}
+                      </Text>
+                    </Press>
+                  );
+                })}
+              </View>
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder={t("wallet.topup.other")}
+                placeholderTextColor={colors.mutedForeground}
+                style={[
+                  styles.input,
+                  { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background },
+                ]}
+              />
+              <Text style={[styles.methodTitle, { color: colors.mutedForeground }]}>{t("pay.method.title")}</Text>
+              <View style={{ gap: 8 }}>
+                {methods.map((m) => {
+                  const copy = methodCopy[m];
+                  return (
+                    <MethodRow
+                      key={m}
+                      icon={<BrandBadge brand={copy.brand} size={28} />}
+                      label={copy.label}
+                      subtitle={copy.subtitle}
+                      busy={busy === m}
+                      disabled={!!busy}
+                      border={colors.border}
+                      bg={colors.card}
+                      fg={colors.foreground}
+                      onPress={() => void (m === "paypal" ? topupPaypal() : topupCard(m))}
+                    />
+                  );
+                })}
+              </View>
+              {error ? (
+                <View style={{ backgroundColor: "#FDE8E8", borderRadius: 12, padding: 10 }}>
+                  <Text style={{ color: "#9B1C1C", fontSize: 13, fontWeight: "600" }}>{error}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -385,6 +376,9 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   title: { fontSize: 18, fontWeight: "800" },
   close: { width: 36, height: 36, minWidth: 36, minHeight: 36 },
+  balanceBox: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  balanceLbl: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  balanceVal: { fontSize: 22, fontWeight: "900", marginTop: 2 },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   preset: {
     minHeight: 40,
@@ -394,7 +388,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   input: {
-    marginTop: 10,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -403,8 +396,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   methodTitle: {
-    marginTop: 14,
-    marginBottom: 8,
+    marginTop: 4,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.6,

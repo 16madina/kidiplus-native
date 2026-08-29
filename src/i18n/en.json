@@ -1191,7 +1191,8 @@
     "method": {
       "title": "Payment method",
       "card": "Card",
-      "cardSub": "Visa, Mastercard, Amex",
+      "cardSub": "🔒 Visa, Mastercard, Amex · 3D Secure",
+      "paypalSub": "Pay with your PayPal account",
       "waveVisa": "Wave Visa",
       "waveVisaSub": "Pay with your Wave Visa card",
       "orangeVisa": "Orange Visa",
@@ -1290,9 +1291,10 @@
     "paidWithWallet": "Paid with balance",
     "method": "KiDi+ balance",
     "topup": {
-      "title": "Top up my balance",
+      "title": "Deposit",
       "chooseAmount": "Choose an amount",
-      "other": "Other",
+      "other": "Other amount",
+      "paypalXofSub": "Charged via PayPal: ≈ {{eur}}",
       "continueCta": "Top up {{amount}}",
       "confirmCta": "Pay {{amount}}",
       "range": "Between {{min}} and {{max}}",
