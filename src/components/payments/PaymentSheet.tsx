@@ -173,12 +173,6 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
   };
 
   const payAfricaVisa = () => {
-    Alert.alert(
-      t("pay.method.card"),
-      t("pay.method.useVisaCardHint", {
-        defaultValue: "Utilise ta carte Visa Wave / Orange / Djamo dans le formulaire carte.",
-      }),
-    );
     void payCard();
   };
 

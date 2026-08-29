@@ -8,6 +8,7 @@ type StripeModule = {
   initPaymentSheet: (opts: {
     paymentIntentClientSecret: string;
     merchantDisplayName: string;
+    returnURL?: string;
     style?: "automatic" | "alwaysLight" | "alwaysDark";
   }) => Promise<{ error?: { message: string } }>;
   presentPaymentSheet: () => Promise<{ error?: { code?: string; message: string } }>;
@@ -73,6 +74,7 @@ export async function presentStripePayment(args: {
     const init = await stripe.initPaymentSheet({
       paymentIntentClientSecret: args.clientSecret,
       merchantDisplayName: args.merchantName ?? "KiDi+",
+      returnURL: "kidiplus://stripe-return",
       style: "automatic",
     });
     if (init.error) return { ok: false, cancelled: false, error: init.error.message };

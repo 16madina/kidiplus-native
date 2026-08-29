@@ -3,7 +3,6 @@
 import { AppState, Linking } from "react-native";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { supabase } from "./supabase";
-import { normalizeCurrency, type Currency } from "./money";
 import { PAYPAL_REDIRECT_SCHEME, parsePaypalDoneUrl } from "./pay-errors";
 import { normalizePublishableKey, paymentsEnvHeaders } from "./stripe-web";
 
@@ -276,12 +275,4 @@ export async function openPaypalCheckout(approveUrl: string): Promise<PaypalBrow
   return openPaypalViaLinking(approveUrl);
 }
 
-// ---------------------------------------------------------------------------
-// Top-up limits (mirrors kidiplus.com topUpLimits)
-// ---------------------------------------------------------------------------
-
-export function topUpLimits(currency: string | null | undefined): { min: number; max: number } {
-  const c: Currency = normalizeCurrency(currency);
-  if (c === "XOF") return { min: 1000, max: 300_000 };
-  return { min: 2, max: 500 };
-}
+export { topUpLimits } from "./topup-logic";

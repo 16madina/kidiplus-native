@@ -1191,7 +1191,8 @@
     "method": {
       "title": "Méthode de paiement",
       "card": "Carte bancaire",
-      "cardSub": "Visa, Mastercard, Amex",
+      "cardSub": "🔒 Visa, Mastercard, Amex · 3D Secure",
+      "paypalSub": "Payer avec ton compte PayPal",
       "waveVisa": "Wave Visa",
       "waveVisaSub": "Paie avec ta carte Visa Wave",
       "orangeVisa": "Orange Visa",
@@ -1291,9 +1292,10 @@
     "paidWithWallet": "Payé avec le solde",
     "method": "Solde KiDi+",
     "topup": {
-      "title": "Recharger mon solde",
+      "title": "Déposer",
       "chooseAmount": "Choisis un montant",
-      "other": "Autre",
+      "other": "Autre montant",
+      "paypalXofSub": "Débité via PayPal : ≈ {{eur}}",
       "continueCta": "Recharger {{amount}}",
       "confirmCta": "Payer {{amount}}",
       "range": "Entre {{min}} et {{max}}",
