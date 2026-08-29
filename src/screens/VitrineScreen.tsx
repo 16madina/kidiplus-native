@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
-import { PublishHub } from "../components/vitrine/PublishHub";
+const PublishHub = lazy(() =>
+  import("../components/vitrine/PublishHub").then((m) => ({ default: m.PublishHub })),
+);
 import { AffichePoster } from "../components/vitrine/AffichePoster";
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
 import { StoriesRow } from "../components/vitrine/StoriesRow";
@@ -502,19 +504,23 @@ export function VitrineScreen() {
         )
       ) : null}
 
-      <PublishHub
-        open={hubOpen}
-        initialMode={hubMode}
-        onClose={() => setHubOpen(false)}
-        onPublished={(m) => {
-          setStoriesOpen(true);
-          if (m === "story") void loadStories();
-          else if (m === "affiche") {
-            setCat("soon");
-            void loadAffiches();
-          } else void load(true);
-        }}
-      />
+      {hubOpen ? (
+        <Suspense fallback={null}>
+          <PublishHub
+            open={hubOpen}
+            initialMode={hubMode}
+            onClose={() => setHubOpen(false)}
+            onPublished={(m) => {
+              setStoriesOpen(true);
+              if (m === "story") void loadStories();
+              else if (m === "affiche") {
+                setCat("soon");
+                void loadAffiches();
+              } else void load(true);
+            }}
+          />
+        </Suspense>
+      ) : null}
       {commentsPostId ? (
         <VitrineCommentsSheet
           postId={commentsPostId}
