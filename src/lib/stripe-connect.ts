@@ -1,8 +1,14 @@
 // Stripe Connect — same /api/connect/* contract as kidiplus.com stripe-connect-client.
 import { AppState, Linking } from "react-native";
-import { supabase } from "./supabase";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
 import { paymentsEnvHeaders } from "./stripe-web";
 import { isConnectReturnUrl } from "./payout-setup-logic";
+import {
+  mapConnectOnboardError,
+  parseStripeBusinessType,
+  stripeAccountLinkUrls,
+  type StripeBusinessType,
+} from "./connect-onboard-logic";
 
 const API_BASE = "https://kidiplus.com";
 const WEB_FALLBACK = "https://kidiplus.com";
@@ -57,6 +63,31 @@ async function postConnect(
   }
 }
 
+async function postEdgeFunction(
+  name: string,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const token = await bearer();
+  if (!token) return { error: "unauthorized" };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (res.status === 404) return { error: "not_deployed" };
+    if (!res.ok && !json.error) return { error: "http_error", message: `HTTP ${res.status}` };
+    return json;
+  } catch (e) {
+    return { error: "network_error", message: e instanceof Error ? e.message : "network" };
+  }
+}
+
 function asStatus(value: unknown): ConnectStatus {
   if (value === "active" || value === "pending" || value === "restricted" || value === "none") {
     return value;
@@ -85,7 +116,10 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     currency: "EUR",
     country: "",
   };
-  const json = await postConnect("/api/connect/status");
+  const edge = await postEdgeFunction("connect-status");
+  const json = edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
+    ? await postConnect("/api/connect/status")
+    : edge;
   if (json.ok === false || json.error) {
     return {
       ...empty,
@@ -93,20 +127,21 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
       message: typeof json.message === "string" ? json.message : undefined,
     };
   }
-  const chargesEnabled = Boolean(json.chargesEnabled);
-  const payoutsEnabled = Boolean(json.payoutsEnabled);
+  const chargesEnabled = Boolean(json.chargesEnabled ?? json.charges_enabled);
+  const payoutsEnabled = Boolean(json.payoutsEnabled ?? json.payouts_enabled);
   const detailsSubmitted = Boolean(json.detailsSubmitted);
+  const hasAccount = Boolean(json.connected) || Boolean(json.account_id);
   const status =
     asStatus(json.status) !== "none"
       ? asStatus(json.status)
-      : chargesEnabled && payoutsEnabled
+      : payoutsEnabled
         ? "active"
-        : detailsSubmitted
+        : hasAccount || detailsSubmitted || chargesEnabled
           ? "pending"
           : "none";
   return {
     ok: true,
-    connected: status !== "none",
+    connected: hasAccount || status !== "none",
     chargesEnabled,
     payoutsEnabled,
     detailsSubmitted,
@@ -125,24 +160,33 @@ function mapOnboardError(code: string | undefined, message?: string): string {
   if (code === "connect_not_enabled") {
     return message?.trim() || "Stripe Connect n'est pas activé sur ce compte. Réessaie ou ouvre kidiplus.com.";
   }
-  if (message?.trim()) return message.trim();
-  if (code && code !== "unknown") return code;
-  return "Impossible d'ouvrir l'onboarding Stripe. Réessaie.";
+  return mapConnectOnboardError(code, message).text;
 }
 
-export async function startConnectOnboarding(country?: string | null): Promise<{
+export async function startConnectOnboarding(
+  country?: string | null,
+  businessType?: StripeBusinessType | null,
+): Promise<{
   url: string | null;
   error?: string;
 }> {
+  const type = parseStripeBusinessType(businessType);
+  const links = stripeAccountLinkUrls();
   const body: Record<string, unknown> = {
     native: true,
-    returnUrl: CONNECT_RETURN_SCHEME,
-    refreshUrl: CONNECT_RETURN_SCHEME,
+    businessType: type,
+    returnUrl: links.returnUrl,
+    refreshUrl: links.refreshUrl,
   };
   if (country && country.trim()) body.country = country.trim().toUpperCase();
-  const json = await postConnect("/api/connect/onboard", body);
+
+  const edge = await postEdgeFunction("connect-onboard", body);
+  const json =
+    edge.error === "not_deployed" || edge.error === "network_error"
+      ? await postConnect("/api/connect/onboard", body)
+      : edge;
   const url = typeof json.url === "string" ? json.url : "";
-  if (json.ok && url.startsWith("http")) return { url };
+  if (url.startsWith("http")) return { url };
   return {
     url: null,
     error: mapOnboardError(
@@ -153,9 +197,13 @@ export async function startConnectOnboarding(country?: string | null): Promise<{
 }
 
 export async function startConnectLoginLink(): Promise<{ url: string | null; error?: string }> {
-  const json = await postConnect("/api/connect/login-link");
+  const edge = await postEdgeFunction("connect-dashboard-link");
+  const json =
+    edge.error === "not_deployed" || edge.error === "network_error"
+      ? await postConnect("/api/connect/login-link")
+      : edge;
   const url = typeof json.url === "string" ? json.url : "";
-  if (json.ok && url.startsWith("http")) return { url };
+  if (url.startsWith("http")) return { url };
   return {
     url: null,
     error: mapOnboardError(

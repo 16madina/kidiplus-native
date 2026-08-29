@@ -1,0 +1,5 @@
+# Minimal config for `supabase functions deploy`.
+# Stripe calls the webhook without a Supabase JWT.
+
+[functions.connect-webhook]
+verify_jwt = false

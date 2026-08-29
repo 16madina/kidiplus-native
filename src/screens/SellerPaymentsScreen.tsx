@@ -32,6 +32,7 @@ import {
   subscribeConnectReturn,
   type ConnectStatus,
 } from "../lib/stripe-connect";
+import { connectUiPhase, type StripeBusinessType } from "../lib/connect-onboard-logic";
 import { GOLD } from "../theme";
 
 type EditKey = "paypal" | "wave" | "orange" | "bank";
@@ -45,13 +46,16 @@ export function SellerPaymentsScreen() {
   const [saving, setSaving] = useState<EditKey | null>(null);
   const [editing, setEditing] = useState<EditKey | null>(null);
   const [status, setStatus] = useState<ConnectStatus>("none");
+  const [connected, setConnected] = useState(false);
+  const [payoutsEnabled, setPayoutsEnabled] = useState(false);
   const [connectCountry, setConnectCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
 
   const currency = user?.walletCurrency ?? "EUR";
   const available = payoutSetupMethodsForCurrency(currency);
-  const stripeReady = status === "active";
+  const phase = connectUiPhase({ payoutsEnabled, connected, status });
+  const stripeReady = phase === "ready";
   const locale = i18n.language?.startsWith("en") ? "en" : "fr";
   const countryLabel = formatConnectCountry(connectCountry || user?.country, locale);
 
@@ -61,6 +65,8 @@ export function SellerPaymentsScreen() {
       user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
     ]);
     setStatus(connect.status);
+    setConnected(connect.connected);
+    setPayoutsEnabled(connect.payoutsEnabled);
     setConnectCountry(connect.country);
     setError(connect.ok ? null : connect.message || connect.error || null);
     setSetup(stored);
@@ -77,16 +83,20 @@ export function SellerPaymentsScreen() {
     });
   }, [refresh]);
 
-  const onboard = async () => {
+  const onboard = async (businessType?: StripeBusinessType) => {
+    if (!user?.handle?.trim()) {
+      setError(t("sellerPayments.handleMissing"));
+      return;
+    }
     setBusy(true);
     setError(null);
-    const res = await startConnectOnboarding(user?.country);
+    const res = await startConnectOnboarding(user?.country, businessType);
     setBusy(false);
     if (res.url) {
       await openConnectUrl(res.url);
       return;
     }
-    setError(res.error ?? null);
+    setError(res.error ?? t("sellerPayments.retryHint"));
   };
 
   const openDashboard = async () => {
@@ -149,23 +159,32 @@ export function SellerPaymentsScreen() {
                   disabled={busy}
                 />
               </>
+            ) : phase === "choose" ? (
+              <>
+                <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
+                  {t("sellerPayments.chooseTitle")}
+                </Text>
+                <GoldButton
+                  label={busy ? t("common.loading") : t("sellerPayments.chooseIndividual")}
+                  onPress={() => void onboard("individual")}
+                  disabled={busy}
+                />
+                <OutlineButton
+                  label={t("sellerPayments.chooseCompany")}
+                  onPress={() => void onboard("company")}
+                  disabled={busy}
+                />
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.chooseLocked")}
+                </Text>
+              </>
             ) : (
               <>
                 <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
-                  {status === "pending"
-                    ? t("sellerPayments.statusPending")
-                    : status === "restricted"
-                      ? t("sellerPayments.statusRestricted")
-                      : t("sellerPayments.stripeHint")}
+                  {t("sellerPayments.needsInfo")}
                 </Text>
                 <GoldButton
-                  label={
-                    busy
-                      ? t("common.loading")
-                      : status === "none"
-                        ? t("sellerPayments.configureBank")
-                        : t("sellerPayments.resumeStripe")
-                  }
+                  label={busy ? t("common.loading") : t("sellerPayments.resumeStripe")}
                   onPress={() => void onboard()}
                   disabled={busy}
                 />
@@ -371,6 +390,7 @@ const styles = StyleSheet.create({
   methodHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 },
   methodTitle: { fontSize: 15, fontWeight: "800", flex: 1 },
   methodHint: { fontSize: 12, lineHeight: 17 },
+  chooseTitle: { fontSize: 16, fontWeight: "800", lineHeight: 22 },
   readyLine: { fontSize: 15, fontWeight: "700", color: "#1B7A3A", lineHeight: 21 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   pillText: { fontSize: 11, fontWeight: "800" },
