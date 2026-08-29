@@ -39,7 +39,7 @@ export function StoryViewer({
   const progress = useRef(new Animated.Value(0)).current;
   const story = stories[index];
   const video = !!story && isStoryVideoUrl(story.mediaUrl);
-  const mine = !!user?.id && !!story && user.id === story.user_id;
+  const mine = !!user?.id && !!story && user.id === story.userId;
 
   const advance = useCallback(() => {
     if (index < stories.length - 1) {
@@ -139,7 +139,7 @@ export function StoryViewer({
           open={reportOpen}
           onClose={() => setReportOpen(false)}
           targetType="user"
-          targetId={story.user_id}
+          targetId={story.userId}
           defaultNote={encodeContentReportNote("vitrine_story", story.id, `Vitrine story: ${story.id}`)}
         />
       </View>

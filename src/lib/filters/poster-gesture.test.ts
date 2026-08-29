@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyPosterPan, applyPosterPinch, POSTER_BOX_MIN } from "./poster-gesture";
+import { applyPosterPan, applyPosterPinch, POSTER_BOX_MIN } from "./poster-gesture.ts";
 
 function run() {
   const origin = { originX: 0.5, originY: 0.4, originScale: 1 };

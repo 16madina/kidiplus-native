@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
-import { KidiLivePip } from "kidi-live-pip";
+import { KidiLivePip } from "../../modules/kidi-live-pip/src";
 import { liveSystemPipOn } from "./live-viewer-media";
 
 /** Android system PiP (Home button). iOS uses LiveKit VideoTrack iosPIP. */

@@ -10,6 +10,7 @@ export function LiveKitRemoteVideo(_props: {
   battleActive?: boolean;
   hostFighter?: { displayName: string; avatarUrl?: string | null } | null;
   guestFighter?: { displayName: string; avatarUrl?: string | null } | null;
+  liveEnded?: boolean;
 }) {
   return (
     <View style={[FILL, styles.center]}>

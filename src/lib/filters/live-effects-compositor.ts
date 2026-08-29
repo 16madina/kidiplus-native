@@ -6,25 +6,10 @@
  */
 
 import { warmupNativeLiveEffects } from "./live-effects-native-bridge";
+import type { BackgroundMode, PosterMode, PosterTransform } from "./live-effects-compositor-math";
 
-export type PosterMode = "off" | "cover";
-export type BackgroundMode = "none" | "blur" | "image";
-
-export type PosterTransform = { x: number; y: number; scale: number };
-
-export const DEFAULT_POSTER_TRANSFORM: PosterTransform = {
-  x: 0.5,
-  y: 0.4,
-  scale: 1,
-};
-
-export function clampPosterTransform(t: PosterTransform): PosterTransform {
-  return {
-    x: Math.min(0.95, Math.max(0.05, t.x)),
-    y: Math.min(0.95, Math.max(0.05, t.y)),
-    scale: Math.min(3, Math.max(0.35, t.scale)),
-  };
-}
+export type { BackgroundMode, PosterMode, PosterTransform };
+export { clampPosterTransform, DEFAULT_POSTER_TRANSFORM } from "./live-effects-compositor-math";
 
 /** Render width ladder used by the perf guard (height follows the aspect). */
 export const WIDTH_LADDER = [720, 540, 400] as const;

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Platform } from "react-native";
 import { pickImageFromLibrary } from "../pick-image";
+import { withHostPickerPause } from "../host-camera";
 import {
   clampPosterTransform,
   DEFAULT_POSTER_TRANSFORM,
@@ -75,7 +76,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
 
   const setBackgroundFromPicker = useCallback(async () => {
     if (!(await ensureNativeReady())) return;
-    const picked = await pickImageFromLibrary();
+    const picked = await withHostPickerPause(() => pickImageFromLibrary());
     if (!picked) return;
     setBackgroundUrl(picked.preview);
     setBackgroundMode("image");
@@ -102,7 +103,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setPosterFromPicker = useCallback(async () => {
-    const picked = await pickImageFromLibrary();
+    const picked = await withHostPickerPause(() => pickImageFromLibrary());
     if (!picked) return;
     setPosterUrl(picked.preview);
     setPosterMode("cover");

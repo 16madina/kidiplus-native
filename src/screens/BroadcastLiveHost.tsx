@@ -1,6 +1,6 @@
 import { bootLiveKit } from "../lib/livekit-boot";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { ActivityIndicator, Alert, LogBox, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, LogBox, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
   AudioSession,
@@ -16,6 +16,7 @@ import { LocalAudioTrack, LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
 import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
+import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { useNav } from "../context/navigation";
 import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
@@ -27,6 +28,15 @@ import {
   useBattleForLive,
   type HydratedBattle,
 } from "../lib/battles";
+import { stopBridgePreview, setNativeLensApplyAllowed } from "../lib/filters/camera-kit-bridge";
+import { stopNativeLiveEffects } from "../lib/filters/live-effects-native-bridge";
+import {
+  delayMs,
+  registerHostPickerPause,
+  restartHostCamera,
+  runHostCameraExclusive,
+  setHostCameraEnabled,
+} from "../lib/host-camera";
 import { fetchLiveKitSession } from "../lib/livekit";
 import { startLiveReplay, stopLiveReplay } from "../lib/live-replay";
 import { endLiveInDb, touchLiveHostInDb } from "../lib/lives";
@@ -208,6 +218,12 @@ function HostStage({
   const [battleOverride, setBattleOverride] = useState<HydratedBattle | null>(null);
   const startedAtMsRef = useRef(Date.now());
   const peakRef = useRef(0);
+  const facingRef = useRef(initialFacing);
+  const participantRef = useRef(localParticipant);
+  const camWantedRef = useRef(true);
+  const pickingRef = useRef(false);
+  facingRef.current = facing;
+  participantRef.current = localParticipant;
   const liveBattle = useBattleForLive(liveId);
   const battle = battleOverride ?? liveBattle;
   const battleActive = isBattleLiveActive(battle);
@@ -292,6 +308,57 @@ function HostStage({
     if (n > peakRef.current) peakRef.current = n;
   }, [people.length]);
 
+  useEffect(() => {
+    setNativeLensApplyAllowed(false);
+    void stopBridgePreview();
+    void stopNativeLiveEffects();
+    registerHostPickerPause(async (work) => {
+      pickingRef.current = true;
+      try {
+        return await runHostCameraExclusive(async () => {
+          await setHostCameraEnabled(participantRef.current, false, facingRef.current);
+          await delayMs(220);
+          try {
+            return await work();
+          } finally {
+            await delayMs(420);
+            if (camWantedRef.current) {
+              await setHostCameraEnabled(participantRef.current, true, facingRef.current);
+            }
+          }
+        });
+      } finally {
+        pickingRef.current = false;
+      }
+    });
+    return () => {
+      registerHostPickerPause(null);
+      setNativeLensApplyAllowed(true);
+    };
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (!camWantedRef.current || pickingRef.current) return;
+      void runHostCameraExclusive(() =>
+        setHostCameraEnabled(participantRef.current, true, facingRef.current),
+      );
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!camWantedRef.current || pickingRef.current || isCameraEnabled) return;
+    const id = setTimeout(() => {
+      if (!camWantedRef.current || pickingRef.current || endingRef.current) return;
+      void runHostCameraExclusive(() =>
+        setHostCameraEnabled(participantRef.current, true, facingRef.current),
+      );
+    }, 1400);
+    return () => clearTimeout(id);
+  }, [isCameraEnabled, endingRef]);
+
   const actuallyFinish = async () => {
     if (busy || endingRef.current) return;
     endingRef.current = true;
@@ -339,25 +406,25 @@ function HostStage({
   };
 
   const flip = async () => {
-    if (flipBusy || !isCameraEnabled) return;
+    if (flipBusy || !camWantedRef.current || pickingRef.current) return;
     setFlipBusy(true);
     const next: CameraType = facing === "back" ? "front" : "back";
-    const facingMode = next === "back" ? "environment" : "user";
     try {
-      const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-      const track = pub?.track;
-      if (track && track instanceof LocalVideoTrack) {
-        await track.restartTrack({ facingMode });
-      } else {
-        await localParticipant.setCameraEnabled(false);
-        await localParticipant.setCameraEnabled(true, { facingMode });
-      }
+      await runHostCameraExclusive(() => restartHostCamera(localParticipant, next));
       setFacing(next);
     } catch {
       /* keep current facing */
     } finally {
       setFlipBusy(false);
     }
+  };
+
+  const toggleCam = () => {
+    if (pickingRef.current) return;
+    camWantedRef.current = !camWantedRef.current;
+    void runHostCameraExclusive(() =>
+      setHostCameraEnabled(localParticipant, camWantedRef.current, facing),
+    );
   };
 
   const hostVideo =
@@ -407,6 +474,7 @@ function HostStage({
         }
         guestStatus={remoteBattleStatus}
       />
+      <HostLiveFxSync userId={identity} />
       <HostStudioHud
         liveId={liveId}
         identity={identity}
@@ -415,7 +483,7 @@ function HostStage({
         micOn={isMicrophoneEnabled}
         camOn={isCameraEnabled}
         onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
-        onToggleCam={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
+        onToggleCam={toggleCam}
         onFlip={() => void flip()}
         onEnd={finish}
         onMinimize={closeOverlay}

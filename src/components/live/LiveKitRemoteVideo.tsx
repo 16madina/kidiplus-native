@@ -6,9 +6,11 @@ import {
   LiveKitRoom,
   VideoTrack,
   isTrackReference,
+  useRoomContext,
   useTracks,
 } from "@livekit/react-native";
-import { Track } from "livekit-client";
+import { RoomEvent, Track } from "livekit-client";
+import { Press } from "../Press";
 import { BattleSplitStage, type BattleSplitFighter } from "../battle/BattleSplitStage";
 import { isBattleGuestIdentity } from "../../lib/battles";
 import {
@@ -17,6 +19,9 @@ import {
 } from "../../lib/live-audio-session";
 import { fetchLiveKitSession } from "../../lib/livekit";
 import { VIEWER_PUBLISH_MIC } from "../../lib/live-viewer-media";
+import { EMPTY_LIVE_FX, LIVE_FX_TOPIC, decodeLiveFx, type LiveFxPayload } from "../../lib/live-fx";
+import { LiveFxOverlay } from "./LiveFxOverlay";
+import { GOLD } from "../../theme";
 
 bootLiveKit();
 
@@ -29,6 +34,7 @@ export function LiveKitRemoteVideo({
   battleActive = false,
   hostFighter = null,
   guestFighter = null,
+  liveEnded = false,
 }: {
   roomName: string;
   identity: string;
@@ -36,12 +42,14 @@ export function LiveKitRemoteVideo({
   battleActive?: boolean;
   hostFighter?: BattleSplitFighter | null;
   guestFighter?: BattleSplitFighter | null;
+  liveEnded?: boolean;
 }) {
   const { t } = useTranslation();
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ended, setEnded] = useState(false);
-  const endedRef = useRef(false);
+  const [roomKey, setRoomKey] = useState(0);
+  const [phase, setPhase] = useState<"ok" | "reconnecting" | "failed">("ok");
+  const retriesRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,17 +58,22 @@ export function LiveKitRemoteVideo({
         bootLiveKit();
         await startViewerPlaybackAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "viewer");
-        if (!cancelled) setSession(s);
+        if (!cancelled) {
+          setSession(s);
+          setError(null);
+          setPhase("ok");
+        }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Flux indisponible");
+          setPhase("failed");
+          setError(e instanceof Error ? e.message : t("live.viewerConnectFailed"));
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [displayName, identity, roomName]);
+  }, [displayName, identity, roomName, roomKey, t]);
 
   useEffect(() => {
     return () => {
@@ -68,17 +81,28 @@ export function LiveKitRemoteVideo({
     };
   }, []);
 
-  if (ended) {
+  const retry = () => {
+    retriesRef.current += 1;
+    setError(null);
+    setPhase("reconnecting");
+    setSession(null);
+    setRoomKey((k) => k + 1);
+  };
+
+  if (liveEnded) {
     return (
       <View style={[FILL, styles.center]}>
         <Text style={styles.wait}>{t("live.endedTitle")}</Text>
       </View>
     );
   }
-  if (error) {
+  if (phase === "failed" || error) {
     return (
       <View style={[FILL, styles.center]}>
-        <Text style={styles.err}>{error}</Text>
+        <Text style={styles.err}>{error || t("live.viewerConnectFailed")}</Text>
+        <Press onPress={retry} style={styles.retry}>
+          <Text style={styles.retryTxt}>{t("common.retry")}</Text>
+        </Press>
       </View>
     );
   }
@@ -86,6 +110,9 @@ export function LiveKitRemoteVideo({
     return (
       <View style={[FILL, styles.center]}>
         <ActivityIndicator color="#fff" />
+        <Text style={styles.wait}>
+          {phase === "reconnecting" ? t("live.viewerReconnecting") : t("live.viewerConnecting")}
+        </Text>
       </View>
     );
   }
@@ -93,6 +120,7 @@ export function LiveKitRemoteVideo({
   return (
     <View style={FILL}>
       <LiveKitRoom
+        key={roomKey}
         serverUrl={session.url}
         token={session.token}
         connect
@@ -106,19 +134,30 @@ export function LiveKitRemoteVideo({
         }}
         connectOptions={{ autoSubscribe: true }}
         onDisconnected={() => {
-          endedRef.current = true;
-          setEnded(true);
+          if (liveEnded) return;
+          if (retriesRef.current >= 4) {
+            setPhase("failed");
+            setError(t("live.viewerConnectFailed"));
+            return;
+          }
+          setPhase("reconnecting");
+          setTimeout(() => retry(), 900);
         }}
         onError={(e) => {
-          if (endedRef.current) return;
-          if (e.name === "ConnectionError") return;
-          setError(e.message);
+          if (liveEnded) return;
+          if (e.name === "ConnectionError") {
+            setPhase("reconnecting");
+            return;
+          }
+          setPhase("failed");
+          setError(e.message || t("live.viewerConnectFailed"));
         }}
       >
         <RemoteCamera
           battleActive={battleActive}
           hostFighter={hostFighter}
           guestFighter={guestFighter}
+          reconnecting={phase === "reconnecting"}
         />
       </LiveKitRoom>
     </View>
@@ -129,13 +168,17 @@ function RemoteCamera({
   battleActive,
   hostFighter,
   guestFighter,
+  reconnecting,
 }: {
   battleActive: boolean;
   hostFighter?: BattleSplitFighter | null;
   guestFighter?: BattleSplitFighter | null;
+  reconnecting: boolean;
 }) {
   const { t } = useTranslation();
+  const room = useRoomContext();
   const tracks = useTracks([Track.Source.Camera]);
+  const [fx, setFx] = useState<LiveFxPayload>(EMPTY_LIVE_FX);
   const host = tracks.find(
     (t) =>
       isTrackReference(t) &&
@@ -151,33 +194,55 @@ function RemoteCamera({
   const hadHostRef = useRef(false);
   if (host && isTrackReference(host)) hadHostRef.current = true;
 
+  useEffect(() => {
+    const onData = (
+      payload: Uint8Array,
+      _participant?: unknown,
+      _kind?: unknown,
+      topic?: string,
+    ) => {
+      if (topic && topic !== LIVE_FX_TOPIC) return;
+      const next = decodeLiveFx(payload);
+      if (next) setFx(next);
+    };
+    room.on(RoomEvent.DataReceived, onData);
+    return () => {
+      room.off(RoomEvent.DataReceived, onData);
+    };
+  }, [room]);
+
   const waiting = (
     <View style={[FILL, styles.center]}>
       <ActivityIndicator color="#fff" />
       <Text style={styles.wait}>
-        {hadHostRef.current
-          ? t("live.hostBackSoon")
-          : t("live.waitingForSeller")}
+        {reconnecting
+          ? t("live.viewerReconnecting")
+          : hadHostRef.current
+            ? t("live.hostBackSoon")
+            : t("live.waitingForSeller")}
       </Text>
     </View>
   );
 
   const hostVideo =
     host && isTrackReference(host) ? (
-      <VideoTrack
-        trackRef={host}
-        style={FILL}
-        objectFit="cover"
-        iosPIP={
-          Platform.OS === "ios"
-            ? {
-                enabled: true,
-                startAutomatically: true,
-                preferredSize: { width: 9, height: 16 },
-              }
-            : undefined
-        }
-      />
+      <View style={FILL}>
+        <VideoTrack
+          trackRef={host}
+          style={FILL}
+          objectFit="cover"
+          iosPIP={
+            Platform.OS === "ios"
+              ? {
+                  enabled: true,
+                  startAutomatically: true,
+                  preferredSize: { width: 9, height: 16 },
+                }
+              : undefined
+          }
+        />
+        <LiveFxOverlay fx={fx} />
+      </View>
     ) : (
       waiting
     );
@@ -217,4 +282,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   wait: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 10 },
+  retry: {
+    marginTop: 8,
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+  },
+  retryTxt: { color: "#0B1436", fontWeight: "800" },
 });
