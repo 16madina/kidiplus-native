@@ -14,6 +14,7 @@ function run() {
   const parsed = parseAfficheCaption(encoded);
   assert.ok(parsed);
   assert.equal(parsed?.title, "Soldes");
+  assert.ok(parsed?.eventAt);
   assert.equal(parseAfficheCaption("hello"), null);
   assert.equal(parseAfficheCaption(null), null);
 }

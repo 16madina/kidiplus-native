@@ -879,7 +879,7 @@
       "video": "VIDEO",
       "affiche": "POSTER"
     },
-    "afficheHint": "Decorate your poster: text, product photos, colors, fonts. It appears in Coming up.",
+    "afficheHint": "Drag to move, pinch to zoom. Add a date and time for Remind me.",
     "affichePublished": "Poster published in Coming up",
     "affiche": {
       "addPhoto": "Product",
@@ -887,7 +887,15 @@
       "font": "Font",
       "bigger": "Bigger",
       "smaller": "Smaller",
-      "publish": "Publish poster"
+      "publish": "Publish poster",
+      "when": "Event date and time",
+      "whenHint": "Viewers can tap Remind me.",
+      "needWhen": "Add a date and time.",
+      "eventPast": "That date is already in the past.",
+      "remindHint": "We’ll notify you at the poster date.",
+      "remindOnHint": "Reminder on — you’ll get a notification.",
+      "remindBody": "{{title}} — it’s coming up!",
+      "remindFail": "Couldn’t set the reminder."
     },
     "fromGallery": "Choose from gallery",
     "gallery": "Gallery",
@@ -897,10 +905,12 @@
     "cameraConfig": "Camera unavailable on this device.",
     "cameraUnavailable": "Couldn’t open the camera.",
     "captureFail": "Couldn’t capture.",
-    "recordFail": "Recording isn’t available on this device.",
+    "recordFail": "Couldn’t record — try again, or pick a video from the gallery.",
+    "cameraOpening": "Opening camera…",
+    "micDenied": "Allow the microphone to record video.",
     "storyHintCapture": "Tap for a photo · Hold for a video",
-    "videoHintCapture": "Tap to start / stop recording",
-    "photoHintCapture": "Tap to take a photo",
+    "videoHintCapture": "Camera is on — tap to record",
+    "photoHintCapture": "Camera is on — tap to take a photo",
     "edit": {
       "title": "Edit",
       "trim": "Trim",

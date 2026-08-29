@@ -879,7 +879,7 @@
       "video": "VIDÉO",
       "affiche": "AFFICHE"
     },
-    "afficheHint": "Décore ton affiche : texte, photos d’articles, couleurs, police. Elle apparaît dans Bientôt.",
+    "afficheHint": "Glisse pour déplacer, pince pour zoomer. Ajoute date et heure pour le bouton Me rappeler.",
     "affichePublished": "Affiche publiée dans Bientôt",
     "affiche": {
       "addPhoto": "Article",
@@ -887,7 +887,15 @@
       "font": "Police",
       "bigger": "Agrandir",
       "smaller": "Réduire",
-      "publish": "Publier l’affiche"
+      "publish": "Publier l’affiche",
+      "when": "Date et heure de l’événement",
+      "whenHint": "Les spectateurs pourront cliquer sur Me rappeler.",
+      "needWhen": "Ajoute une date et une heure.",
+      "eventPast": "Cette date est déjà passée.",
+      "remindHint": "On te préviendra à la date de l’affiche.",
+      "remindOnHint": "Rappel activé — tu seras notifié.",
+      "remindBody": "{{title}} — c’est bientôt !",
+      "remindFail": "Impossible d’activer le rappel."
     },
     "fromGallery": "Choisir dans la galerie",
     "gallery": "Galerie",
@@ -897,10 +905,12 @@
     "cameraConfig": "Caméra indisponible sur cet appareil.",
     "cameraUnavailable": "Impossible d’ouvrir la caméra.",
     "captureFail": "Capture impossible.",
-    "recordFail": "Enregistrement impossible sur cet appareil.",
+    "recordFail": "Enregistrement impossible — réessaie, ou choisis une vidéo dans la galerie.",
+    "cameraOpening": "Ouverture de la caméra…",
+    "micDenied": "Autorise le micro pour enregistrer une vidéo.",
     "storyHintCapture": "Appuie pour une photo · Maintiens pour une vidéo",
-    "videoHintCapture": "Appuie pour démarrer / arrêter l’enregistrement",
-    "photoHintCapture": "Appuie pour prendre une photo",
+    "videoHintCapture": "La caméra est allumée — appuie pour enregistrer",
+    "photoHintCapture": "La caméra est allumée — appuie pour prendre une photo",
     "edit": {
       "title": "Modifier",
       "trim": "Couper",

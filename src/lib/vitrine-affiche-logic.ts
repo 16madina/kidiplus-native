@@ -39,8 +39,39 @@ export type AfficheLayout = {
   title: string;
   backgroundColor: string;
   backgroundUri: string | null;
+  /** ISO datetime of the event / drop — used for « Me rappeler ». */
+  eventAt: string | null;
   layers: AfficheLayer[];
 };
+
+export function defaultAfficheEventAt(fromMs = Date.now()): string {
+  const d = new Date(fromMs);
+  d.setDate(d.getDate() + 1);
+  d.setHours(18, 0, 0, 0);
+  return d.toISOString();
+}
+
+export function parseAfficheEventAt(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+export function splitAfficheEventAt(iso: string | null | undefined): { date: string; time: string } {
+  const ms = iso ? new Date(iso).getTime() : NaN;
+  const d = Number.isFinite(ms) ? new Date(ms) : new Date(defaultAfficheEventAt());
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+export function joinAfficheEventAt(date: string, time: string): string | null {
+  const raw = `${date.trim()}T${time.trim() || "18:00"}`;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
 
 export function newAfficheLayout(): AfficheLayout {
   return {
@@ -48,6 +79,7 @@ export function newAfficheLayout(): AfficheLayout {
     title: "",
     backgroundColor: "#10162B",
     backgroundUri: null,
+    eventAt: defaultAfficheEventAt(),
     layers: [
       {
         id: "title",
@@ -77,6 +109,7 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
       title: typeof raw.title === "string" ? raw.title : "",
       backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#10162B",
       backgroundUri: typeof raw.backgroundUri === "string" ? raw.backgroundUri : null,
+      eventAt: parseAfficheEventAt(raw.eventAt),
       layers: Array.isArray(raw.layers) ? (raw.layers as AfficheLayer[]) : [],
     };
   } catch {

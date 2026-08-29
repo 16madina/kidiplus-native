@@ -28,7 +28,7 @@ export function postToAffiche(post: VitrineFeedPost): VitrineAffiche | null {
     sellerName: post.sellerName,
     handle: post.handle,
     avatarUrl: post.avatarUrl,
-    createdAt: post.id,
+    createdAt: post.createdAt || post.id,
   };
 }
 

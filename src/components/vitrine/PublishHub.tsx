@@ -80,6 +80,7 @@ export function PublishHub({
           showsHorizontalScrollIndicator={false}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           onViewableItemsChanged={onViewable}
+          extraData={mode}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
           renderItem={({ item }) => (
             <View style={{ width, height: height - insets.top - insets.bottom - 108 }}>
@@ -90,7 +91,7 @@ export function PublishHub({
                     onClose();
                   }}
                 />
-              ) : (
+              ) : item === mode ? (
                 <PublishCameraPane
                   mode={item}
                   active={open && mode === item}
@@ -100,6 +101,8 @@ export function PublishHub({
                     onClose();
                   }}
                 />
+              ) : (
+                <View style={{ flex: 1, backgroundColor: "#05060a" }} />
               )}
             </View>
           )}

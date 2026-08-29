@@ -507,9 +507,12 @@ export function VitrineScreen() {
         initialMode={hubMode}
         onClose={() => setHubOpen(false)}
         onPublished={(m) => {
+          setStoriesOpen(true);
           if (m === "story") void loadStories();
-          else if (m === "affiche") void loadAffiches();
-          else void load(true);
+          else if (m === "affiche") {
+            setCat("soon");
+            void loadAffiches();
+          } else void load(true);
         }}
       />
       {commentsPostId ? (

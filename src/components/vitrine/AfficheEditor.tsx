@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { ImagePlus, Minus, Plus, Trash2, Type } from "lucide-react-native";
+import { ImagePlus, Trash2, Type } from "lucide-react-native";
 import { Press } from "../Press";
 import { AfficheCanvas } from "./AfficheCanvas";
 import { pickImageFromLibrary } from "../../lib/pick-image";
@@ -19,7 +19,9 @@ import {
   AFFICHE_COLORS,
   AFFICHE_FONTS,
   createVitrineAffiche,
+  joinAfficheEventAt,
   newAfficheLayout,
+  splitAfficheEventAt,
   type AfficheLayout,
   type AfficheLayer,
 } from "../../lib/vitrine-affiche";
@@ -32,11 +34,12 @@ function nextId(): string {
 export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
-  const canvasW = Math.min(width - 32, 340);
-  const canvasH = Math.min(height * 0.46, canvasW * (16 / 9));
+  const canvasW = Math.min(width - 32, 360);
+  const canvasH = Math.min(height * 0.5, canvasW * (16 / 9));
   const [layout, setLayout] = useState<AfficheLayout>(newAfficheLayout);
   const [selectedId, setSelectedId] = useState<string | null>("title");
   const [busy, setBusy] = useState(false);
+  const when = splitAfficheEventAt(layout.eventAt);
 
   const selected = useMemo(
     () => layout.layers.find((l) => l.id === selectedId) ?? null,
@@ -50,6 +53,10 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
     }));
   };
 
+  const setWhen = (date: string, time: string) => {
+    setLayout((prev) => ({ ...prev, eventAt: joinAfficheEventAt(date, time) }));
+  };
+
   const addText = () => {
     const id = nextId();
     setLayout((prev) => ({
@@ -61,7 +68,7 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
           kind: "text",
           text: t("publish.edit.textDefault"),
           x: 0.5,
-          y: 0.5,
+          y: 0.52,
           scale: 1,
           color: "#FFFFFF",
           font: "system",
@@ -82,7 +89,7 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
     const id = nextId();
     setLayout((prev) => ({
       ...prev,
-      layers: [...prev.layers, { id, kind: "image", uri: url, x: 0.5, y: 0.58, scale: 1 }],
+      layers: [...prev.layers, { id, kind: "image", uri: url, x: 0.5, y: 0.62, scale: 1 }],
     }));
     setSelectedId(id);
   };
@@ -113,7 +120,11 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.page}
+      keyboardShouldPersistTaps="handled"
+      scrollEnabled={!selectedId}
+    >
       <Text style={styles.hint}>{t("publish.afficheHint")}</Text>
       <View style={{ alignItems: "center" }}>
         <AfficheCanvas
@@ -122,13 +133,26 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
           height={canvasH}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          editable
+          onChangeLayer={(id, patch) => patchLayer(id, patch)}
         />
       </View>
+      <Text style={styles.pinch}>{t("publish.edit.pinchHint")}</Text>
 
       <View style={styles.row}>
         <Tool icon={<Type size={16} color={NAVY} />} label={t("publish.edit.addText")} onPress={addText} />
         <Tool icon={<ImagePlus size={16} color={NAVY} />} label={t("publish.affiche.addPhoto")} onPress={() => void addPhoto()} />
         <Tool icon={<ImagePlus size={16} color={NAVY} />} label={t("publish.affiche.bg")} onPress={() => void setBackground()} />
+        {selected ? (
+          <Tool
+            icon={<Trash2 size={16} color={NAVY} />}
+            label={t("common.delete")}
+            onPress={() => {
+              setLayout((prev) => ({ ...prev, layers: prev.layers.filter((l) => l.id !== selected.id) }));
+              setSelectedId(null);
+            }}
+          />
+        ) : null}
       </View>
 
       {selected?.kind === "text" ? (
@@ -141,12 +165,31 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
         />
       ) : null}
 
+      <Text style={styles.section}>{t("publish.affiche.when")}</Text>
+      <View style={styles.whenRow}>
+        <TextInput
+          value={when.date}
+          onChangeText={(date) => setWhen(date, when.time)}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          style={[styles.input, styles.whenField]}
+        />
+        <TextInput
+          value={when.time}
+          onChangeText={(time) => setWhen(when.date, time)}
+          placeholder="HH:MM"
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          style={[styles.input, styles.whenField]}
+        />
+      </View>
+      <Text style={styles.whenHint}>{t("publish.affiche.whenHint")}</Text>
+
       <Text style={styles.section}>{t("publish.affiche.font")}</Text>
       <View style={styles.row}>
         {AFFICHE_FONTS.map((font) => (
           <Press
             key={font}
-            onPress={() => selected && patchLayer(selected.id, { font } as Partial<AfficheLayer>)}
+            onPress={() => selected?.kind === "text" && patchLayer(selected.id, { font })}
             style={[styles.chip, selected?.kind === "text" && selected.font === font && styles.chipOn]}
           >
             <Text style={styles.chipTxt}>{font}</Text>
@@ -166,46 +209,6 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
             style={[styles.swatch, { backgroundColor: color }]}
           />
         ))}
-      </View>
-
-      {selected ? (
-        <View style={styles.row}>
-          <Tool
-            icon={<Minus size={16} color={NAVY} />}
-            label={t("publish.affiche.smaller")}
-            onPress={() => patchLayer(selected.id, { scale: Math.max(0.5, selected.scale - 0.15) })}
-          />
-          <Tool
-            icon={<Plus size={16} color={NAVY} />}
-            label={t("publish.affiche.bigger")}
-            onPress={() => patchLayer(selected.id, { scale: Math.min(2.4, selected.scale + 0.15) })}
-          />
-          <Tool
-            icon={<Trash2 size={16} color={NAVY} />}
-            label={t("common.delete")}
-            onPress={() => {
-              setLayout((prev) => ({ ...prev, layers: prev.layers.filter((l) => l.id !== selected.id) }));
-              setSelectedId(null);
-            }}
-          />
-        </View>
-      ) : null}
-
-      <View style={styles.nudge}>
-        <Press style={styles.nudgeBtn} onPress={() => selected && patchLayer(selected.id, { y: Math.max(0.08, selected.y - 0.04) })}>
-          <Text style={styles.nudgeTxt}>↑</Text>
-        </Press>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Press style={styles.nudgeBtn} onPress={() => selected && patchLayer(selected.id, { x: Math.max(0.08, selected.x - 0.04) })}>
-            <Text style={styles.nudgeTxt}>←</Text>
-          </Press>
-          <Press style={styles.nudgeBtn} onPress={() => selected && patchLayer(selected.id, { x: Math.min(0.92, selected.x + 0.04) })}>
-            <Text style={styles.nudgeTxt}>→</Text>
-          </Press>
-        </View>
-        <Press style={styles.nudgeBtn} onPress={() => selected && patchLayer(selected.id, { y: Math.min(0.92, selected.y + 0.04) })}>
-          <Text style={styles.nudgeTxt}>↓</Text>
-        </Press>
       </View>
 
       <Press onPress={() => void publish()} disabled={busy} style={[styles.cta, { opacity: busy ? 0.5 : 1 }]}>
@@ -235,6 +238,7 @@ function Tool({
 const styles = StyleSheet.create({
   page: { padding: 16, paddingBottom: 40, gap: 10 },
   hint: { color: "rgba(255,255,255,0.65)", fontWeight: "600", textAlign: "center" },
+  pinch: { color: GOLD, fontWeight: "700", fontSize: 12, textAlign: "center" },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tool: {
     backgroundColor: GOLD,
@@ -254,6 +258,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     minHeight: 44,
   },
+  whenRow: { flexDirection: "row", gap: 8 },
+  whenField: { flex: 1 },
+  whenHint: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "600" },
   section: { color: "rgba(255,255,255,0.7)", fontWeight: "700", fontSize: 12, marginTop: 4 },
   chip: {
     borderRadius: 999,
@@ -266,16 +273,6 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: GOLD, borderColor: GOLD },
   chipTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
   swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
-  nudge: { alignItems: "center", gap: 6, marginTop: 4 },
-  nudgeBtn: {
-    width: 44,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nudgeTxt: { color: "#fff", fontWeight: "900", fontSize: 16 },
   cta: {
     marginTop: 8,
     minHeight: 48,
