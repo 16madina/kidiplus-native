@@ -453,6 +453,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             roomName={s.roomName}
             identity={identity}
             displayName={displayName}
+            liveEnded={ended}
             battleActive={battleActive}
             hostFighter={
               hostBattleLive

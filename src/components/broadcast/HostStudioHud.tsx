@@ -35,10 +35,9 @@ import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
 import { FiltersCarousel } from "./FiltersCarousel";
-import { SnapCameraPreview } from "./SnapCameraPreview";
-import { LiveEffectsPreview } from "./LiveEffectsPreview";
 import { PosterGestureLayer } from "./PosterGestureLayer";
 import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
+import { LiveFxOverlay } from "../live/LiveFxOverlay";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
@@ -46,7 +45,7 @@ import { GiftAnimationOverlay } from "../live/GiftAnimationOverlay";
 import { useAuth } from "../../context/auth";
 import { useFilter } from "../../lib/filters/filter-context";
 import { useLiveEffects } from "../../lib/filters/live-effects-context";
-import { isNativeLiveEffectsSupported } from "../../lib/filters/live-effects-native-bridge";
+import { EMPTY_LIVE_FX, liveTintForLens } from "../../lib/live-fx";
 import {
   fmtDuration,
   useHostLiveSession,
@@ -76,7 +75,6 @@ export function HostStudioHud({
   onFlip,
   onEnd,
   onBattleAccepted,
-  cameraFacing = "front",
 }: {
   liveId: string;
   identity: string;
@@ -95,9 +93,13 @@ export function HostStudioHud({
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { user } = useAuth();
-  const { activeLens, cameraKitReady } = useFilter();
+  const { activeLens } = useFilter();
   const { backgroundMode } = useLiveEffects();
-  const useEffectsPreview = backgroundMode !== "none" && isNativeLiveEffectsSupported();
+  const hostFx = {
+    ...EMPTY_LIVE_FX,
+    backgroundMode,
+    tint: liveTintForLens(activeLens),
+  };
   const session = useHostLiveSession({ liveId, identity, displayName });
   const [draft, setDraft] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -204,15 +206,9 @@ export function HostStudioHud({
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
-      {useEffectsPreview ? (
-        <View style={[FILL, { zIndex: 2 }]} pointerEvents="none">
-          <LiveEffectsPreview facing={cameraFacing} revealWhenReady />
-        </View>
-      ) : cameraKitReady && (filtersOpen || activeLens.isSnapLens) ? (
-        <View style={[FILL, { zIndex: 2 }]} pointerEvents="none">
-          <SnapCameraPreview facing={cameraFacing} />
-        </View>
-      ) : null}
+      <View style={[FILL, { zIndex: 2 }]} pointerEvents="none">
+        <LiveFxOverlay fx={hostFx} includePoster={false} />
+      </View>
       <LiveEffectsOverlay />
       <PosterGestureLayer />
       <GiftAnimationOverlay
@@ -623,7 +619,14 @@ export function HostStudioHud({
         </>
       ) : null}
 
-      <FiltersCarousel open={filtersOpen} onClose={() => setFiltersOpen(false)} />
+      <FiltersCarousel
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        hint={t(
+          "broadcast.filters.liveHint",
+          "Le filtre et l’image sont visibles pour tes spectateurs.",
+        )}
+      />
 
       {incoming ? (
         <View style={styles.incomingWrap}>

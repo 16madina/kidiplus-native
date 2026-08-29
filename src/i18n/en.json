@@ -399,6 +399,7 @@
     "viewerWaitingStart": "The live is about to start…",
     "hostBackSoon": "The host will be back soon…",
     "viewerConnectFailed": "Couldn't connect",
+    "viewerRetry": "Try again",
     "endLive": "End",
     "confirmEnd": "End this live?",
     "confirmEndBody": "You won't be able to resume this live once ended.",
@@ -470,7 +471,8 @@
       "title": "Filters",
       "none": "None",
       "refresh": "Refresh",
-      "nativePending": "Snap AR filters: run npm run rebuild:ios then try again."
+      "nativePending": "Snap AR filters: run npm run rebuild:ios then try again.",
+      "liveHint": "Your filter and on-screen image are visible to viewers."
     },
     "setup": {
       "titlePlaceholder": "Live title…",

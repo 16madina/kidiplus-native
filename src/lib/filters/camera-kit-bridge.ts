@@ -72,7 +72,19 @@ export async function loadBridgeLenses(force = false): Promise<BridgeLens[]> {
   return lensesCache;
 }
 
+/** During a LiveKit publish, Snap must not grab the camera (it kills the room). */
+let nativeLensApplyAllowed = true;
+
+export function setNativeLensApplyAllowed(allowed: boolean): void {
+  nativeLensApplyAllowed = allowed;
+}
+
+export function isNativeLensApplyAllowed(): boolean {
+  return nativeLensApplyAllowed;
+}
+
 export async function applyBridgeLens(lens: Pick<Lens, "lensId" | "groupId" | "isSnapLens">) {
+  if (!nativeLensApplyAllowed) return;
   if (!lens.isSnapLens || lens.lensId === "none") {
     if (KidiCameraKit) {
       try {
@@ -97,6 +109,7 @@ export async function clearBridgeLens() {
 }
 
 export async function startBridgePreview(facing: "user" | "environment") {
+  if (!nativeLensApplyAllowed) return;
   const mod = await ensureInitialized();
   // Snap Camera Kit gère le miroir de la caméra frontale en interne.
   // Ne pas passer mirrored=true → ça créerait un double miroir.

@@ -16,7 +16,7 @@ import {
   isCameraKitSupported,
   loadBridgeLenses,
 } from "./camera-kit-bridge";
-import { NONE_LENS, type Lens } from "./lenses-catalog";
+import { NONE_LENS, STYLE_LENSES, type Lens } from "./lenses-catalog";
 
 type FilterContextValue = {
   activeLens: Lens;
@@ -102,8 +102,12 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     void clearBridgeLens();
   }, []);
 
-  // Snap AR only — pas de styles locaux (teintes CSS).
-  const lenses = useMemo(() => [NONE_LENS, ...snapLenses], [snapLenses]);
+  // Styles locaux (teintes) + lenses Snap. En live, seules les teintes
+  // sont publiées aux viewers — Snap AR ouvrirait une 2e caméra.
+  const lenses = useMemo(
+    () => [NONE_LENS, ...STYLE_LENSES.filter((l) => l.lensId !== "none"), ...snapLenses],
+    [snapLenses],
+  );
 
   const value = useMemo<FilterContextValue>(
     () => ({

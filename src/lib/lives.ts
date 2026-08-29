@@ -282,6 +282,18 @@ export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext:
   return path;
 }
 
+/** Upload a local live overlay (poster / fond) and return a signed https URL viewers can load. */
+export async function uploadLiveOverlayImage(userId: string, uri: string): Promise<string> {
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  const mime = blob.type && blob.type !== "application/octet-stream" ? blob.type : "image/jpeg";
+  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+  const path = await uploadLiveCover(userId, { blob, ext, contentType: mime });
+  const url = await resolveStoredImage("live-covers", path);
+  if (!url) throw new Error("overlay_upload_failed");
+  return url;
+}
+
 export async function uploadLiveProductImage(
   userId: string,
   picked: { blob: Blob; ext: string; contentType: string },
