@@ -1,0 +1,30 @@
+diff --git a/node_modules/expo-image-manipulator/src/ImageManipulator.ts b/node_modules/expo-image-manipulator/src/ImageManipulator.ts
+index 2b8bafb..ff232ca 100644
+--- a/node_modules/expo-image-manipulator/src/ImageManipulator.ts
++++ b/node_modules/expo-image-manipulator/src/ImageManipulator.ts
+@@ -29,6 +29,9 @@ export async function manipulateAsync(
+   validateArguments(uri, actions, saveOptions);
+ 
+   const { format = SaveFormat.JPEG, ...rest } = saveOptions;
++  if (!ExpoImageManipulator?.manipulate) {
++    return { uri, width: 0, height: 0 };
++  }
+   const context = ExpoImageManipulator.manipulate(uri);
+ 
+   for (const action of actions) {
+diff --git a/node_modules/expo-image-manipulator/src/NativeImageManipulatorModule.ts b/node_modules/expo-image-manipulator/src/NativeImageManipulatorModule.ts
+index 6699d16..ce4330b 100644
+--- a/node_modules/expo-image-manipulator/src/NativeImageManipulatorModule.ts
++++ b/node_modules/expo-image-manipulator/src/NativeImageManipulatorModule.ts
+@@ -1,5 +1,9 @@
+-import { requireNativeModule } from 'expo';
++import { requireOptionalNativeModule } from 'expo-modules-core';
+ 
+ import type { ImageManipulator } from './ImageManipulator.types';
+ 
+-export default requireNativeModule<ImageManipulator>('ExpoImageManipulator');
++/**
++ * Patched: the stock module calls requireNativeModule() at import time, which
++ * redboxes the whole app when the native binary was not rebuilt.
++ */
++export default requireOptionalNativeModule<ImageManipulator>('ExpoImageManipulator');
