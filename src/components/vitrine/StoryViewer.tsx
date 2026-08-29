@@ -9,8 +9,11 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { X } from "lucide-react-native";
+import { Flag, X } from "lucide-react-native";
 import { Press } from "../Press";
+import { ReportSheet } from "../moderation/ReportSheet";
+import { useAuth } from "../../context/auth";
+import { encodeContentReportNote } from "../../lib/admin-takedown-logic";
 import { initials, NAVY } from "../../theme";
 import { isHttpUrl } from "../../lib/storage";
 import type { StoryItem } from "./StoriesRow";
@@ -29,10 +32,13 @@ export function StoryViewer({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { user } = useAuth();
   const [index, setIndex] = useState(initialIndex);
+  const [reportOpen, setReportOpen] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
 
   const story = stories[index];
+  const mine = !!user?.id && !!story && user.id === story.user_id;
 
   const advance = useCallback(() => {
     if (index < stories.length - 1) {
@@ -103,9 +109,16 @@ export function StoryViewer({
             )}
             <Text style={styles.name}>{story.display_name}</Text>
           </View>
-          <Press onPress={onClose} style={styles.closeBtn}>
-            <X size={22} color="#fff" />
-          </Press>
+          <View style={styles.headActions}>
+            {!mine ? (
+              <Press onPress={() => setReportOpen(true)} style={styles.closeBtn}>
+                <Flag size={18} color="#fff" />
+              </Press>
+            ) : null}
+            <Press onPress={onClose} style={styles.closeBtn}>
+              <X size={22} color="#fff" />
+            </Press>
+          </View>
         </View>
 
         <TouchableWithoutFeedback onPress={handlePress}>
@@ -113,6 +126,13 @@ export function StoryViewer({
             <Image source={{ uri: story.media_url }} style={StyleSheet.absoluteFill} contentFit="cover" />
           </View>
         </TouchableWithoutFeedback>
+        <ReportSheet
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetType="user"
+          targetId={story.user_id}
+          defaultNote={encodeContentReportNote("vitrine_post", story.id, `Vitrine post: ${story.id}`)}
+        />
       </View>
     </Modal>
   );
@@ -136,5 +156,6 @@ const styles = StyleSheet.create({
   initials: { color: "#fff", fontSize: 12, fontWeight: "800" },
   name: { color: "#fff", fontSize: 14, fontWeight: "700" },
   closeBtn: { width: 36, height: 36, minHeight: 0, minWidth: 0 },
+  headActions: { flexDirection: "row", alignItems: "center" },
   media: { flex: 1, marginTop: 8 },
 });

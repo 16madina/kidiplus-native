@@ -236,6 +236,7 @@ export function payloadFromNotificationRow(row: {
     )
       kind = "vitrine";
     else if (/^chat_/.test(row.kind)) kind = "chat";
+    else if (row.kind === "moderation_takedown") kind = "notif";
     else kind = "notif";
   }
   const battleLiveId =

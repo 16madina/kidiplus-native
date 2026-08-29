@@ -40,6 +40,7 @@ import {
   type VitrineFeedPost,
 } from "../lib/vitrine";
 import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
+import { encodeContentReportNote } from "../lib/admin-takedown-logic";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
 import { sampleLivesForCategory } from "../mock/home-categories";
@@ -619,7 +620,7 @@ function VitrinePostSlide({
         onClose={() => setReportOpen(false)}
         targetType="user"
         targetId={post.userId || ""}
-        defaultNote={`Vitrine post: ${post.id}`}
+        defaultNote={encodeContentReportNote("vitrine_post", post.id, `Vitrine post: ${post.id}`)}
       />
     </View>
   );
