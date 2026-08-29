@@ -494,7 +494,15 @@ export function VitrineScreen() {
             renderItem={({ item }) => (
               <View style={{ width, height }}>
                 {item.kind === "affiche" ? (
-                  <AffichePoster affiche={item.affiche} />
+                  <AffichePoster
+                    affiche={item.affiche}
+                    onDeleted={() => setAffiches((prev) => prev.filter((a) => a.id !== item.affiche.id))}
+                    onBlocked={() => {
+                      if (!item.affiche.userId) return;
+                      const blocked = item.affiche.userId;
+                      setAffiches((prev) => prev.filter((a) => a.userId !== blocked));
+                    }}
+                  />
                 ) : (
                   <ScheduledLivePoster stream={item.stream} showClose={false} active={item.id === activeSoonId} />
                 )}

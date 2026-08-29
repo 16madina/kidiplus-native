@@ -16,6 +16,7 @@ import {
   formatAfficheWhenParts,
 } from "../../lib/affiche-reminders-logic";
 import type { VitrineAffiche } from "../../lib/vitrine-affiche";
+import { deleteVitrinePost } from "../../lib/vitrine";
 import { useAuth } from "../../context/auth";
 import { blockUserAndNotify } from "../../lib/moderation";
 import { encodeContentReportNote } from "../../lib/admin-takedown-logic";
@@ -25,9 +26,13 @@ import { isHttpUrl } from "../../lib/storage";
 export function AffichePoster({
   affiche,
   preview = false,
+  onDeleted,
+  onBlocked,
 }: {
   affiche: VitrineAffiche;
   preview?: boolean;
+  onDeleted?: () => void;
+  onBlocked?: () => void;
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -105,26 +110,63 @@ export function AffichePoster({
     setReminded(true);
   };
 
+  const deleteOwn = () => {
+    Alert.alert(t("publish.affiche.deleteTitle"), t("publish.affiche.deleteHint"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("vitrine.delete"),
+        style: "destructive",
+        onPress: () => {
+          void deleteVitrinePost(affiche.id).then((ok) => {
+            if (ok) {
+              void removeAfficheReminder(affiche.id);
+              onDeleted?.();
+            } else {
+              Alert.alert("KiDi+", t("vitrine.deleteFail"));
+            }
+          });
+        },
+      },
+    ]);
+  };
+
   const openMore = () => {
     if (preview) return;
-    if (own) {
-      Alert.alert(affiche.sellerName, undefined, [{ text: t("common.cancel"), style: "cancel" }]);
+    if (guestMode) {
+      openAuth("signup");
       return;
     }
-    Alert.alert(affiche.sellerName, undefined, [
+    if (own) {
+      Alert.alert(t("vitrine.manageTitle"), t("publish.affiche.deleteHint"), [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("vitrine.delete"), style: "destructive", onPress: deleteOwn },
+      ]);
+      return;
+    }
+    Alert.alert(t("publish.affiche.viewerMenu"), undefined, [
       { text: t("report.action"), onPress: () => setReportOpen(true) },
       {
         text: t("block.action"),
         style: "destructive",
         onPress: () => {
           if (!affiche.userId) return;
-          void blockUserAndNotify(affiche.userId, {
-            handle: affiche.handle,
-            displayName: affiche.sellerName,
-            avatarUrl: affiche.avatarUrl,
-          }).then((r) => {
-            if (!r.ok) Alert.alert("KiDi+", r.error ?? t("block.failed"));
-          });
+          Alert.alert(t("block.action"), t("block.confirm"), [
+            { text: t("block.cancel"), style: "cancel" },
+            {
+              text: t("block.action"),
+              style: "destructive",
+              onPress: () => {
+                void blockUserAndNotify(affiche.userId!, {
+                  handle: affiche.handle,
+                  displayName: affiche.sellerName,
+                  avatarUrl: affiche.avatarUrl,
+                }).then((r) => {
+                  if (r.ok) onBlocked?.();
+                  else Alert.alert("KiDi+", r.error ?? t("block.failed"));
+                });
+              },
+            },
+          ]);
         },
       },
       { text: t("common.cancel"), style: "cancel" },
