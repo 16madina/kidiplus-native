@@ -22,6 +22,7 @@ export async function searchSellers(query: string, limit = 30): Promise<SellerSe
     .select(
       "id, display_name, handle, avatar_url, followers_count, rating_avg, rating_count, is_verified, is_referred, is_seller",
     )
+    .eq("is_seller", true)
     .or(`handle.ilike.%${q}%,display_name.ilike.%${q}%`)
     .limit(limit);
   if (error || !data) return [];
