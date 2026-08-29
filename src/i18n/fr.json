@@ -879,11 +879,14 @@
       "video": "VIDÉO",
       "affiche": "AFFICHE"
     },
-    "afficheHint": "Touche un texte pour écrire. Glisse pour déplacer un sticker, pince pour zoomer.",
+    "afficheHint": "Touche le texte sur l’affiche pour écrire. Fais défiler pour la date, l’heure, le nom et la boutique.",
     "affichePublished": "Affiche publiée dans Bientôt",
     "affiche": {
       "addPhoto": "Article",
       "bg": "Fond",
+      "eventName": "Nom de l’événement",
+      "personName": "Nom de la personne",
+      "shopName": "Nom de la boutique",
       "titlePlaceholder": "Titre de l’événement",
       "namePlaceholder": "Ton nom",
       "shopPlaceholder": "Nom de la boutique",

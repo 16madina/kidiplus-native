@@ -11,7 +11,7 @@ function run() {
   assert.equal(layout.sellerName, "Inès Or");
   assert.equal(layout.shopName, "@inesor");
   assert.equal(layout.title, "Chaînes");
-  assert.equal(layout.layers.length, 0);
+  assert.ok(layout.layers.some((l) => l.kind === "text" && l.id === "title"));
 
   const encoded = encodeAfficheCaption({ ...layout, title: "Soldes", badge: "Bientôt" });
   const parsed = parseAfficheCaption(encoded);

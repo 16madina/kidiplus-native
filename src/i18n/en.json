@@ -879,11 +879,14 @@
       "video": "VIDEO",
       "affiche": "POSTER"
     },
-    "afficheHint": "Tap a text to type. Drag a sticker to move it, pinch to zoom.",
+    "afficheHint": "Tap the text on the poster to type. Scroll for date, time, name and shop.",
     "affichePublished": "Poster published in Coming up",
     "affiche": {
       "addPhoto": "Product",
       "bg": "Background",
+      "eventName": "Event name",
+      "personName": "Person name",
+      "shopName": "Shop name",
       "titlePlaceholder": "Event title",
       "namePlaceholder": "Your name",
       "shopPlaceholder": "Shop name",

@@ -100,7 +100,18 @@ export function newAfficheLayout(seed: AfficheLayoutSeed = {}): AfficheLayout {
     backgroundColor: "#10162B",
     backgroundUri: null,
     eventAt: defaultAfficheEventAt(),
-    layers: [],
+    layers: [
+      {
+        id: "title",
+        kind: "text",
+        text: seed.title?.trim() || "Mon affiche",
+        x: 0.5,
+        y: 0.28,
+        scale: 1,
+        color: "#FFFFFF",
+        font: "system",
+      },
+    ],
   };
 }
 
