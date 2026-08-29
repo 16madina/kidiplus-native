@@ -1,48 +1,24 @@
-import { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { Plus } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
 import { Press } from "../Press";
 import { GOLD, initials, NAVY } from "../../theme";
-import { supabase } from "../../lib/supabase";
 import { isHttpUrl } from "../../lib/storage";
+import type { VitrineStory } from "../../lib/vitrine-stories";
 
-export type StoryItem = {
-  id: string;
-  user_id: string;
-  display_name: string;
-  avatar_url: string | null;
-  media_url: string;
-};
+export type StoryItem = VitrineStory;
 
-export function StoriesRow({ onPress }: { onPress: (stories: StoryItem[], index: number) => void }) {
-  const [stories, setStories] = useState<StoryItem[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from("vitrine_posts")
-        .select("id, user_id, media_url, profiles!inner(display_name, avatar_url)")
-        .eq("media_type", "video")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (!alive || !data) return;
-      const items: StoryItem[] = (data as any[]).map((row) => ({
-        id: row.id,
-        user_id: row.user_id,
-        display_name: (row.profiles as any)?.display_name ?? "?",
-        avatar_url: (row.profiles as any)?.avatar_url ?? null,
-        media_url: row.media_url,
-      }));
-      setStories(items);
-    };
-    void load();
-    return () => { alive = false; };
-  }, []);
-
-  if (stories.length === 0) return null;
+export function StoriesRow({
+  stories,
+  onPress,
+  onAdd,
+}: {
+  stories: VitrineStory[];
+  onPress: (stories: VitrineStory[], index: number) => void;
+  onAdd: () => void;
+}) {
+  const { t } = useTranslation();
 
   return (
     <FlatList
@@ -51,18 +27,34 @@ export function StoriesRow({ onPress }: { onPress: (stories: StoryItem[], index:
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.list}
       keyExtractor={(item) => item.id}
+      ListHeaderComponent={
+        <Press onPress={onAdd} style={styles.item}>
+          <View style={styles.yourRing}>
+            <View style={styles.plusDisk}>
+              <Plus size={22} color="#fff" />
+            </View>
+          </View>
+          <Text style={styles.name} numberOfLines={1}>
+            {t("vitrine.yourStory")}
+          </Text>
+        </Press>
+      }
       renderItem={({ item, index }) => (
         <Press onPress={() => onPress(stories, index)} style={styles.item}>
-          <View style={styles.ring}>
-            {isHttpUrl(item.avatar_url) ? (
-              <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+          <View style={[styles.ring, !item.unread && styles.ringRead]}>
+            {isHttpUrl(item.avatarUrl ?? item.posterUrl) ? (
+              <Image source={{ uri: item.avatarUrl || item.posterUrl || item.mediaUrl }} style={styles.avatar} />
+            ) : isHttpUrl(item.mediaUrl) && !item.mediaUrl.includes("video") ? (
+              <Image source={{ uri: item.mediaUrl }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.fallback]}>
-                <Text style={styles.initials}>{initials(item.display_name)}</Text>
+                <Text style={styles.initials}>{initials(item.displayName)}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.name} numberOfLines={1}>{item.display_name.split(" ")[0]}</Text>
+          <Text style={styles.name} numberOfLines={1}>
+            {item.displayName.split(" ")[0]}
+          </Text>
         </Press>
       )}
     />
@@ -70,8 +62,26 @@ export function StoriesRow({ onPress }: { onPress: (stories: StoryItem[], index:
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: 12, paddingVertical: 10, gap: 12 },
+  list: { paddingHorizontal: 12, paddingVertical: 10, gap: 12, alignItems: "center" },
   item: { alignItems: "center", width: 68, minHeight: 0 },
+  yourRing: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: GOLD,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  plusDisk: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   ring: {
     width: 62,
     height: 62,
@@ -80,6 +90,7 @@ const styles = StyleSheet.create({
     borderColor: GOLD,
     padding: 2,
   },
+  ringRead: { borderColor: "rgba(255,255,255,0.35)" },
   avatar: { flex: 1, borderRadius: 28, backgroundColor: NAVY },
   fallback: { alignItems: "center", justifyContent: "center" },
   initials: { color: "#fff", fontSize: 16, fontWeight: "800" },

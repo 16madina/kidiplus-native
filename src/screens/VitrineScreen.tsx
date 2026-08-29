@@ -19,8 +19,9 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
 import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
+import { CreateStorySheet } from "../components/vitrine/CreateStorySheet";
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
-import { StoriesRow, type StoryItem } from "../components/vitrine/StoriesRow";
+import { StoriesRow } from "../components/vitrine/StoriesRow";
 import { StoryViewer } from "../components/vitrine/StoryViewer";
 import { VitrineLiveSlide } from "../components/vitrine/VitrineLiveSlides";
 import { ScheduledLivePoster } from "../components/ScheduledLivePoster";
@@ -39,6 +40,12 @@ import {
   toggleVitrineLike,
   type VitrineFeedPost,
 } from "../lib/vitrine";
+import {
+  fetchVitrineStories,
+  filterBlockedStories,
+  storiesHiddenByFeedIndex,
+  type VitrineStory,
+} from "../lib/vitrine-stories";
 import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
@@ -74,8 +81,11 @@ export function VitrineScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
-  const [storyList, setStoryList] = useState<StoryItem[]>([]);
+  const [storyList, setStoryList] = useState<VitrineStory[]>([]);
   const [storyIndex, setStoryIndex] = useState(0);
+  const [stories, setStories] = useState<VitrineStory[]>([]);
+  const [storiesOpen, setStoriesOpen] = useState(true);
+  const [storyCreateOpen, setStoryCreateOpen] = useState(false);
   const listRef = useRef<FlatList<VitrineFeedPost>>(null);
   const liveListRef = useRef<FlatList<LiveStream>>(null);
   const soonListRef = useRef<FlatList<LiveStream>>(null);
@@ -104,6 +114,15 @@ export function VitrineScreen() {
     return [...lives, ...samples];
   }, [lives]);
   const tabVisible = tab === "vitrine";
+  const visibleStories = useMemo(
+    () => filterBlockedStories(stories, blockedIds),
+    [stories, blockedIds],
+  );
+
+  const loadStories = useCallback(async () => {
+    const rows = await fetchVitrineStories();
+    setStories(rows);
+  }, []);
 
   const PAGE = 12;
   const loadingMore = useRef(false);
@@ -135,7 +154,21 @@ export function VitrineScreen() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadStories();
+  }, [load, loadStories]);
+
+  useEffect(() => {
+    if (cat === "forYou") {
+      const idx = visiblePosts.findIndex((p) => p.id === activeId);
+      if (storiesHiddenByFeedIndex(idx)) setStoriesOpen(false);
+    } else if (cat === "live") {
+      const idx = liveCards.findIndex((s) => s.id === activeLiveId);
+      if (storiesHiddenByFeedIndex(idx)) setStoriesOpen(false);
+    } else {
+      const idx = soon.findIndex((s) => s.id === activeSoonId);
+      if (storiesHiddenByFeedIndex(idx)) setStoriesOpen(false);
+    }
+  }, [cat, activeId, activeLiveId, activeSoonId, visiblePosts, liveCards, soon]);
 
   useEffect(() => {
     if (!pendingVitrinePostId || !tabVisible) return;
@@ -209,7 +242,14 @@ export function VitrineScreen() {
               ["live", "vitrine.tabs.live"],
               ["soon", "vitrine.tabs.soon"],
             ] as const).map(([k, label]) => (
-              <Press key={k} onPress={() => setCat(k)} style={styles.catBtn}>
+              <Press
+                key={k}
+                onPress={() => {
+                  setCat(k);
+                  setStoriesOpen(true);
+                }}
+                style={styles.catBtn}
+              >
                 <Text
                   style={[
                     styles.catLabel,
@@ -230,16 +270,46 @@ export function VitrineScreen() {
           tone="gold"
           onPress={() => {
             if (guestMode) return openAuth();
-            setCreateOpen(true);
+            Alert.alert(t("vitrine.publish", { defaultValue: "Publier" }), undefined, [
+              {
+                text: t("publish.types.story"),
+                onPress: () => setStoryCreateOpen(true),
+              },
+              {
+                text: t("vitrine.publish", { defaultValue: "Publier" }),
+                onPress: () => setCreateOpen(true),
+              },
+              { text: t("common.cancel"), style: "cancel" },
+            ]);
           }}
         >
           <Plus size={22} color="#fff" />
         </GlassIconButton>
       </LinearGradient>
 
-      {cat === "forYou" && !loading && (
+      {storiesOpen ? (
         <View style={{ position: "absolute", top: insets.top + 52, left: 0, right: 0, zIndex: 10 }}>
-          <StoriesRow onPress={(list, idx) => { setStoryList(list); setStoryIndex(idx); setStoryViewerOpen(true); }} />
+          <StoriesRow
+            stories={visibleStories}
+            onAdd={() => {
+              if (guestMode) return openAuth();
+              setStoryCreateOpen(true);
+            }}
+            onPress={(list, idx) => {
+              setStoryList(list);
+              setStoryIndex(idx);
+              setStoryViewerOpen(true);
+            }}
+          />
+        </View>
+      ) : (
+        <View
+          pointerEvents="none"
+          style={{ position: "absolute", top: insets.top + 56, left: 0, right: 0, zIndex: 10 }}
+        >
+          <Text style={{ color: "rgba(255,255,255,0.45)", textAlign: "center", fontSize: 10, fontWeight: "600" }}>
+            {t("vitrine.pullStories")}
+          </Text>
         </View>
       )}
 
@@ -280,11 +350,21 @@ export function VitrineScreen() {
             onEndReached={() => void loadMore()}
             onEndReachedThreshold={0.6}
             refreshControl={
-              <RefreshControl refreshing={refreshing} tintColor={GOLD} onRefresh={() => {
-                setRefreshing(true);
-                void load(true);
-              }} />
+              <RefreshControl
+                refreshing={refreshing}
+                tintColor={GOLD}
+                onRefresh={() => {
+                  setStoriesOpen(true);
+                  setRefreshing(true);
+                  void load(true);
+                  void loadStories();
+                }}
+              />
             }
+            onScroll={(e) => {
+              if (e.nativeEvent.contentOffset.y < -28) setStoriesOpen(true);
+            }}
+            scrollEventThrottle={16}
             renderItem={({ item }) => {
               const sellerLive = item.userId ? liveBySeller.get(item.userId) : undefined;
               return (
@@ -405,6 +485,11 @@ export function VitrineScreen() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={() => void load(true)}
+      />
+      <CreateStorySheet
+        open={storyCreateOpen}
+        onClose={() => setStoryCreateOpen(false)}
+        onCreated={() => void loadStories()}
       />
       {commentsPostId ? (
         <VitrineCommentsSheet
