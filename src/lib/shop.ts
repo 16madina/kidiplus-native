@@ -21,6 +21,7 @@ export type ShopSearchHit = {
   id: string;
   name: string;
   seller: string;
+  sellerId: string;
   price: string;
   image: string;
 };
@@ -125,7 +126,14 @@ export async function searchActiveShopProducts(query: string, limit = 40): Promi
         ).seller;
         const sellerObj = Array.isArray(sellerRaw) ? sellerRaw[0] : sellerRaw;
         const seller = sellerObj?.display_name?.trim() || sellerObj?.handle || "Vendeur";
-        return { id: item.id, name: item.name, seller, price: item.price, image: item.image };
+        return {
+          id: item.id,
+          name: item.name,
+          seller,
+          sellerId: row.seller_id,
+          price: item.price,
+          image: item.image,
+        };
       },
     ),
   );

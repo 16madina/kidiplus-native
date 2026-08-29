@@ -121,7 +121,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Sacs & accessoires",
     nameKey: "search.cats.bagsAccessories",
     viewers: 6100,
-    query: "Fashion",
+    query: "Bags",
     image:
       "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=300&q=80&auto=format&fit=crop",
   },
@@ -130,7 +130,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Parfums",
     nameKey: "search.cats.perfumes",
     viewers: 3400,
-    query: "Beauty",
+    query: "Perfumes",
     image:
       "https://images.unsplash.com/photo-1541643600914-78b084683601?w=300&q=80&auto=format&fit=crop",
   },
@@ -148,7 +148,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Montres",
     nameKey: "search.cats.watches",
     viewers: 2200,
-    query: "Jewelry",
+    query: "Watches",
     image:
       "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=300&q=80&auto=format&fit=crop",
   },
@@ -166,7 +166,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Jeux vidéo",
     nameKey: "search.cats.gaming",
     viewers: 3900,
-    query: "Electronics",
+    query: "Games",
     image:
       "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=300&q=80&auto=format&fit=crop",
   },
@@ -184,7 +184,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Maison",
     nameKey: "search.cats.home",
     viewers: 1600,
-    query: "Fashion",
+    query: "Home",
     image:
       "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=300&q=80&auto=format&fit=crop",
   },
@@ -193,7 +193,7 @@ export const BROWSE_CATEGORIES: BrowseCategory[] = [
     name: "Déstockage & lots",
     nameKey: "search.cats.destock",
     viewers: 980,
-    query: "Fashion",
+    query: "Bundles",
     image:
       "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=300&q=80&auto=format&fit=crop",
   },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Clock, Radio, Search as SearchIcon, X } from "lucide-react-native";
@@ -17,6 +17,12 @@ import { useLivesFeed } from "../hooks/useLivesFeed";
 import { followUser, unfollowUser } from "../lib/follows";
 import { searchSellers, type SellerSearchHit } from "../lib/search";
 import { searchActiveShopProducts, type ShopSearchHit } from "../lib/shop";
+import {
+  browseTileSearchQuery,
+  exploreCategoryLabel,
+  liveMatchesExploreQuery,
+  pickExploreResultTab,
+} from "../lib/explore-search";
 import { BROWSE_CATEGORIES, formatViewersFr } from "../mock/browse";
 import { GOLD, LIVE_RED, initials } from "../theme";
 
@@ -40,6 +46,7 @@ export function SearchScreen() {
   const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
   const query = raw.trim();
   const searching = query.length > 0;
+  const routedQuery = useRef("");
 
   const toggleFollow = async (sellerId: string) => {
     if (guestMode || !user) {
@@ -58,15 +65,9 @@ export function SearchScreen() {
   };
 
   const liveResults = useMemo(() => {
-    const q = query.toLowerCase();
-    const match = (s: (typeof active)[number]) =>
-      s.seller.toLowerCase().includes(q) ||
-      s.title.toLowerCase().includes(q) ||
-      s.category.toLowerCase() === q ||
-      (s.handle ?? "").toLowerCase().includes(q);
-    const liveNow = active.filter(match);
-    const scheduled = upcoming.filter(match);
-    return [...liveNow, ...scheduled];
+    if (!query) return [];
+    const match = (s: (typeof active)[number]) => liveMatchesExploreQuery(s, query);
+    return [...active.filter(match), ...upcoming.filter(match)];
   }, [active, upcoming, query]);
 
   const liveSellerIds = useMemo(
@@ -78,7 +79,7 @@ export function SearchScreen() {
     const byCat = new Map<string, { viewers: number; image: string }>();
     for (const l of active) {
       if (l.scheduled) continue;
-      const key = l.category || "Autres";
+      const key = l.category || "Other";
       const prev = byCat.get(key);
       byCat.set(key, {
         viewers: (prev?.viewers ?? 0) + (l.viewers || 0),
@@ -86,45 +87,63 @@ export function SearchScreen() {
       });
     }
     return Array.from(byCat.entries())
-      .map(([name, v]) => ({ id: name, name, viewers: v.viewers, image: v.image }))
+      .map(([id, v]) => ({
+        id,
+        name: exploreCategoryLabel(id),
+        viewers: v.viewers,
+        image: v.image,
+      }))
       .sort((a, b) => b.viewers - a.viewers)
       .slice(0, 8);
   }, [active]);
 
   useEffect(() => {
-    if (!searching || tab !== 2) {
+    if (!searching) {
       setProducts([]);
+      setSellerHits([]);
+      setProductsLoading(false);
+      setSellersLoading(false);
+      routedQuery.current = "";
       return;
     }
     let cancelled = false;
     setProductsLoading(true);
-    void searchActiveShopProducts(query).then((rows) => {
-      if (!cancelled) {
+    setSellersLoading(true);
+    void Promise.all([searchSellers(query), searchActiveShopProducts(query)]).then(
+      ([sellers, rows]) => {
+        if (cancelled) return;
+        setSellerHits(sellers.map((r) => ({ ...r, live: liveSellerIds.has(r.id) })));
         setProducts(rows);
         setProductsLoading(false);
-      }
-    });
+        setSellersLoading(false);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [query, searching, tab]);
+  }, [query, searching, liveSellerIds]);
 
   useEffect(() => {
-    if (!searching || tab !== 1) {
-      setSellerHits([]);
-      return;
-    }
-    let cancelled = false;
-    setSellersLoading(true);
-    void searchSellers(query).then((rows) => {
-      if (cancelled) return;
-      setSellerHits(rows.map((r) => ({ ...r, live: liveSellerIds.has(r.id) })));
-      setSellersLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [query, searching, tab, liveSellerIds]);
+    if (!searching || sellersLoading || productsLoading) return;
+    if (routedQuery.current === query) return;
+    routedQuery.current = query;
+    setTab(
+      pickExploreResultTab({
+        query,
+        liveCount: liveResults.length,
+        sellerCount: sellerHits.length,
+        productCount: products.length,
+      }),
+    );
+  }, [
+    query,
+    searching,
+    sellersLoading,
+    productsLoading,
+    liveResults.length,
+    sellerHits.length,
+    products.length,
+  ]);
 
   const cats = useMemo(() => {
     const list = [...BROWSE_CATEGORIES];
@@ -192,10 +211,16 @@ export function SearchScreen() {
         ) : searching ? (
           <View>
             <View style={styles.tabs}>
-              {(["search.tabs.lives", "search.tabs.sellers", "search.tabs.products"] as const).map((k, i) => (
+              {(
+                [
+                  ["search.tabs.lives", liveResults.length],
+                  ["search.tabs.sellers", sellers.length],
+                  ["search.tabs.products", products.length],
+                ] as const
+              ).map(([k, count], i) => (
                 <Press key={k} onPress={() => setTab(i)} style={[styles.tab, tab === i && { borderBottomColor: GOLD }]}>
                   <Text style={{ fontWeight: tab === i ? "800" : "600", color: tab === i ? colors.foreground : colors.mutedForeground }}>
-                    {t(k)}
+                    {count ? `${t(k)} (${count})` : t(k)}
                   </Text>
                 </Press>
               ))}
@@ -301,14 +326,20 @@ export function SearchScreen() {
               ) : (
                 <View style={styles.grid}>
                   {products.map((p) => (
-                    <Glass key={p.id} tone={dark ? "dark" : "light"} intensity={28} radius={16} style={styles.cell} elevated={false}>
-                      <Image source={{ uri: p.image }} style={{ width: "100%", aspectRatio: 1 }} contentFit="cover" />
-                      <View style={{ padding: 8 }}>
-                        <Text numberOfLines={2} style={{ fontWeight: "700", color: colors.foreground }}>{p.name}</Text>
-                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{p.seller}</Text>
-                        <Text style={{ fontWeight: "800", color: GOLD, marginTop: 4 }}>{p.price}</Text>
-                      </View>
-                    </Glass>
+                    <Press
+                      key={p.id}
+                      style={styles.cell}
+                      onPress={() => openOverlay({ kind: "seller-profile", sellerId: p.sellerId })}
+                    >
+                      <Glass tone={dark ? "dark" : "light"} intensity={28} radius={16} elevated={false}>
+                        <Image source={{ uri: p.image }} style={{ width: "100%", aspectRatio: 1 }} contentFit="cover" />
+                        <View style={{ padding: 8 }}>
+                          <Text numberOfLines={2} style={{ fontWeight: "700", color: colors.foreground }}>{p.name}</Text>
+                          <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{p.seller}</Text>
+                          <Text style={{ fontWeight: "800", color: GOLD, marginTop: 4 }}>{p.price}</Text>
+                        </View>
+                      </Glass>
+                    </Press>
                   ))}
                 </View>
               )
@@ -321,7 +352,17 @@ export function SearchScreen() {
             <Text style={[styles.h, { color: colors.foreground, paddingHorizontal: 16 }]}>{t("search.trending")}</Text>
             <View style={styles.trends}>
               {trends.map((tr) => (
-                <Press key={tr.id} onPress={() => setRaw(tr.name)} style={styles.trendPress}>
+                <Press
+                  key={tr.id}
+                  onPress={() => {
+                    setRaw(tr.id);
+                    setFocused(true);
+                    setTab(0);
+                    routedQuery.current = tr.id;
+                    setRecent((prev) => [tr.name, ...prev.filter((x) => x !== tr.name)].slice(0, 8));
+                  }}
+                  style={styles.trendPress}
+                >
                   <Glass tone={dark ? "dark" : "light"} intensity={32} radius={14} elevated={false}>
                     <View style={styles.trend}>
                       <Image source={{ uri: tr.image }} style={styles.trendImg} contentFit="cover" />
@@ -357,7 +398,18 @@ export function SearchScreen() {
             </View>
             <View style={styles.grid}>
               {cats.map((c) => (
-                <Press key={c.id} onPress={() => setRaw(c.query)} style={styles.cat}>
+                <Press
+                  key={c.id}
+                  onPress={() => {
+                    const q = browseTileSearchQuery(c.id);
+                    setRaw(q);
+                    setFocused(true);
+                    setTab(0);
+                    routedQuery.current = q;
+                    setRecent((prev) => [t(c.nameKey), ...prev.filter((x) => x !== t(c.nameKey))].slice(0, 8));
+                  }}
+                  style={styles.cat}
+                >
                   <Image source={{ uri: c.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
                   <View style={styles.catFrost}>
                     <Glass tone="dark" intensity={30} radius={10} elevated={false}>
