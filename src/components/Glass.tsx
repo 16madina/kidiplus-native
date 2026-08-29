@@ -131,14 +131,20 @@ export function GlassIconButton({
   onPress,
   tone = "dark",
   size = 44,
+  accessibilityLabel,
 }: {
   children: ReactNode;
   onPress?: () => void;
   tone?: GlassTone;
   size?: number;
+  accessibilityLabel?: string;
 }) {
   return (
-    <Press onPress={onPress} style={{ width: size, height: size, minWidth: size, minHeight: size }}>
+    <Press
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
+    >
       <GlassIcon tone={tone} size={size}>
         {children}
       </GlassIcon>

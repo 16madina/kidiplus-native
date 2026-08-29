@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { fetchActiveLives, fetchUpcomingScheduledLives } from "../lib/lives";
+import { subscribeHostLiveEnded } from "../lib/host-open-live";
 import type { LiveStream } from "../mock/lives";
 
 export function useLivesFeed() {
@@ -28,6 +29,8 @@ export function useLivesFeed() {
     });
     return () => sub.remove();
   }, [load]);
+
+  useEffect(() => subscribeHostLiveEnded(() => { void load(); }), [load]);
 
   return { active, upcoming, loading, refresh: load };
 }

@@ -1,9 +1,8 @@
 import { bootLiveKit } from "../../lib/livekit-boot";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
-  AudioSession,
   LiveKitRoom,
   VideoTrack,
   isTrackReference,
@@ -12,7 +11,12 @@ import {
 import { Track } from "livekit-client";
 import { BattleSplitStage, type BattleSplitFighter } from "../battle/BattleSplitStage";
 import { isBattleGuestIdentity } from "../../lib/battles";
+import {
+  startViewerPlaybackAudioSession,
+  stopViewerPlaybackAudioSession,
+} from "../../lib/live-audio-session";
 import { fetchLiveKitSession } from "../../lib/livekit";
+import { VIEWER_PUBLISH_MIC } from "../../lib/live-viewer-media";
 
 bootLiveKit();
 
@@ -44,7 +48,7 @@ export function LiveKitRemoteVideo({
     void (async () => {
       try {
         bootLiveKit();
-        await AudioSession.startAudioSession();
+        await startViewerPlaybackAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "viewer");
         if (!cancelled) setSession(s);
       } catch (e) {
@@ -60,7 +64,7 @@ export function LiveKitRemoteVideo({
 
   useEffect(() => {
     return () => {
-      void AudioSession.stopAudioSession();
+      void stopViewerPlaybackAudioSession();
     };
   }, []);
 
@@ -92,9 +96,14 @@ export function LiveKitRemoteVideo({
         serverUrl={session.url}
         token={session.token}
         connect
-        audio
+        audio={VIEWER_PUBLISH_MIC}
         video={false}
-        options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
+        options={{
+          // Always off: adaptiveStream in the 118×210 mini player drops
+          // frames, so iOS/Android PiP would open on a black surface.
+          adaptiveStream: false,
+          dynacast: true,
+        }}
         connectOptions={{ autoSubscribe: true }}
         onDisconnected={() => {
           endedRef.current = true;
@@ -125,6 +134,7 @@ function RemoteCamera({
   hostFighter?: BattleSplitFighter | null;
   guestFighter?: BattleSplitFighter | null;
 }) {
+  const { t } = useTranslation();
   const tracks = useTracks([Track.Source.Camera]);
   const host = tracks.find(
     (t) =>
@@ -138,17 +148,36 @@ function RemoteCamera({
       !t.participant.isLocal &&
       isBattleGuestIdentity(t.participant.identity),
   );
+  const hadHostRef = useRef(false);
+  if (host && isTrackReference(host)) hadHostRef.current = true;
 
   const waiting = (
     <View style={[FILL, styles.center]}>
       <ActivityIndicator color="#fff" />
-      <Text style={styles.wait}>En attente de la caméra du vendeur…</Text>
+      <Text style={styles.wait}>
+        {hadHostRef.current
+          ? t("live.hostBackSoon")
+          : t("live.waitingForSeller")}
+      </Text>
     </View>
   );
 
   const hostVideo =
     host && isTrackReference(host) ? (
-      <VideoTrack trackRef={host} style={FILL} objectFit="cover" />
+      <VideoTrack
+        trackRef={host}
+        style={FILL}
+        objectFit="cover"
+        iosPIP={
+          Platform.OS === "ios"
+            ? {
+                enabled: true,
+                startAutomatically: true,
+                preferredSize: { width: 9, height: 16 },
+              }
+            : undefined
+        }
+      />
     ) : (
       waiting
     );

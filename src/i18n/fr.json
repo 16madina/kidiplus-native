@@ -356,6 +356,7 @@
     "products": "Produits",
     "share": "Partager",
     "leave": "Quitter",
+    "expand": "Agrandir le live",
     "muteChat": "Masquer le chat",
     "showChat": "Afficher le chat",
     "buy_sheet": {
@@ -376,6 +377,8 @@
     "danglingReconnected": "Reconnecté au live",
     "danglingEndAll": "Tout terminer",
     "danglingEnded": "Lives précédents terminés",
+    "danglingEndPartial": "Certains lives n'ont pas pu être terminés",
+    "danglingEndFailed": "Impossible de terminer les lives",
     "homeOpenTitle": "Ton live est encore ouvert",
     "homeOpenBody": "« {{title}} » — reprends-le avant fermeture (~{{minutes}} min).",
     "viewers_one": "spectateur",

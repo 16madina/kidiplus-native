@@ -1,3 +1,5 @@
+/** Web stub — Stripe native SDK is iOS/Android only. */
+
 export function stripeAvailable(): boolean {
   return false;
 }

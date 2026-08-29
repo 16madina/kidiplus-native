@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Press } from "../components/Press";
 import { useAuth } from "./auth";
 import { useNav } from "./navigation";
+import { requestResumeHostLive } from "../lib/host-open-live";
 import { fetchLiveById } from "../lib/lives";
 import {
   getPushPermissionStatus,
@@ -94,7 +95,8 @@ export function PushProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (kind === "resume_host_live") {
-        setTab("live");
+        const liveId = typeof payload.live_id === "string" ? payload.live_id : null;
+        requestResumeHostLive(liveId);
         return;
       }
       if (kind === "seller") {

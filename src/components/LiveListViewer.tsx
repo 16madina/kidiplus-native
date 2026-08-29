@@ -1,20 +1,22 @@
 import { useCallback, useRef, useState } from "react";
-import { Dimensions, FlatList, StyleSheet, View } from "react-native";
+import { FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { LiveViewerScreen } from "../screens/LiveViewerScreen";
 import { ScheduledLivePoster } from "./ScheduledLivePoster";
 import type { LiveStream } from "../mock/lives";
 
-const { height: SCREEN_H } = Dimensions.get("window");
-
 export function LiveListViewer({
   list,
   initialIndex,
+  compact = false,
 }: {
   list: LiveStream[];
   initialIndex: number;
+  compact?: boolean;
 }) {
+  const { height: screenH } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const flatRef = useRef<FlatList<LiveStream>>(null);
+  const itemH = compact ? undefined : screenH;
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
@@ -25,29 +27,36 @@ export function LiveListViewer({
   );
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
+  const current = list[activeIndex] ?? list[0];
+  const data = compact && current ? [current] : list;
 
   return (
     <FlatList
       ref={flatRef}
-      data={list}
+      data={data}
       keyExtractor={(item) => item.id}
       renderItem={({ item, index }) => (
-        <View style={{ width: "100%", height: SCREEN_H }}>
+        <View style={compact ? styles.compactItem : { width: "100%", height: itemH }}>
           {item.scheduled ? (
-            <ScheduledLivePoster stream={item} active={index === activeIndex} />
+            <ScheduledLivePoster stream={item} active={compact || index === activeIndex} />
           ) : (
-            <LiveViewerScreen stream={item} active={index === activeIndex} />
+            <LiveViewerScreen stream={item} active={compact || index === activeIndex} />
           )}
         </View>
       )}
-      pagingEnabled
+      pagingEnabled={!compact}
+      scrollEnabled={!compact}
       showsVerticalScrollIndicator={false}
-      initialScrollIndex={initialIndex}
-      getItemLayout={(_, index) => ({
-        length: SCREEN_H,
-        offset: SCREEN_H * index,
-        index,
-      })}
+      initialScrollIndex={compact ? 0 : initialIndex}
+      getItemLayout={
+        compact
+          ? undefined
+          : (_, index) => ({
+              length: screenH,
+              offset: screenH * index,
+              index,
+            })
+      }
       onViewableItemsChanged={onViewableItemsChanged}
       viewabilityConfig={viewabilityConfig}
       style={styles.list}
@@ -57,4 +66,5 @@ export function LiveListViewer({
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
+  compactItem: { flex: 1, width: "100%" },
 });

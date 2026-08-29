@@ -49,6 +49,7 @@
     "i18next": "^26.4.0",
     "kidi-camera-kit": "file:modules/kidi-camera-kit",
     "kidi-live-effects": "file:modules/kidi-live-effects",
+    "kidi-live-pip": "file:modules/kidi-live-pip",
     "livekit-client": "^2.22.1",
     "lucide-react-native": "^1.34.0",
     "react": "19.2.3",
