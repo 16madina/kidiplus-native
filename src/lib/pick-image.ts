@@ -1,11 +1,15 @@
 import { Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { pickerDurationToSec } from "./publish-media";
 
 export type PickedImage = {
   blob: Blob;
   preview: string;
   contentType: string;
   ext: string;
+  durationSec?: number | null;
+  width?: number | null;
+  height?: number | null;
 };
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
@@ -18,6 +22,25 @@ function extFromName(name: string | null | undefined, mime: string): string {
   if (mime.includes("webp")) return "webp";
   if (mime.includes("heic") || mime.includes("heif")) return "heic";
   return "jpg";
+}
+
+export async function pickedMediaFromUri(
+  uri: string,
+  mime: string,
+  fileName?: string | null,
+  extra?: Pick<PickedImage, "durationSec" | "width" | "height">,
+): Promise<PickedImage> {
+  const contentType = mime || "image/jpeg";
+  const blob = await blobFromUri(uri, contentType);
+  return {
+    blob,
+    preview: uri,
+    contentType,
+    ext: extFromName(fileName, contentType),
+    durationSec: extra?.durationSec,
+    width: extra?.width,
+    height: extra?.height,
+  };
 }
 
 async function blobFromUri(uri: string, mime: string): Promise<Blob> {
@@ -69,6 +92,58 @@ export function pickImageFromLibrary(): Promise<PickedImage | null> {
       preview: asset.uri,
       contentType,
       ext: extFromName(asset.fileName, contentType),
+      width: asset.width,
+      height: asset.height,
+    };
+  })();
+}
+
+export function pickVideoFromLibrary(maxDurationSec = 60): Promise<PickedImage | null> {
+  if (Platform.OS === "web" && typeof document !== "undefined") {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "video/mp4,video/quicktime,video/webm";
+      input.onchange = () => {
+        const file = input.files?.[0] ?? null;
+        if (!file) {
+          resolve(null);
+          return;
+        }
+        resolve({
+          blob: file,
+          preview: URL.createObjectURL(file),
+          contentType: file.type || "video/mp4",
+          ext: extFromName(file.name, file.type),
+        });
+      };
+      input.click();
+    });
+  }
+
+  return (async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return null;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      quality: 0.88,
+      videoMaxDuration: maxDurationSec,
+      allowsEditing: Platform.OS === "ios",
+      exif: false,
+    });
+    if (result.canceled) return null;
+    const asset = result.assets[0];
+    if (!asset?.uri) return null;
+    const contentType = asset.mimeType || "video/mp4";
+    const blob = await blobFromUri(asset.uri, contentType);
+    return {
+      blob,
+      preview: asset.uri,
+      contentType,
+      ext: extFromName(asset.fileName, contentType),
+      durationSec: pickerDurationToSec(asset.duration),
+      width: asset.width,
+      height: asset.height,
     };
   })();
 }
@@ -102,7 +177,7 @@ export function pickStoryMediaFromLibrary(): Promise<PickedImage | null> {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
       quality: 0.88,
-      videoMaxDuration: 15,
+      videoMaxDuration: 60,
       allowsEditing: false,
       exif: false,
     });
@@ -116,6 +191,9 @@ export function pickStoryMediaFromLibrary(): Promise<PickedImage | null> {
       preview: asset.uri,
       contentType,
       ext: extFromName(asset.fileName, contentType),
+      durationSec: asset.type === "video" ? pickerDurationToSec(asset.duration) : null,
+      width: asset.width,
+      height: asset.height,
     };
   })();
 }

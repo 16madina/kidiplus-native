@@ -116,7 +116,7 @@ export function StoryViewer({
         <TouchableWithoutFeedback onPress={handlePress}>
           <View style={styles.media}>
             {video ? (
-              <StoryVideo uri={story.mediaUrl} active={visible} onEnded={advance} />
+              <StoryVideo uri={story.mediaUrl} clip={story.clip} active={visible} onEnded={advance} />
             ) : (
               <Image source={{ uri: story.mediaUrl }} style={FILL} contentFit="cover" />
             )}
@@ -129,25 +129,30 @@ export function StoryViewer({
 
 function StoryVideo({
   uri,
+  clip,
   active,
   onEnded,
 }: {
   uri: string;
+  clip: { startSec: number; endSec: number } | null;
   active: boolean;
   onEnded: () => void;
 }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.muted = false;
+    p.timeUpdateEventInterval = 0.1;
     p.audioMixingMode = "doNotMix";
   });
   const endedRef = useRef(false);
+  const start = clip?.startSec ?? 0;
+  const end = clip?.endSec;
 
   useEffect(() => {
     endedRef.current = false;
     try {
       if (active) {
-        player.currentTime = 0;
+        player.currentTime = start;
         player.play();
       } else {
         player.pause();
@@ -155,12 +160,12 @@ function StoryVideo({
     } catch {
       /* native player not ready */
     }
-  }, [active, uri, player]);
+  }, [active, uri, player, start]);
 
   useEffect(() => {
     const id = setInterval(() => {
       if (endedRef.current) return;
-      const duration = player.duration;
+      const duration = end ?? player.duration;
       const time = player.currentTime;
       if (duration > 0 && time >= duration - 0.2) {
         endedRef.current = true;
@@ -168,7 +173,7 @@ function StoryVideo({
       }
     }, 200);
     return () => clearInterval(id);
-  }, [player, onEnded]);
+  }, [player, onEnded, end]);
 
   return <VideoView player={player} style={FILL} contentFit="cover" nativeControls={false} />;
 }

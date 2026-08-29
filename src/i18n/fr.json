@@ -189,6 +189,7 @@
     "yes": "Oui",
     "no": "Non",
     "ok": "OK",
+    "allow": "Autoriser",
     "seeAll": "Tout afficher ›",
     "more": "Plus",
     "showMore": "Voir plus",
@@ -873,9 +874,22 @@
     "modes": {
       "story": "STORY",
       "photo": "PHOTO",
-      "video": "VIDÉO"
+      "video": "VIDÉO",
+      "affiche": "AFFICHE"
+    },
+    "afficheHint": "Décore ton affiche : texte, photos d’articles, couleurs, police. Elle apparaît dans Bientôt.",
+    "affichePublished": "Affiche publiée dans Bientôt",
+    "affiche": {
+      "addPhoto": "Article",
+      "bg": "Fond",
+      "font": "Police",
+      "bigger": "Agrandir",
+      "smaller": "Réduire",
+      "publish": "Publier l’affiche"
     },
     "fromGallery": "Choisir dans la galerie",
+    "gallery": "Galerie",
+    "flip": "Caméra",
     "capture": "Capturer",
     "cameraDenied": "Autorise la caméra pour publier.",
     "cameraConfig": "Caméra indisponible sur cet appareil.",

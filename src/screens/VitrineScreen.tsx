@@ -18,8 +18,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Press } from "../components/Press";
 import { Glass, GlassIcon, GlassIconButton } from "../components/Glass";
-import { CreateVitrinePostSheet } from "../components/vitrine/CreateVitrinePostSheet";
-import { CreateStorySheet } from "../components/vitrine/CreateStorySheet";
+import { PublishHub } from "../components/vitrine/PublishHub";
+import { AffichePoster } from "../components/vitrine/AffichePoster";
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
 import { StoriesRow } from "../components/vitrine/StoriesRow";
 import { StoryViewer } from "../components/vitrine/StoryViewer";
@@ -46,6 +46,8 @@ import {
   storiesHiddenByFeedIndex,
   type VitrineStory,
 } from "../lib/vitrine-stories";
+import { fetchVitrineAffiches, parseAfficheCaption, type VitrineAffiche } from "../lib/vitrine-affiche";
+import type { PublishHubMode } from "../lib/publish-hub";
 import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { isHttpUrl } from "../lib/storage";
 import { unlockVitrineSound, useVitrineSound } from "../lib/vitrine-sound";
@@ -53,6 +55,10 @@ import { sampleLivesForCategory } from "../mock/home-categories";
 import type { LiveStream } from "../mock/lives";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+type SoonFeedItem =
+  | { kind: "live"; id: string; stream: LiveStream }
+  | { kind: "affiche"; id: string; affiche: VitrineAffiche };
 
 export function VitrineScreen() {
   const { height, width } = useWindowDimensions();
@@ -78,17 +84,18 @@ export function VitrineScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeLiveId, setActiveLiveId] = useState<string | null>(null);
   const [activeSoonId, setActiveSoonId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [hubOpen, setHubOpen] = useState(false);
+  const [hubMode, setHubMode] = useState<PublishHubMode>("video");
+  const [affiches, setAffiches] = useState<VitrineAffiche[]>([]);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [storyList, setStoryList] = useState<VitrineStory[]>([]);
   const [storyIndex, setStoryIndex] = useState(0);
   const [stories, setStories] = useState<VitrineStory[]>([]);
   const [storiesOpen, setStoriesOpen] = useState(true);
-  const [storyCreateOpen, setStoryCreateOpen] = useState(false);
   const listRef = useRef<FlatList<VitrineFeedPost>>(null);
   const liveListRef = useRef<FlatList<LiveStream>>(null);
-  const soonListRef = useRef<FlatList<LiveStream>>(null);
+  const soonListRef = useRef<FlatList<SoonFeedItem>>(null);
   const lives = useMemo(
     () => active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
     [active, blockedIds],
@@ -99,9 +106,21 @@ export function VitrineScreen() {
     [upcoming, blockedIds],
   );
   const visiblePosts = useMemo(
-    () => posts.filter((p) => !p.userId || !blockedIds.has(p.userId)),
+    () =>
+      posts.filter(
+        (p) =>
+          !parseAfficheCaption(p.caption) && (!p.userId || !blockedIds.has(p.userId)),
+      ),
     [posts, blockedIds],
   );
+
+  const soonItems = useMemo<SoonFeedItem[]>(() => {
+    const posters = affiches
+      .filter((a) => !a.userId || !blockedIds.has(a.userId))
+      .map((affiche) => ({ kind: "affiche" as const, id: affiche.id, affiche }));
+    const livesSoon = soon.map((stream) => ({ kind: "live" as const, id: stream.id, stream }));
+    return [...posters, ...livesSoon];
+  }, [affiches, soon, blockedIds]);
   const liveBySeller = useMemo(() => {
     const map = new Map<string, (typeof lives)[number]>();
     for (const s of lives) {
@@ -122,6 +141,10 @@ export function VitrineScreen() {
   const loadStories = useCallback(async () => {
     const rows = await fetchVitrineStories();
     setStories(rows);
+  }, []);
+
+  const loadAffiches = useCallback(async () => {
+    setAffiches(await fetchVitrineAffiches(40));
   }, []);
 
   const PAGE = 12;
@@ -155,7 +178,8 @@ export function VitrineScreen() {
   useEffect(() => {
     void load();
     void loadStories();
-  }, [load, loadStories]);
+    void loadAffiches();
+  }, [load, loadStories, loadAffiches]);
 
   useEffect(() => {
     if (cat === "forYou") {
@@ -165,10 +189,10 @@ export function VitrineScreen() {
       const idx = liveCards.findIndex((s) => s.id === activeLiveId);
       if (storiesHiddenByFeedIndex(idx)) setStoriesOpen(false);
     } else {
-      const idx = soon.findIndex((s) => s.id === activeSoonId);
+      const idx = soonItems.findIndex((s) => s.id === activeSoonId);
       if (storiesHiddenByFeedIndex(idx)) setStoriesOpen(false);
     }
-  }, [cat, activeId, activeLiveId, activeSoonId, visiblePosts, liveCards, soon]);
+  }, [cat, activeId, activeLiveId, activeSoonId, visiblePosts, liveCards, soonItems]);
 
   useEffect(() => {
     if (!pendingVitrinePostId || !tabVisible) return;
@@ -215,7 +239,7 @@ export function VitrineScreen() {
   }).current;
 
   const onSoonViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    const first = viewableItems.find((v) => v.isViewable)?.item as LiveStream | undefined;
+    const first = viewableItems.find((v) => v.isViewable)?.item as SoonFeedItem | undefined;
     if (first?.id) setActiveSoonId(first.id);
   }).current;
 
@@ -226,8 +250,8 @@ export function VitrineScreen() {
   }, [liveCards, activeLiveId]);
 
   useEffect(() => {
-    if (soon[0] && !activeSoonId) setActiveSoonId(soon[0].id);
-  }, [soon, activeSoonId]);
+    if (soonItems[0] && !activeSoonId) setActiveSoonId(soonItems[0].id);
+  }, [soonItems, activeSoonId]);
 
   return (
     <View style={styles.root}>
@@ -270,17 +294,8 @@ export function VitrineScreen() {
           tone="gold"
           onPress={() => {
             if (guestMode) return openAuth();
-            Alert.alert(t("vitrine.publish", { defaultValue: "Publier" }), undefined, [
-              {
-                text: t("publish.types.story"),
-                onPress: () => setStoryCreateOpen(true),
-              },
-              {
-                text: t("vitrine.publish", { defaultValue: "Publier" }),
-                onPress: () => setCreateOpen(true),
-              },
-              { text: t("common.cancel"), style: "cancel" },
-            ]);
+            setHubMode("video");
+            setHubOpen(true);
           }}
         >
           <Plus size={22} color="#fff" />
@@ -293,7 +308,8 @@ export function VitrineScreen() {
             stories={visibleStories}
             onAdd={() => {
               if (guestMode) return openAuth();
-              setStoryCreateOpen(true);
+              setHubMode("story");
+              setHubOpen(true);
             }}
             onPress={(list, idx) => {
               setStoryList(list);
@@ -450,14 +466,14 @@ export function VitrineScreen() {
       ) : null}
 
       {cat === "soon" ? (
-        soon.length === 0 ? (
+        soonItems.length === 0 ? (
           <View style={{ flex: 1, paddingTop: insets.top + 56 }}>
             <Empty onExplore={() => setTab("search")} labelKey="vitrine.emptySoon" />
           </View>
         ) : (
           <FlatList
             ref={soonListRef}
-            data={soon}
+            data={soonItems}
             keyExtractor={(s) => s.id}
             style={{ flex: 1 }}
             pagingEnabled
@@ -474,22 +490,26 @@ export function VitrineScreen() {
             viewabilityConfig={viewabilityConfig}
             renderItem={({ item }) => (
               <View style={{ width, height }}>
-                <ScheduledLivePoster stream={item} showClose={false} active={item.id === activeSoonId} />
+                {item.kind === "affiche" ? (
+                  <AffichePoster affiche={item.affiche} />
+                ) : (
+                  <ScheduledLivePoster stream={item.stream} showClose={false} active={item.id === activeSoonId} />
+                )}
               </View>
             )}
           />
         )
       ) : null}
 
-      <CreateVitrinePostSheet
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => void load(true)}
-      />
-      <CreateStorySheet
-        open={storyCreateOpen}
-        onClose={() => setStoryCreateOpen(false)}
-        onCreated={() => void loadStories()}
+      <PublishHub
+        open={hubOpen}
+        initialMode={hubMode}
+        onClose={() => setHubOpen(false)}
+        onPublished={(m) => {
+          if (m === "story") void loadStories();
+          else if (m === "affiche") void loadAffiches();
+          else void load(true);
+        }}
       />
       {commentsPostId ? (
         <VitrineCommentsSheet
@@ -719,7 +739,7 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
       if (post.posterUrl) return <VitrineStill uri={post.posterUrl} />;
       return <View style={[FILL, { backgroundColor: "#111" }]} />;
     }
-    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} />;
+    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} clip={post.clip} />;
   }
   return <VitrineStill uri={first} />;
 }
@@ -766,14 +786,17 @@ function VitrineVideo({
   uri,
   poster,
   active,
+  clip,
 }: {
   uri: string;
   poster: string | null;
   active: boolean;
+  clip: { startSec: number; endSec: number } | null;
 }) {
   const player = useVideoPlayer(uri, (p) => {
-    p.loop = true;
+    p.loop = !clip;
     p.muted = true;
+    p.timeUpdateEventInterval = clip ? 0.1 : 0;
     p.audioMixingMode = "doNotMix";
   });
   const [muted] = useVitrineSound();
@@ -794,11 +817,39 @@ function VitrineVideo({
       }
       player.volume = muted ? 0 : 1;
       player.muted = muted;
+      if (clip && (player.currentTime < clip.startSec || player.currentTime >= clip.endSec - 0.05)) {
+        player.currentTime = clip.startSec;
+      }
       void player.play();
     } catch {
       /* player already released */
     }
-  }, [active, muted, userPaused, player]);
+  }, [active, muted, userPaused, player, clip]);
+
+  useEffect(() => {
+    if (!clip) return;
+    const time = player.addListener("timeUpdate", (e) => {
+      if (e.currentTime >= clip.endSec - 0.05 || e.currentTime < clip.startSec - 0.2) {
+        try {
+          player.currentTime = clip.startSec;
+        } catch {
+          /* native */
+        }
+      }
+    });
+    const ended = player.addListener("playToEnd", () => {
+      try {
+        player.currentTime = clip.startSec;
+        void player.play();
+      } catch {
+        /* native */
+      }
+    });
+    return () => {
+      time.remove();
+      ended.remove();
+    };
+  }, [player, clip]);
 
   useEffect(() => {
     return () => {

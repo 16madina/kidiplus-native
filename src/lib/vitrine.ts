@@ -1,4 +1,5 @@
 import type { PickedImage } from "./pick-image";
+import { isVideoMediaUrl, parseVideoClipCaption, type VideoClip } from "./publish-media";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
 
@@ -11,6 +12,7 @@ export type VitrineFeedPost = {
   mediaUrls: string[];
   posterUrl: string | null;
   caption: string;
+  clip: VideoClip | null;
   productId: string | null;
   liveId: string | null;
   likes: number;
@@ -71,8 +73,7 @@ function normalizeMediaUrls(raw: unknown): string[] {
 }
 
 export function looksLikeVideo(url: string, mediaType?: string | null): boolean {
-  if (mediaType === "video") return true;
-  return /\.(mp4|mov|webm|m4v|m3u8)(\?|$)/i.test(url);
+  return isVideoMediaUrl(url, mediaType);
 }
 
 async function resolveMediaUrl(value: string): Promise<string | null> {
@@ -83,20 +84,23 @@ async function mapRow(row: VitrineRow, likedIds: Set<string>): Promise<VitrineFe
   const mediaUrls = (
     await Promise.all(normalizeMediaUrls(row.media_urls).map((url) => resolveMediaUrl(url)))
   ).filter((u): u is string => !!u);
-  if (mediaUrls.length === 0 && !row.live_id) return null;
+  const isAffiche = typeof row.caption === "string" && row.caption.includes("kidiAffiche");
+  if (mediaUrls.length === 0 && !row.live_id && !isAffiche) return null;
   const seller = sellerOf(row.seller);
   const sellerName = seller.display_name?.trim() || seller.handle || "Vendeur";
   const handle = seller.handle?.replace(/^@/, "") || "kidi";
   const avatarUrl = (await resolveAvatarUrl(seller.avatar_url ?? null)) || null;
   const posterUrl = row.poster_url ? await resolveMediaUrl(row.poster_url) : null;
   const mediaType = (row.media_type === "video" || row.media_type === "carousel" ? row.media_type : "image") as VitrineMediaType;
+  const parsedCaption = parseVideoClipCaption(row.caption);
   return {
     id: row.id,
     userId: row.user_id,
     mediaType,
     mediaUrls,
     posterUrl,
-    caption: row.caption?.trim() || "",
+    caption: parsedCaption.text,
+    clip: parsedCaption.clip,
     productId: row.product_id,
     liveId: row.live_id,
     likes: Number(row.like_count ?? 0),

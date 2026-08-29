@@ -36,6 +36,7 @@
     "expo-device": "~57.0.1",
     "expo-haptics": "~57.0.2",
     "expo-image": "~57.0.3",
+    "expo-image-manipulator": "~57.0.14",
     "expo-image-picker": "~57.0.14",
     "expo-linear-gradient": "~57.0.1",
     "expo-local-authentication": "*",

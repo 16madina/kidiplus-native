@@ -189,6 +189,7 @@
     "yes": "Yes",
     "no": "No",
     "ok": "OK",
+    "allow": "Allow",
     "seeAll": "See all ›",
     "more": "More",
     "showMore": "Show more",
@@ -873,9 +874,22 @@
     "modes": {
       "story": "STORY",
       "photo": "PHOTO",
-      "video": "VIDEO"
+      "video": "VIDEO",
+      "affiche": "POSTER"
+    },
+    "afficheHint": "Decorate your poster: text, product photos, colors, fonts. It appears in Coming up.",
+    "affichePublished": "Poster published in Coming up",
+    "affiche": {
+      "addPhoto": "Product",
+      "bg": "Background",
+      "font": "Font",
+      "bigger": "Bigger",
+      "smaller": "Smaller",
+      "publish": "Publish poster"
     },
     "fromGallery": "Choose from gallery",
+    "gallery": "Gallery",
+    "flip": "Flip",
     "capture": "Capture",
     "cameraDenied": "Allow camera access to publish.",
     "cameraConfig": "Camera unavailable on this device.",

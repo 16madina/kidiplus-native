@@ -1,3 +1,4 @@
+import { parseStoryPosterClip, type VideoClip } from "./publish-media";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
 import { storyExpiresAt } from "./vitrine-story-logic";
@@ -22,6 +23,7 @@ export type VitrineStory = {
   createdAt: string;
   expiresAt: string;
   unread: boolean;
+  clip: VideoClip | null;
 };
 
 type SellerEmbed = {
@@ -53,8 +55,9 @@ async function mapRow(row: StoryRow): Promise<VitrineStory | null> {
   ]);
   if (!mediaUrl) return null;
   const seller = sellerOf(row.seller);
-  const posterUrl = row.poster_url
-    ? await resolveStoredImage("vitrine-media", row.poster_url, ["shop-products", "live-covers"])
+  const storedPoster = parseStoryPosterClip(row.poster_url);
+  const posterUrl = storedPoster.posterUrl
+    ? await resolveStoredImage("vitrine-media", storedPoster.posterUrl, ["shop-products", "live-covers"])
     : null;
   return {
     id: row.id,
@@ -67,6 +70,7 @@ async function mapRow(row: StoryRow): Promise<VitrineStory | null> {
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     unread: true,
+    clip: storedPoster.clip,
   };
 }
 
