@@ -18,6 +18,7 @@ export function AfficheCanvas({
   selectedId,
   onSelect,
   onChangeLayer,
+  onDragChange,
   editable = false,
 }: {
   layout: AfficheLayout;
@@ -26,6 +27,7 @@ export function AfficheCanvas({
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   onChangeLayer?: (id: string, patch: { x: number; y: number; scale: number }) => void;
+  onDragChange?: (dragging: boolean) => void;
   editable?: boolean;
 }) {
   return (
@@ -43,6 +45,7 @@ export function AfficheCanvas({
           editable={editable}
           onSelect={onSelect}
           onChangeLayer={onChangeLayer}
+          onDragChange={onDragChange}
         />
       ))}
     </View>
@@ -57,6 +60,7 @@ function LayerView({
   editable,
   onSelect,
   onChangeLayer,
+  onDragChange,
 }: {
   layer: AfficheLayer;
   canvasW: number;
@@ -65,6 +69,7 @@ function LayerView({
   editable: boolean;
   onSelect?: (id: string | null) => void;
   onChangeLayer?: (id: string, patch: { x: number; y: number; scale: number }) => void;
+  onDragChange?: (dragging: boolean) => void;
 }) {
   const boxW = useSharedValue(canvasW);
   const boxH = useSharedValue(canvasH);
@@ -94,6 +99,13 @@ function LayerView({
     onSelect?.(layer.id);
   }, [layer.id, onSelect]);
 
+  const setDragging = useCallback(
+    (v: boolean) => {
+      onDragChange?.(v);
+    },
+    [onDragChange],
+  );
+
   const pan = Gesture.Pan()
     .enabled(editable)
     .minDistance(4)
@@ -103,6 +115,7 @@ function LayerView({
       startY.value = ty.value;
       startSc.value = sc.value;
       runOnJS(select)();
+      runOnJS(setDragging)(true);
     })
     .onUpdate((e) => {
       const next = applyAffichePan({
@@ -119,6 +132,7 @@ function LayerView({
     })
     .onEnd(() => {
       runOnJS(commit)(tx.value, ty.value, sc.value);
+      runOnJS(setDragging)(false);
     });
 
   const pinch = Gesture.Pinch()
@@ -128,12 +142,14 @@ function LayerView({
       startY.value = ty.value;
       startSc.value = sc.value;
       runOnJS(select)();
+      runOnJS(setDragging)(true);
     })
     .onUpdate((e) => {
       sc.value = applyAffichePinch(startSc.value, e.scale);
     })
     .onEnd(() => {
       runOnJS(commit)(tx.value, ty.value, sc.value);
+      runOnJS(setDragging)(false);
     });
 
   const tap = Gesture.Tap()

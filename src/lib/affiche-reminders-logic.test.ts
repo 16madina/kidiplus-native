@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afficheReminderAllowed, formatAfficheWhen } from "./affiche-reminders-logic.ts";
+import { afficheReminderAllowed, formatAfficheWhen, formatAfficheWhenParts } from "./affiche-reminders-logic.ts";
 import {
   defaultAfficheEventAt,
   joinAfficheEventAt,
@@ -24,6 +24,9 @@ function run() {
   assert.ok(joinAfficheEventAt(split.date, split.time));
   assert.equal(parseAfficheEventAt("nope"), null);
   assert.ok(formatAfficheWhen(iso, "fr-FR"));
+  const parts = formatAfficheWhenParts(iso, "fr-FR");
+  assert.ok(parts?.date);
+  assert.ok(parts?.time);
 
   const layout = newAfficheLayout();
   assert.ok(layout.eventAt);

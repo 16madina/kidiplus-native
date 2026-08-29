@@ -2,6 +2,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,17 +15,18 @@ import { useTranslation } from "react-i18next";
 import { ImagePlus, Trash2, Type } from "lucide-react-native";
 import { Press } from "../Press";
 import { AfficheCanvas } from "./AfficheCanvas";
+import { AfficheSoonOverlay } from "./AfficheSoonOverlay";
 import { pickImageFromLibrary } from "../../lib/pick-image";
 import { uploadVitrineMedia } from "../../lib/vitrine";
+import { useAuth } from "../../context/auth";
 import {
   AFFICHE_COLORS,
   AFFICHE_FONTS,
   createVitrineAffiche,
-  joinAfficheEventAt,
   newAfficheLayout,
-  splitAfficheEventAt,
   type AfficheLayout,
   type AfficheLayer,
+  type AfficheSoonField,
 } from "../../lib/vitrine-affiche";
 import { GOLD, NAVY } from "../../theme";
 
@@ -33,13 +36,20 @@ function nextId(): string {
 
 export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { width, height } = useWindowDimensions();
-  const canvasW = Math.min(width - 32, 360);
-  const canvasH = Math.min(height * 0.5, canvasW * (16 / 9));
-  const [layout, setLayout] = useState<AfficheLayout>(newAfficheLayout);
-  const [selectedId, setSelectedId] = useState<string | null>("title");
+  const canvasW = Math.min(width - 24, 400);
+  const canvasH = Math.min(height * 0.58, canvasW * (16 / 9));
+  const [layout, setLayout] = useState<AfficheLayout>(() =>
+    newAfficheLayout({
+      sellerName: user?.displayName ?? "",
+      shopName: user?.handle ? `@${user.handle.replace(/^@/, "")}` : "",
+    }),
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focused, setFocused] = useState<AfficheSoonField | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const when = splitAfficheEventAt(layout.eventAt);
 
   const selected = useMemo(
     () => layout.layers.find((l) => l.id === selectedId) ?? null,
@@ -53,10 +63,6 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
     }));
   };
 
-  const setWhen = (date: string, time: string) => {
-    setLayout((prev) => ({ ...prev, eventAt: joinAfficheEventAt(date, time) }));
-  };
-
   const addText = () => {
     const id = nextId();
     setLayout((prev) => ({
@@ -68,13 +74,14 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
           kind: "text",
           text: t("publish.edit.textDefault"),
           x: 0.5,
-          y: 0.52,
+          y: 0.38,
           scale: 1,
           color: "#FFFFFF",
           font: "system",
         },
       ],
     }));
+    setFocused(null);
     setSelectedId(id);
   };
 
@@ -89,8 +96,9 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
     const id = nextId();
     setLayout((prev) => ({
       ...prev,
-      layers: [...prev.layers, { id, kind: "image", uri: url, x: 0.5, y: 0.62, scale: 1 }],
+      layers: [...prev.layers, { id, kind: "image", uri: url, x: 0.5, y: 0.42, scale: 1 }],
     }));
+    setFocused(null);
     setSelectedId(id);
   };
 
@@ -120,101 +128,131 @@ export function AfficheEditor({ onPublished }: { onPublished: () => void }) {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.page}
-      keyboardShouldPersistTaps="handled"
-      scrollEnabled={!selectedId}
+    <KeyboardAvoidingView
+      style={styles.fill}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
     >
-      <Text style={styles.hint}>{t("publish.afficheHint")}</Text>
-      <View style={{ alignItems: "center" }}>
-        <AfficheCanvas
-          layout={layout}
-          width={canvasW}
-          height={canvasH}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          editable
-          onChangeLayer={(id, patch) => patchLayer(id, patch)}
-        />
-      </View>
-      <Text style={styles.pinch}>{t("publish.edit.pinchHint")}</Text>
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
+        nestedScrollEnabled
+        scrollEnabled={!dragging}
+      >
+        <Text style={styles.hint}>{t("publish.afficheHint")}</Text>
+        <View style={styles.stageWrap}>
+          <View style={{ width: canvasW, height: canvasH, borderRadius: 18, overflow: "hidden" }}>
+            <AfficheCanvas
+              layout={layout}
+              width={canvasW}
+              height={canvasH}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                setSelectedId(id);
+                setFocused(null);
+              }}
+              editable
+              onChangeLayer={(id, patch) => patchLayer(id, patch)}
+              onDragChange={setDragging}
+            />
+            <AfficheSoonOverlay
+              layout={layout}
+              editable
+              focused={focused}
+              avatarUrl={user?.avatarUrl}
+              fallbackSeller={user?.displayName}
+              fallbackShop={user?.handle ? `@${user.handle.replace(/^@/, "")}` : ""}
+              onFocus={(field) => {
+                setFocused(field);
+                setSelectedId(null);
+              }}
+              onChange={(patch) => setLayout((prev) => ({ ...prev, ...patch }))}
+            />
+          </View>
+        </View>
 
-      <View style={styles.row}>
-        <Tool icon={<Type size={16} color={NAVY} />} label={t("publish.edit.addText")} onPress={addText} />
-        <Tool icon={<ImagePlus size={16} color={NAVY} />} label={t("publish.affiche.addPhoto")} onPress={() => void addPhoto()} />
-        <Tool icon={<ImagePlus size={16} color={NAVY} />} label={t("publish.affiche.bg")} onPress={() => void setBackground()} />
-        {selected ? (
+        <View style={styles.row}>
+          <Tool icon={<Type size={16} color={NAVY} />} label={t("publish.edit.addText")} onPress={addText} />
           <Tool
-            icon={<Trash2 size={16} color={NAVY} />}
-            label={t("common.delete")}
-            onPress={() => {
-              setLayout((prev) => ({ ...prev, layers: prev.layers.filter((l) => l.id !== selected.id) }));
-              setSelectedId(null);
-            }}
+            icon={<ImagePlus size={16} color={NAVY} />}
+            label={t("publish.affiche.addPhoto")}
+            onPress={() => void addPhoto()}
+          />
+          <Tool
+            icon={<ImagePlus size={16} color={NAVY} />}
+            label={t("publish.affiche.bg")}
+            onPress={() => void setBackground()}
+          />
+          {selected ? (
+            <Tool
+              icon={<Trash2 size={16} color={NAVY} />}
+              label={t("common.delete")}
+              onPress={() => {
+                setLayout((prev) => ({ ...prev, layers: prev.layers.filter((l) => l.id !== selected.id) }));
+                setSelectedId(null);
+              }}
+            />
+          ) : null}
+        </View>
+
+        {selected?.kind === "text" ? (
+          <TextInput
+            autoFocus
+            value={selected.text}
+            onChangeText={(text) => patchLayer(selected.id, { text })}
+            placeholder={t("publish.edit.textPlaceholder")}
+            placeholderTextColor="rgba(255,255,255,0.45)"
+            style={styles.input}
           />
         ) : null}
-      </View>
 
-      {selected?.kind === "text" ? (
-        <TextInput
-          value={selected.text}
-          onChangeText={(text) => patchLayer(selected.id, { text })}
-          placeholder={t("publish.edit.textPlaceholder")}
-          placeholderTextColor="rgba(255,255,255,0.45)"
-          style={styles.input}
-        />
-      ) : null}
+        {selected?.kind === "text" ? (
+          <>
+            <Text style={styles.section}>{t("publish.affiche.font")}</Text>
+            <View style={styles.row}>
+              {AFFICHE_FONTS.map((font) => (
+                <Press
+                  key={font}
+                  onPress={() => patchLayer(selected.id, { font })}
+                  style={[styles.chip, selected.font === font && styles.chipOn]}
+                >
+                  <Text style={styles.chipTxt}>{font}</Text>
+                </Press>
+              ))}
+            </View>
+            <Text style={styles.section}>{t("publish.edit.text")}</Text>
+            <View style={styles.row}>
+              {AFFICHE_COLORS.map((color) => (
+                <Press
+                  key={color}
+                  onPress={() => patchLayer(selected.id, { color })}
+                  style={[styles.swatch, { backgroundColor: color }]}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.section}>{t("publish.affiche.bg")}</Text>
+            <View style={styles.row}>
+              {AFFICHE_COLORS.map((color) => (
+                <Press
+                  key={color}
+                  onPress={() => setLayout((prev) => ({ ...prev, backgroundColor: color }))}
+                  style={[styles.swatch, { backgroundColor: color }]}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
-      <Text style={styles.section}>{t("publish.affiche.when")}</Text>
-      <View style={styles.whenRow}>
-        <TextInput
-          value={when.date}
-          onChangeText={(date) => setWhen(date, when.time)}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="rgba(255,255,255,0.4)"
-          style={[styles.input, styles.whenField]}
-        />
-        <TextInput
-          value={when.time}
-          onChangeText={(time) => setWhen(when.date, time)}
-          placeholder="HH:MM"
-          placeholderTextColor="rgba(255,255,255,0.4)"
-          style={[styles.input, styles.whenField]}
-        />
-      </View>
-      <Text style={styles.whenHint}>{t("publish.affiche.whenHint")}</Text>
-
-      <Text style={styles.section}>{t("publish.affiche.font")}</Text>
-      <View style={styles.row}>
-        {AFFICHE_FONTS.map((font) => (
-          <Press
-            key={font}
-            onPress={() => selected?.kind === "text" && patchLayer(selected.id, { font })}
-            style={[styles.chip, selected?.kind === "text" && selected.font === font && styles.chipOn]}
-          >
-            <Text style={styles.chipTxt}>{font}</Text>
-          </Press>
-        ))}
-      </View>
-
-      <Text style={styles.section}>{t("publish.edit.text")}</Text>
-      <View style={styles.row}>
-        {AFFICHE_COLORS.map((color) => (
-          <Press
-            key={color}
-            onPress={() => {
-              if (selected?.kind === "text") patchLayer(selected.id, { color });
-              else setLayout((prev) => ({ ...prev, backgroundColor: color }));
-            }}
-            style={[styles.swatch, { backgroundColor: color }]}
-          />
-        ))}
-      </View>
-
-      <Press onPress={() => void publish()} disabled={busy} style={[styles.cta, { opacity: busy ? 0.5 : 1 }]}>
-        {busy ? <ActivityIndicator color={NAVY} /> : <Text style={styles.ctaTxt}>{t("publish.affiche.publish")}</Text>}
-      </Press>
-    </ScrollView>
+        <Press onPress={() => void publish()} disabled={busy} style={[styles.cta, { opacity: busy ? 0.5 : 1 }]}>
+          {busy ? <ActivityIndicator color={NAVY} /> : <Text style={styles.ctaTxt}>{t("publish.affiche.publish")}</Text>}
+        </Press>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -236,9 +274,10 @@ function Tool({
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 16, paddingBottom: 40, gap: 10 },
+  fill: { flex: 1 },
+  page: { padding: 12, paddingBottom: 48, gap: 10 },
   hint: { color: "rgba(255,255,255,0.65)", fontWeight: "600", textAlign: "center" },
-  pinch: { color: GOLD, fontWeight: "700", fontSize: 12, textAlign: "center" },
+  stageWrap: { alignItems: "center" },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tool: {
     backgroundColor: GOLD,
@@ -258,9 +297,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     minHeight: 44,
   },
-  whenRow: { flexDirection: "row", gap: 8 },
-  whenField: { flex: 1 },
-  whenHint: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "600" },
   section: { color: "rgba(255,255,255,0.7)", fontWeight: "700", fontSize: 12, marginTop: 4 },
   chip: {
     borderRadius: 999,

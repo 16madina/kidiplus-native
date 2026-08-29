@@ -879,11 +879,14 @@
       "video": "VIDEO",
       "affiche": "POSTER"
     },
-    "afficheHint": "Drag to move, pinch to zoom. Add a date and time for Remind me.",
+    "afficheHint": "Tap a text to type. Drag a sticker to move it, pinch to zoom.",
     "affichePublished": "Poster published in Coming up",
     "affiche": {
       "addPhoto": "Product",
       "bg": "Background",
+      "titlePlaceholder": "Event title",
+      "namePlaceholder": "Your name",
+      "shopPlaceholder": "Shop name",
       "font": "Font",
       "bigger": "Bigger",
       "smaller": "Smaller",

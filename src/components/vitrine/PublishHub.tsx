@@ -83,7 +83,7 @@ export function PublishHub({
           extraData={mode}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
           renderItem={({ item }) => (
-            <View style={{ width, height: height - insets.top - insets.bottom - 108 }}>
+            <View style={{ width, height: height - insets.top - insets.bottom - 108, flexGrow: 1 }}>
               {item === "affiche" ? (
                 <AfficheEditor
                   onPublished={() => {

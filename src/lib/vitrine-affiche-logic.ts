@@ -34,15 +34,32 @@ export type AfficheImageLayer = {
 
 export type AfficheLayer = AfficheTextLayer | AfficheImageLayer;
 
+export type AfficheSoonField = "badge" | "seller" | "shop" | "title" | "date" | "time";
+
 export type AfficheLayout = {
   kidiAffiche: true;
   title: string;
+  /** Yellow “Bientôt” chip. Empty → UI default. */
+  badge: string;
+  sellerName: string;
+  shopName: string;
   backgroundColor: string;
   backgroundUri: string | null;
   /** ISO datetime of the event / drop — used for « Me rappeler ». */
   eventAt: string | null;
   layers: AfficheLayer[];
 };
+
+export type AfficheLayoutSeed = {
+  title?: string;
+  badge?: string;
+  sellerName?: string;
+  shopName?: string;
+};
+
+function asText(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
 
 export function defaultAfficheEventAt(fromMs = Date.now()): string {
   const d = new Date(fromMs);
@@ -73,25 +90,17 @@ export function joinAfficheEventAt(date: string, time: string): string | null {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
-export function newAfficheLayout(): AfficheLayout {
+export function newAfficheLayout(seed: AfficheLayoutSeed = {}): AfficheLayout {
   return {
     kidiAffiche: true,
-    title: "",
+    title: seed.title ?? "",
+    badge: seed.badge ?? "",
+    sellerName: seed.sellerName ?? "",
+    shopName: seed.shopName ?? "",
     backgroundColor: "#10162B",
     backgroundUri: null,
     eventAt: defaultAfficheEventAt(),
-    layers: [
-      {
-        id: "title",
-        kind: "text",
-        text: "Mon affiche",
-        x: 0.5,
-        y: 0.22,
-        scale: 1,
-        color: "#FFFFFF",
-        font: "system",
-      },
-    ],
+    layers: [],
   };
 }
 
@@ -106,7 +115,10 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
     if (!raw || raw.kidiAffiche !== true) return null;
     return {
       kidiAffiche: true,
-      title: typeof raw.title === "string" ? raw.title : "",
+      title: asText(raw.title),
+      badge: asText(raw.badge),
+      sellerName: asText(raw.sellerName),
+      shopName: asText(raw.shopName),
       backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#10162B",
       backgroundUri: typeof raw.backgroundUri === "string" ? raw.backgroundUri : null,
       eventAt: parseAfficheEventAt(raw.eventAt),

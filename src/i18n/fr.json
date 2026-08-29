@@ -879,11 +879,14 @@
       "video": "VIDÉO",
       "affiche": "AFFICHE"
     },
-    "afficheHint": "Glisse pour déplacer, pince pour zoomer. Ajoute date et heure pour le bouton Me rappeler.",
+    "afficheHint": "Touche un texte pour écrire. Glisse pour déplacer un sticker, pince pour zoomer.",
     "affichePublished": "Affiche publiée dans Bientôt",
     "affiche": {
       "addPhoto": "Article",
       "bg": "Fond",
+      "titlePlaceholder": "Titre de l’événement",
+      "namePlaceholder": "Ton nom",
+      "shopPlaceholder": "Nom de la boutique",
       "font": "Police",
       "bigger": "Agrandir",
       "smaller": "Réduire",

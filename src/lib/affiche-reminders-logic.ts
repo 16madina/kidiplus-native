@@ -9,11 +9,21 @@ export function afficheReminderAllowed(eventAt: string | null | undefined, nowMs
   return { ok: true, reason: "ok" };
 }
 
-export function formatAfficheWhen(iso: string | null | undefined, locale: string): string | null {
+export function formatAfficheWhenParts(
+  iso: string | null | undefined,
+  locale: string,
+): { date: string; time: string } | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return null;
-  const date = d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
-  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-  return `${date} · ${time}`;
+  return {
+    date: d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }),
+    time: d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+export function formatAfficheWhen(iso: string | null | undefined, locale: string): string | null {
+  const parts = formatAfficheWhenParts(iso, locale);
+  if (!parts) return null;
+  return `${parts.date} · ${parts.time}`;
 }
