@@ -7,8 +7,8 @@ export type KidiLivePipNativeModule = {
   enter(): Promise<boolean>;
   dismiss(): Promise<boolean>;
   addListener(
-    eventName: "onPipModeChange",
-    listener: (event: { active: boolean }) => void,
+    eventName: "onPipModeChange" | "onPipPrepare",
+    listener: (event: { active?: boolean }) => void,
   ): { remove(): void };
 };
 

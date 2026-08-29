@@ -37,6 +37,9 @@ import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
 import { HostResumeListener } from "./components/home/HostResumeListener";
 import { LivePipShell } from "./components/live/LivePipShell";
+import { isExpoGo } from "./lib/expo-go";
+import { useViewerSystemPip } from "./lib/live-pip";
+import { LiveSystemPipProvider } from "./lib/live-system-pip";
 import { GOLD, NAVY } from "./theme";
 import { CONTENT_MAX_WIDTH } from "./lib/layout";
 
@@ -107,6 +110,12 @@ export function AppShell() {
 
   const liveFullScreen = isOverlayOpen("live") && livePresentation === "full";
   const liveMinimized = isOverlayOpen("live") && livePresentation === "minimized";
+  const watchingStream = live.entry?.list[live.entry.index] ?? live.entry?.stream;
+  const liveHasVideo =
+    Boolean(live.open && watchingStream?.roomName && !watchingStream.fictitious) &&
+    !isExpoGo();
+  const pip = useViewerSystemPip(liveHasVideo, closeLive);
+  const systemPip = pip.systemPip;
   const hideTabs =
     tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live");
   const statusLight = tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live") || dark;
@@ -244,19 +253,21 @@ export function AppShell() {
         <DiscoverScreen />
       </PushScreen>
       {live.open && live.entry ? (
-        <LivePipShell
-          minimized={liveMinimized}
-          systemPip={false}
-          onExpand={expandLive}
-          onClose={closeLive}
-          onMinimize={minimizeLive}
-        >
-          <LiveListViewer
-            list={live.entry.list}
-            initialIndex={live.entry.index}
-            compact={liveMinimized}
-          />
-        </LivePipShell>
+        <LiveSystemPipProvider value={systemPip}>
+          <LivePipShell
+            minimized={liveMinimized}
+            systemPip={systemPip}
+            onExpand={expandLive}
+            onClose={closeLive}
+            onMinimize={minimizeLive}
+          >
+            <LiveListViewer
+              list={live.entry.list}
+              initialIndex={live.entry.index}
+              compact={liveMinimized}
+            />
+          </LivePipShell>
+        </LiveSystemPipProvider>
       ) : null}
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />

@@ -9,17 +9,23 @@ class KidiLivePipModule : Module() {
     sendEvent("onPipModeChange", mapOf("active" to active))
   }
 
+  private val prepareListener: () -> Unit = {
+    sendEvent("onPipPrepare", emptyMap<String, Any>())
+  }
+
   override fun definition() = ModuleDefinition {
     Name("KidiLivePip")
 
-    Events("onPipModeChange")
+    Events("onPipModeChange", "onPipPrepare")
 
     OnCreate {
       KidiLivePipState.addListener(modeListener)
+      KidiLivePipState.addPrepareListener(prepareListener)
     }
 
     OnDestroy {
       KidiLivePipState.removeListener(modeListener)
+      KidiLivePipState.removePrepareListener(prepareListener)
       KidiLivePipState.enabled = false
     }
 

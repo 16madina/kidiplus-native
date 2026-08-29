@@ -4,15 +4,21 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Rational
 import java.util.concurrent.CopyOnWriteArrayList
 
 object KidiLivePipState {
+  const val PREPARE_DELAY_MS: Long = 180
+
   @Volatile
   @JvmField
   var enabled: Boolean = false
 
   private val listeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
+  private val prepareListeners = CopyOnWriteArrayList<() -> Unit>()
+  private val handler = Handler(Looper.getMainLooper())
 
   fun addListener(listener: (Boolean) -> Unit) {
     listeners.add(listener)
@@ -22,10 +28,29 @@ object KidiLivePipState {
     listeners.remove(listener)
   }
 
+  fun addPrepareListener(listener: () -> Unit) {
+    prepareListeners.add(listener)
+  }
+
+  fun removePrepareListener(listener: () -> Unit) {
+    prepareListeners.remove(listener)
+  }
+
   @JvmStatic
   fun onUserLeaveHint(activity: Activity) {
     if (!enabled) return
-    enter(activity)
+    if (isSupported() && activity.isInPictureInPictureMode) return
+    notifyPrepare()
+    handler.removeCallbacksAndMessages(null)
+    handler.postDelayed({
+      if (!enabled) return@postDelayed
+      if (activity.isFinishing) return@postDelayed
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed) {
+        return@postDelayed
+      }
+      if (isSupported() && activity.isInPictureInPictureMode) return@postDelayed
+      enter(activity)
+    }, PREPARE_DELAY_MS)
   }
 
   @JvmStatic
@@ -33,6 +58,15 @@ object KidiLivePipState {
     for (listener in listeners) {
       try {
         listener(active)
+      } catch (_: Exception) {
+      }
+    }
+  }
+
+  fun notifyPrepare() {
+    for (listener in prepareListeners) {
+      try {
+        listener()
       } catch (_: Exception) {
       }
     }

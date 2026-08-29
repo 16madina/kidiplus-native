@@ -45,7 +45,8 @@ import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
 import { convertMoney, formatMoney, nextBidAmount, normalizeCurrency } from "../lib/money";
 import { fetchOrderById, type OrderView } from "../lib/orders";
 import { isExpoGo } from "../lib/expo-go";
-import { useViewerSystemPip } from "../lib/live-pip";
+import { useLiveSystemPipFlag } from "../lib/live-system-pip";
+import { liveViewerChromeHiddenForPip } from "../lib/live-pip-presentation";
 import { useLayout } from "../lib/layout";
 import { supabase } from "../lib/supabase";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
@@ -70,17 +71,13 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
-  const { openOverlay, livePresentation, minimizeLive, expandLive, closeLive } = useNav();
+  const { openOverlay, livePresentation, minimizeLive, closeLive } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
   const liveVideo = Boolean(s.roomName && !s.fictitious) && !isExpoGo();
-  const pip = useViewerSystemPip(!!liveVideo && active, closeLive);
-  const chromeHidden = pip.active || livePresentation === "minimized";
-
-  useEffect(() => {
-    if (pip.active && Platform.OS === "android") expandLive();
-  }, [pip.active, expandLive]);
+  const systemPip = useLiveSystemPipFlag();
+  const chromeHidden = liveViewerChromeHiddenForPip(livePresentation, systemPip);
   const identity = useMemo(
     () => user?.id ?? guestLiveKitIdentity(),
     [user?.id],

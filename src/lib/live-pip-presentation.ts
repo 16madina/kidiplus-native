@@ -25,3 +25,11 @@ export function liveViewerBackAction(presentation: LiveViewerPresentation): "min
 export function liveViewerChromeHidden(mode: LivePipMode): boolean {
   return mode !== "full";
 }
+
+/** Hide chat/bid chrome while the system PiP bubble is preparing or showing. */
+export function liveViewerChromeHiddenForPip(
+  presentation: LiveViewerPresentation,
+  systemPip: boolean,
+): boolean {
+  return liveViewerChromeHidden(livePipMode(presentation, systemPip));
+}
