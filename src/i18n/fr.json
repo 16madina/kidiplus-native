@@ -870,7 +870,18 @@
     "modes": {
       "story": "STORY",
       "photo": "PHOTO",
-      "video": "VIDÉO"
+      "video": "VIDÉO",
+      "affiche": "AFFICHE"
+    },
+    "afficheHint": "Décore ton affiche : texte, photos d’articles, couleurs, police. Elle apparaît dans Bientôt.",
+    "affichePublished": "Affiche publiée dans Bientôt",
+    "affiche": {
+      "addPhoto": "Article",
+      "bg": "Fond",
+      "font": "Police",
+      "bigger": "Agrandir",
+      "smaller": "Réduire",
+      "publish": "Publier l’affiche"
     },
     "fromGallery": "Choisir dans la galerie",
     "capture": "Capturer",

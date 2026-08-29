@@ -20,6 +20,21 @@ function extFromName(name: string | null | undefined, mime: string): string {
   return "jpg";
 }
 
+export async function pickedMediaFromUri(
+  uri: string,
+  mime: string,
+  fileName?: string | null,
+): Promise<PickedImage> {
+  const contentType = mime || "image/jpeg";
+  const blob = await blobFromUri(uri, contentType);
+  return {
+    blob,
+    preview: uri,
+    contentType,
+    ext: extFromName(fileName, contentType),
+  };
+}
+
 async function blobFromUri(uri: string, mime: string): Promise<Blob> {
   const res = await fetch(uri);
   const blob = await res.blob();

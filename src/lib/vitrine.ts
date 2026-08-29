@@ -83,7 +83,8 @@ async function mapRow(row: VitrineRow, likedIds: Set<string>): Promise<VitrineFe
   const mediaUrls = (
     await Promise.all(normalizeMediaUrls(row.media_urls).map((url) => resolveMediaUrl(url)))
   ).filter((u): u is string => !!u);
-  if (mediaUrls.length === 0 && !row.live_id) return null;
+  const isAffiche = typeof row.caption === "string" && row.caption.includes("kidiAffiche");
+  if (mediaUrls.length === 0 && !row.live_id && !isAffiche) return null;
   const seller = sellerOf(row.seller);
   const sellerName = seller.display_name?.trim() || seller.handle || "Vendeur";
   const handle = seller.handle?.replace(/^@/, "") || "kidi";
