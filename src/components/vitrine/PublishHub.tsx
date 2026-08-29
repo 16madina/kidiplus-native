@@ -63,12 +63,14 @@ export function PublishHub({
   return (
     <Modal visible={open} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <View style={styles.head}>
-          <Text style={styles.title}>{t("publish.title")}</Text>
-          <Press onPress={onClose} style={styles.close}>
-            <X size={20} color="#fff" />
-          </Press>
-        </View>
+        {mode === "affiche" ? null : (
+          <View style={styles.head}>
+            <Text style={styles.title}>{t("publish.title")}</Text>
+            <Press onPress={onClose} style={styles.close}>
+              <X size={20} color="#fff" />
+            </Press>
+          </View>
+        )}
 
         <FlatList
           ref={listRef}
@@ -83,9 +85,16 @@ export function PublishHub({
           extraData={mode}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
           renderItem={({ item }) => (
-            <View style={{ width, height: height - insets.top - insets.bottom - 108, flexGrow: 1 }}>
+            <View
+              style={{
+                width,
+                height: height - insets.top - insets.bottom - (mode === "affiche" ? 60 : 108),
+                flexGrow: 1,
+              }}
+            >
               {item === "affiche" ? (
                 <AfficheEditor
+                  onClose={onClose}
                   onPublished={() => {
                     onPublished("affiche");
                     onClose();

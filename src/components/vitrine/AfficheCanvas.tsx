@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Image } from "expo-image";
@@ -19,6 +19,7 @@ export function AfficheCanvas({
   onSelect,
   onChangeLayer,
   onDragChange,
+  onTapEmpty,
   editable = false,
 }: {
   layout: AfficheLayout;
@@ -28,10 +29,19 @@ export function AfficheCanvas({
   onSelect?: (id: string | null) => void;
   onChangeLayer?: (id: string, patch: { x: number; y: number; scale: number }) => void;
   onDragChange?: (dragging: boolean) => void;
+  onTapEmpty?: (x: number, y: number) => void;
   editable?: boolean;
 }) {
   return (
-    <View style={[styles.canvas, { width, height, backgroundColor: layout.backgroundColor }]}>
+    <Pressable
+      disabled={!editable || !onTapEmpty}
+      onPress={(e) => {
+        if (!onTapEmpty) return;
+        const { locationX, locationY } = e.nativeEvent;
+        onTapEmpty(locationX / width, locationY / height);
+      }}
+      style={[styles.canvas, { width, height, backgroundColor: layout.backgroundColor }]}
+    >
       {layout.backgroundUri && isHttpUrl(layout.backgroundUri) ? (
         <Image source={{ uri: layout.backgroundUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : null}
@@ -48,7 +58,7 @@ export function AfficheCanvas({
           onDragChange={onDragChange}
         />
       ))}
-    </View>
+    </Pressable>
   );
 }
 

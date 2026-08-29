@@ -47,6 +47,7 @@ export type AfficheLayout = {
   backgroundUri: string | null;
   /** ISO datetime of the event / drop — used for « Me rappeler ». */
   eventAt: string | null;
+  remindFollowers: boolean;
   layers: AfficheLayer[];
 };
 
@@ -100,18 +101,8 @@ export function newAfficheLayout(seed: AfficheLayoutSeed = {}): AfficheLayout {
     backgroundColor: "#10162B",
     backgroundUri: null,
     eventAt: defaultAfficheEventAt(),
-    layers: [
-      {
-        id: "title",
-        kind: "text",
-        text: seed.title?.trim() || "Mon affiche",
-        x: 0.5,
-        y: 0.28,
-        scale: 1,
-        color: "#FFFFFF",
-        font: "system",
-      },
-    ],
+    remindFollowers: true,
+    layers: [],
   };
 }
 
@@ -133,6 +124,7 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
       backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#10162B",
       backgroundUri: typeof raw.backgroundUri === "string" ? raw.backgroundUri : null,
       eventAt: parseAfficheEventAt(raw.eventAt),
+      remindFollowers: raw.remindFollowers !== false,
       layers: Array.isArray(raw.layers) ? (raw.layers as AfficheLayer[]) : [],
     };
   } catch {
