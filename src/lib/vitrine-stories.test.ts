@@ -10,6 +10,7 @@ import {
 function run() {
   assert.equal(isStoryVideoUrl("https://x/a.mp4"), true);
   assert.equal(isStoryVideoUrl("https://x/a.mov?tok=1"), true);
+  assert.equal(isStoryVideoUrl("https://x/a.mp4#kidiClip=0-15"), true);
   assert.equal(isStoryVideoUrl("https://x/a.jpg"), false);
 
   const from = Date.parse("2026-08-29T00:00:00.000Z");

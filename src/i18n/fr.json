@@ -189,6 +189,7 @@
     "yes": "Oui",
     "no": "Non",
     "ok": "OK",
+    "allow": "Autoriser",
     "seeAll": "Tout afficher ›",
     "more": "Plus",
     "showMore": "Voir plus",
@@ -884,6 +885,8 @@
       "publish": "Publier l’affiche"
     },
     "fromGallery": "Choisir dans la galerie",
+    "gallery": "Galerie",
+    "flip": "Caméra",
     "capture": "Capturer",
     "cameraDenied": "Autorise la caméra pour publier.",
     "cameraConfig": "Caméra indisponible sur cet appareil.",

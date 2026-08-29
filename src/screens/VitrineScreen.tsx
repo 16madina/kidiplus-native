@@ -739,7 +739,7 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
       if (post.posterUrl) return <VitrineStill uri={post.posterUrl} />;
       return <View style={[FILL, { backgroundColor: "#111" }]} />;
     }
-    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} />;
+    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} clip={post.clip} />;
   }
   return <VitrineStill uri={first} />;
 }
@@ -786,14 +786,17 @@ function VitrineVideo({
   uri,
   poster,
   active,
+  clip,
 }: {
   uri: string;
   poster: string | null;
   active: boolean;
+  clip: { startSec: number; endSec: number } | null;
 }) {
   const player = useVideoPlayer(uri, (p) => {
-    p.loop = true;
+    p.loop = !clip;
     p.muted = true;
+    p.timeUpdateEventInterval = clip ? 0.1 : 0;
     p.audioMixingMode = "doNotMix";
   });
   const [muted] = useVitrineSound();
@@ -814,11 +817,39 @@ function VitrineVideo({
       }
       player.volume = muted ? 0 : 1;
       player.muted = muted;
+      if (clip && (player.currentTime < clip.startSec || player.currentTime >= clip.endSec - 0.05)) {
+        player.currentTime = clip.startSec;
+      }
       void player.play();
     } catch {
       /* player already released */
     }
-  }, [active, muted, userPaused, player]);
+  }, [active, muted, userPaused, player, clip]);
+
+  useEffect(() => {
+    if (!clip) return;
+    const time = player.addListener("timeUpdate", (e) => {
+      if (e.currentTime >= clip.endSec - 0.05 || e.currentTime < clip.startSec - 0.2) {
+        try {
+          player.currentTime = clip.startSec;
+        } catch {
+          /* native */
+        }
+      }
+    });
+    const ended = player.addListener("playToEnd", () => {
+      try {
+        player.currentTime = clip.startSec;
+        void player.play();
+      } catch {
+        /* native */
+      }
+    });
+    return () => {
+      time.remove();
+      ended.remove();
+    };
+  }, [player, clip]);
 
   useEffect(() => {
     return () => {

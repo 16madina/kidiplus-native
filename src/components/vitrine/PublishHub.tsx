@@ -37,9 +37,13 @@ export function PublishHub({
   const { width, height } = useWindowDimensions();
   const listRef = useRef<FlatList<PublishHubMode>>(null);
   const [mode, setMode] = useState<PublishHubMode>(initialMode);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setLocked(false);
+      return;
+    }
     setMode(initialMode);
     const idx = PUBLISH_HUB_MODES.indexOf(initialMode);
     requestAnimationFrame(() => {
@@ -72,6 +76,7 @@ export function PublishHub({
           keyExtractor={(m) => m}
           horizontal
           pagingEnabled
+          scrollEnabled={!locked}
           showsHorizontalScrollIndicator={false}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           onViewableItemsChanged={onViewable}
@@ -89,6 +94,7 @@ export function PublishHub({
                 <PublishCameraPane
                   mode={item}
                   active={open && mode === item}
+                  onLockChange={setLocked}
                   onPublished={() => {
                     onPublished(item);
                     onClose();
@@ -104,13 +110,16 @@ export function PublishHub({
             <Press
               key={m}
               onPress={() => {
+                if (locked) return;
                 setMode(m);
                 const idx = PUBLISH_HUB_MODES.indexOf(m);
                 listRef.current?.scrollToIndex({ index: idx, animated: true });
               }}
               style={styles.tab}
             >
-              <Text style={[styles.tabTxt, mode === m && styles.tabOn]}>{t(PUBLISH_HUB_LABEL_KEY[m])}</Text>
+              <Text style={[styles.tabTxt, mode === m && styles.tabOn, locked && mode !== m && { opacity: 0.35 }]}>
+                {t(PUBLISH_HUB_LABEL_KEY[m])}
+              </Text>
               {mode === m ? <View style={styles.dot} /> : null}
             </Press>
           ))}
