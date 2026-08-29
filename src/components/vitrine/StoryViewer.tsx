@@ -9,14 +9,15 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { X } from "lucide-react-native";
 import { Press } from "../Press";
 import { initials, NAVY } from "../../theme";
 import { isHttpUrl } from "../../lib/storage";
-import type { StoryItem } from "./StoriesRow";
+import { isStoryVideoUrl, STORY_IMAGE_MS, type VitrineStory } from "../../lib/vitrine-stories";
 
 const { width: SCREEN_W } = Dimensions.get("window");
-const STORY_DURATION = 5000;
+const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
 export function StoryViewer({
   stories,
@@ -24,15 +25,15 @@ export function StoryViewer({
   visible,
   onClose,
 }: {
-  stories: StoryItem[];
+  stories: VitrineStory[];
   initialIndex: number;
   visible: boolean;
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const progress = useRef(new Animated.Value(0)).current;
-
   const story = stories[index];
+  const video = !!story && isStoryVideoUrl(story.mediaUrl);
 
   const advance = useCallback(() => {
     if (index < stories.length - 1) {
@@ -43,24 +44,26 @@ export function StoryViewer({
   }, [index, stories.length, onClose]);
 
   useEffect(() => {
-    if (!visible) return;
+    setIndex(initialIndex);
+  }, [initialIndex, visible]);
+
+  useEffect(() => {
+    if (!visible || !story || video) return;
     progress.setValue(0);
     const anim = Animated.timing(progress, {
       toValue: 1,
-      duration: STORY_DURATION,
+      duration: STORY_IMAGE_MS,
       useNativeDriver: false,
     });
-    anim.start(({ finished }) => { if (finished) advance(); });
+    anim.start(({ finished }) => {
+      if (finished) advance();
+    });
     return () => anim.stop();
-  }, [visible, index]);
-
-  useEffect(() => {
-    setIndex(initialIndex);
-  }, [initialIndex]);
+  }, [visible, index, video, story, advance, progress]);
 
   if (!story) return null;
 
-  const handlePress = (evt: any) => {
+  const handlePress = (evt: { nativeEvent: { locationX: number } }) => {
     const x = evt.nativeEvent.locationX;
     if (x < SCREEN_W / 3) {
       if (index > 0) setIndex((i) => i - 1);
@@ -74,7 +77,7 @@ export function StoryViewer({
       <View style={styles.root}>
         <View style={styles.progressRow}>
           {stories.map((_, i) => (
-            <View key={i} style={styles.progressBg}>
+            <View key={stories[i]?.id ?? i} style={styles.progressBg}>
               <Animated.View
                 style={[
                   styles.progressFill,
@@ -82,9 +85,11 @@ export function StoryViewer({
                     width:
                       i < index
                         ? "100%"
-                        : i === index
+                        : i === index && !video
                           ? progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] })
-                          : "0%",
+                          : i === index
+                            ? "50%"
+                            : "0%",
                   },
                 ]}
               />
@@ -94,14 +99,14 @@ export function StoryViewer({
 
         <View style={styles.header}>
           <View style={styles.userRow}>
-            {isHttpUrl(story.avatar_url) ? (
-              <Image source={{ uri: story.avatar_url }} style={styles.avatar} />
+            {isHttpUrl(story.avatarUrl) ? (
+              <Image source={{ uri: story.avatarUrl }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.fallback]}>
-                <Text style={styles.initials}>{initials(story.display_name)}</Text>
+                <Text style={styles.initials}>{initials(story.displayName)}</Text>
               </View>
             )}
-            <Text style={styles.name}>{story.display_name}</Text>
+            <Text style={styles.name}>{story.displayName}</Text>
           </View>
           <Press onPress={onClose} style={styles.closeBtn}>
             <X size={22} color="#fff" />
@@ -110,12 +115,62 @@ export function StoryViewer({
 
         <TouchableWithoutFeedback onPress={handlePress}>
           <View style={styles.media}>
-            <Image source={{ uri: story.media_url }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            {video ? (
+              <StoryVideo uri={story.mediaUrl} active={visible} onEnded={advance} />
+            ) : (
+              <Image source={{ uri: story.mediaUrl }} style={FILL} contentFit="cover" />
+            )}
           </View>
         </TouchableWithoutFeedback>
       </View>
     </Modal>
   );
+}
+
+function StoryVideo({
+  uri,
+  active,
+  onEnded,
+}: {
+  uri: string;
+  active: boolean;
+  onEnded: () => void;
+}) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = false;
+    p.audioMixingMode = "doNotMix";
+  });
+  const endedRef = useRef(false);
+
+  useEffect(() => {
+    endedRef.current = false;
+    try {
+      if (active) {
+        player.currentTime = 0;
+        player.play();
+      } else {
+        player.pause();
+      }
+    } catch {
+      /* native player not ready */
+    }
+  }, [active, uri, player]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (endedRef.current) return;
+      const duration = player.duration;
+      const time = player.currentTime;
+      if (duration > 0 && time >= duration - 0.2) {
+        endedRef.current = true;
+        onEnded();
+      }
+    }, 200);
+    return () => clearInterval(id);
+  }, [player, onEnded]);
+
+  return <VideoView player={player} style={FILL} contentFit="cover" nativeControls={false} />;
 }
 
 const styles = StyleSheet.create({
