@@ -297,7 +297,7 @@ export function VitrineScreen() {
           tone="gold"
           onPress={() => {
             if (guestMode) return openAuth();
-            setHubMode("video");
+            setHubMode(cat === "soon" ? "affiche" : "video");
             setHubOpen(true);
           }}
         >
@@ -305,7 +305,7 @@ export function VitrineScreen() {
         </GlassIconButton>
       </LinearGradient>
 
-      {storiesOpen ? (
+      {cat === "soon" ? null : storiesOpen ? (
         <View style={{ position: "absolute", top: insets.top + 52, left: 0, right: 0, zIndex: 10 }}>
           <StoriesRow
             stories={visibleStories}

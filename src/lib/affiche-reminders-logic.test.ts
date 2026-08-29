@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { afficheReminderAllowed, formatAfficheWhen, formatAfficheWhenParts } from "./affiche-reminders-logic.ts";
+import {
+  afficheCountdown,
+  afficheReminderAllowed,
+  formatAfficheCountdown,
+  formatAfficheWhen,
+  formatAfficheWhenParts,
+} from "./affiche-reminders-logic.ts";
 import {
   defaultAfficheEventAt,
   joinAfficheEventAt,
@@ -27,6 +33,16 @@ function run() {
   const parts = formatAfficheWhenParts(iso, "fr-FR");
   assert.ok(parts?.date);
   assert.ok(parts?.time);
+
+  const now = Date.parse("2026-08-29T10:00:00.000Z");
+  assert.equal(afficheCountdown(new Date(now + 12 * 60_000).toISOString(), now).kind, "mins");
+  assert.equal(afficheCountdown(new Date(now + 6 * 86_400_000).toISOString(), now).kind, "days");
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(18, 0, 0, 0);
+  assert.equal(afficheCountdown(tomorrow.toISOString(), now).kind, "tomorrow");
+  assert.match(formatAfficheCountdown(new Date(now + 12 * 60_000).toISOString(), "Bientôt", now) ?? "", /12 MIN/);
+  assert.match(formatAfficheCountdown(new Date(now + 6 * 86_400_000).toISOString(), "Bientôt", now) ?? "", /6 JOURS/);
 
   const layout = newAfficheLayout();
   assert.ok(layout.eventAt);

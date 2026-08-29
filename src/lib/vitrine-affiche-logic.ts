@@ -43,6 +43,7 @@ export type AfficheLayout = {
   badge: string;
   sellerName: string;
   shopName: string;
+  category: string;
   backgroundColor: string;
   backgroundUri: string | null;
   /** ISO datetime of the event / drop — used for « Me rappeler ». */
@@ -56,6 +57,7 @@ export type AfficheLayoutSeed = {
   badge?: string;
   sellerName?: string;
   shopName?: string;
+  category?: string;
 };
 
 function asText(value: unknown, fallback = ""): string {
@@ -98,6 +100,7 @@ export function newAfficheLayout(seed: AfficheLayoutSeed = {}): AfficheLayout {
     badge: seed.badge ?? "",
     sellerName: seed.sellerName ?? "",
     shopName: seed.shopName ?? "",
+    category: seed.category ?? "",
     backgroundColor: "#10162B",
     backgroundUri: null,
     eventAt: defaultAfficheEventAt(),
@@ -121,6 +124,7 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
       badge: asText(raw.badge),
       sellerName: asText(raw.sellerName),
       shopName: asText(raw.shopName),
+      category: asText(raw.category),
       backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#10162B",
       backgroundUri: typeof raw.backgroundUri === "string" ? raw.backgroundUri : null,
       eventAt: parseAfficheEventAt(raw.eventAt),
@@ -130,6 +134,10 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
   } catch {
     return null;
   }
+}
+
+export function afficheArticleCount(layout: AfficheLayout): number {
+  return layout.layers.filter((l) => l.kind === "image").length;
 }
 
 export function afficheFontFamily(font: AfficheFont): string | undefined {

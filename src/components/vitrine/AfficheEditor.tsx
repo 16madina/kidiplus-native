@@ -19,7 +19,7 @@ import { Calendar, ChevronLeft, Clock, ImageIcon, Paintbrush, Pencil, ShoppingBa
 import { Image } from "expo-image";
 import { Press } from "../Press";
 import { AfficheCanvas } from "./AfficheCanvas";
-import { AfficheSoonOverlay } from "./AfficheSoonOverlay";
+import { AffichePoster } from "./AffichePoster";
 import { pickImageFromLibrary } from "../../lib/pick-image";
 import { uploadVitrineMedia } from "../../lib/vitrine";
 import { listMyShopProducts } from "../../lib/shop";
@@ -28,6 +28,7 @@ import { useAuth } from "../../context/auth";
 import {
   AFFICHE_COLORS,
   AFFICHE_FONTS,
+  afficheArticleCount,
   createVitrineAffiche,
   joinAfficheEventAt,
   newAfficheLayout,
@@ -61,7 +62,7 @@ export function AfficheEditor({
   const [layout, setLayout] = useState<AfficheLayout>(() =>
     newAfficheLayout({
       sellerName: user?.displayName ?? "",
-      shopName: user?.handle ? `@${user.handle.replace(/^@/, "")}` : "",
+      shopName: user?.displayName ? `${user.displayName} Boutique` : "",
     }),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -179,7 +180,11 @@ export function AfficheEditor({
       layout.title.trim() ||
       layout.layers.find((l) => l.kind === "text")?.text ||
       t("publish.modes.affiche", { defaultValue: "Affiche" });
-    const res = await createVitrineAffiche({ ...layout, title });
+    const res = await createVitrineAffiche({
+      ...layout,
+      title,
+      shopName: layout.shopName.trim() || (user?.displayName ? `${user.displayName} Boutique` : ""),
+    });
     setBusy(false);
     if (!res.ok) {
       Alert.alert("KiDi+", res.error);
@@ -239,13 +244,6 @@ export function AfficheEditor({
             <Press onPress={() => void setMainPhoto()} style={styles.pencil}>
               <Pencil size={14} color="#fff" />
             </Press>
-            {whenParts ? (
-              <View pointerEvents="none" style={styles.whenChip}>
-                <Text style={styles.whenChipTxt}>
-                  {dateLabel.toUpperCase()} • {timeLabel}
-                </Text>
-              </View>
-            ) : null}
           </View>
         </View>
 
@@ -365,6 +363,23 @@ export function AfficheEditor({
           </View>
         ) : null}
 
+        <Text style={styles.whenTitle}>{t("publish.affiche.liveTitle")}</Text>
+        <TextInput
+          value={layout.title}
+          onChangeText={(title) => setLayout((prev) => ({ ...prev, title }))}
+          placeholder={t("publish.affiche.titlePlaceholder")}
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          style={styles.input}
+        />
+        <Text style={styles.whenTitle}>{t("publish.affiche.category")}</Text>
+        <TextInput
+          value={layout.category}
+          onChangeText={(category) => setLayout((prev) => ({ ...prev, category }))}
+          placeholder={t("publish.affiche.categoryPlaceholder")}
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          style={styles.input}
+        />
+
         <Text style={styles.whenTitle}>{t("publish.affiche.whenLive")}</Text>
         <View style={styles.whenRow}>
           <View style={styles.whenBox}>
@@ -405,12 +420,21 @@ export function AfficheEditor({
 
       <Modal visible={preview} animationType="fade" onRequestClose={() => setPreview(false)}>
         <View style={styles.previewRoot}>
-          <AfficheCanvas layout={layout} width={width} height={height} />
-          <AfficheSoonOverlay
-            layout={layout}
-            avatarUrl={user?.avatarUrl}
-            fallbackSeller={user?.displayName}
-            fallbackShop={user?.handle ? `@${user.handle.replace(/^@/, "")}` : ""}
+          <AffichePoster
+            preview
+            affiche={{
+              id: "preview",
+              userId: user?.id ?? null,
+              title: layout.title,
+              layout,
+              sellerName: user?.displayName || t("publish.affiche.namePlaceholder"),
+              shopName: layout.shopName || (user?.displayName ? `${user.displayName} Boutique` : ""),
+              handle: user?.handle ?? "",
+              avatarUrl: user?.avatarUrl ?? null,
+              category: layout.category,
+              articleCount: afficheArticleCount(layout),
+              createdAt: new Date().toISOString(),
+            }}
           />
           <Press onPress={() => setPreview(false)} style={styles.previewClose}>
             <Text style={styles.previewTxt}>{t("common.close", { defaultValue: "Fermer" })}</Text>
