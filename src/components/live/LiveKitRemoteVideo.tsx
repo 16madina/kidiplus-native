@@ -231,6 +231,7 @@ function RemoteCamera({
           trackRef={host}
           style={FILL}
           objectFit="cover"
+          zOrder={0}
           iosPIP={
             Platform.OS === "ios"
               ? {

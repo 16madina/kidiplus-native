@@ -29,7 +29,7 @@ export function LiveFxOverlay({
   const showBlur = fx.backgroundMode === "blur";
 
   return (
-    <View pointerEvents="none" style={styles.layer}>
+    <View pointerEvents="none" style={styles.layer} collapsable={false}>
       {showBlur ? (
         Platform.OS === "ios" ? (
           <BlurView intensity={48} tint="dark" style={FILL} />
@@ -59,7 +59,7 @@ export function LiveFxOverlay({
 }
 
 const styles = StyleSheet.create({
-  layer: { ...FILL, zIndex: 3 },
+  layer: { ...FILL, zIndex: 8, elevation: 8 },
   androidBlur: { backgroundColor: "rgba(12,14,24,0.42)" },
   posterWrap: {
     position: "absolute",
