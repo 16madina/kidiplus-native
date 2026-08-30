@@ -18,7 +18,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
 
   private var deviceInput: AVCaptureDeviceInput?
   private var previewHost: UIView?
-  private let preview = UIImageView()
+  private let preview: UIImageView
   private var running = false
 
   private var backgroundMode = "none"
@@ -47,15 +47,27 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var didEmitFirstFrame = false
 
   private override init() {
+    preview = Self.makePreview()
     super.init()
-    preview.contentMode = .scaleAspectFill
-    preview.backgroundColor = .black
-    preview.clipsToBounds = true
     videoOut.alwaysDiscardsLateVideoFrames = true
     videoOut.videoSettings = [
       kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
     ]
     videoOut.setSampleBufferDelegate(self, queue: queue)
+  }
+
+  private static func makePreview() -> UIImageView {
+    let create = {
+      let view = UIImageView()
+      view.contentMode = .scaleAspectFill
+      view.backgroundColor = .black
+      view.clipsToBounds = true
+      return view
+    }
+    if Thread.isMainThread {
+      return create()
+    }
+    return DispatchQueue.main.sync(execute: create)
   }
 
   func registerPreviewHost(_ host: UIView) {
@@ -78,7 +90,9 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   }
 
   func layoutPreview(in bounds: CGRect) {
-    preview.frame = bounds
+    DispatchQueue.main.async {
+      self.preview.frame = bounds
+    }
   }
 
   private static func mirrorImage(_ image: CIImage) -> CIImage {
