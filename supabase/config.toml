@@ -3,3 +3,6 @@
 
 [functions.connect-webhook]
 verify_jwt = false
+
+[functions.connect-bounce]
+verify_jwt = false

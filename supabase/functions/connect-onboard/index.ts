@@ -32,8 +32,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const businessType: "individual" | "company" =
       body.businessType === "company" ? "company" : "individual";
-    const returnUrl = httpsOrFallback(body.returnUrl, `${SITE}/vendeur/stripe/retour`);
-    const refreshUrl = httpsOrFallback(body.refreshUrl, `${SITE}/vendeur/stripe/refresh`);
+    const bounce = `${Deno.env.get("SUPABASE_URL") ?? SITE}/functions/v1/connect-bounce`;
+    const returnUrl = bounceUrl(body.returnUrl, `${bounce}?next=return`);
+    const refreshUrl = bounceUrl(body.refreshUrl, `${bounce}?next=refresh`);
 
     const profile = await loadProfile(supabase, userId);
     const handle = typeof profile?.handle === "string" ? profile.handle.trim() : "";
@@ -267,8 +268,10 @@ async function loadProfile(
   return (second.data as Record<string, unknown> | null) ?? null;
 }
 
-function httpsOrFallback(raw: unknown, fallback: string): string {
-  return typeof raw === "string" && raw.startsWith("https://") ? raw : fallback;
+function bounceUrl(raw: unknown, fallback: string): string {
+  return typeof raw === "string" && raw.startsWith("https://") && raw.includes("connect-bounce")
+    ? raw
+    : fallback;
 }
 
 function splitName(first: string, last: string, display: string): { first: string; last: string } {

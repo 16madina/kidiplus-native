@@ -241,9 +241,12 @@ export function connectUiPhase(input: {
   return "choose";
 }
 
+export const CONNECT_BOUNCE_URL =
+  "https://djwuvxpmvrwfjwjamjno.supabase.co/functions/v1/connect-bounce";
+
 export function stripeAccountLinkUrls(): { returnUrl: string; refreshUrl: string } {
   return {
-    returnUrl: `${KIDI_SITE}/vendeur/stripe/retour`,
-    refreshUrl: `${KIDI_SITE}/vendeur/stripe/refresh`,
+    returnUrl: `${CONNECT_BOUNCE_URL}?next=return`,
+    refreshUrl: `${CONNECT_BOUNCE_URL}?next=refresh`,
   };
 }

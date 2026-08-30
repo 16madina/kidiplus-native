@@ -45,8 +45,8 @@ function run() {
   assert.equal(connectUiPhase({ payoutsEnabled: true }), "ready");
   assert.equal(connectUiPhase({ status: "active" }), "ready");
 
-  assert.equal(stripeAccountLinkUrls().returnUrl, "https://kidiplus.com/vendeur/stripe/retour");
-  assert.ok(stripeAccountLinkUrls().refreshUrl.startsWith("https://"));
+  assert.ok(stripeAccountLinkUrls().returnUrl.includes("connect-bounce"));
+  assert.ok(stripeAccountLinkUrls().refreshUrl.includes("next=refresh"));
 
   assert.equal(isoCountryFromLabel("Canada"), "CA");
   assert.equal(isoCountryFromLabel("🇨🇦 Canada"), "CA");
