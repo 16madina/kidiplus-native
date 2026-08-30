@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useFilter } from "../../lib/filters/filter-context";
 import { useLiveEffects } from "../../lib/filters/live-effects-context";
-import { sendLiveFxBroadcast } from "../../lib/live-fx-broadcast";
+import {
+  createLiveFxHostTransport,
+  type LiveFxHostTransport,
+} from "../../lib/live-fx-broadcast";
 import {
   EMPTY_LIVE_FX,
   LIVE_FX_HEARTBEAT_MS,
@@ -43,6 +46,18 @@ export function HostLiveFxSync({
   const [posterRemote, setPosterRemote] = useState<string | null>(null);
   const [bgRemote, setBgRemote] = useState<string | null>(null);
   const lastSentRef = useRef<LiveFxPayload>(EMPTY_LIVE_FX);
+  const transportRef = useRef<LiveFxHostTransport | null>(null);
+
+  useEffect(() => {
+    const transport = createLiveFxHostTransport(liveId, () => {
+      transport.send(lastSentRef.current);
+    });
+    transportRef.current = transport;
+    return () => {
+      transportRef.current = null;
+      transport.close();
+    };
+  }, [liveId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +127,7 @@ export function HostLiveFxSync({
 
     const send = (next: LiveFxPayload) => {
       lastSentRef.current = next;
-      sendLiveFxBroadcast(liveId, next);
+      transportRef.current?.send(next);
       if (!liveKit) return;
       const bytes = encodeLiveFx(next);
       void Promise.resolve(
