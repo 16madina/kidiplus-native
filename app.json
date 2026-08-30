@@ -14,6 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "appleTeamId": "6XW2XM3NDF",
       "bundleIdentifier": "com.kidiplus.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "bitcode": false,
