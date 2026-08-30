@@ -195,6 +195,12 @@ export function mapConnectOnboardError(
       text: "Stripe Connect n'est pas disponible pour ce pays. On ouvre un compte selon ta devise — réessaie.",
     };
   }
+  if (code === "connect_live_key_missing" || blob.includes("sk_live_")) {
+    return {
+      kind: "server",
+      text: "Stripe est en production : colle une clé secrète sk_live_ dans Supabase (Edge Functions → Secrets → STRIPE_SECRET_KEY), puis réessaie.",
+    };
+  }
   if (blob.includes("invalid api key") || blob.includes("invalid_api_key")) {
     return { kind: "server", text: "Clé Stripe serveur invalide. Vérifie STRIPE_SECRET_KEY dans Supabase." };
   }

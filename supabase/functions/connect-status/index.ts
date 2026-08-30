@@ -1,13 +1,12 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { stripeClient } from "../_shared/stripe.ts";
+import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { connectClearPatch, connectReadyPatch, connectStatusFromAccount } from "../_shared/connect-profile.ts";
-
-const stripe = stripeClient();
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
   try {
+    const stripe = stripeClient();
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -87,6 +86,9 @@ Deno.serve(async (req) => {
       country: account.country ?? "",
     });
   } catch (e) {
+    if (isStripeConfigError(e)) {
+      return json({ error: e.code, message: e.message }, 503);
+    }
     console.error("connect-status", e);
     return json({ error: "server_error", message: String(e) }, 500);
   }

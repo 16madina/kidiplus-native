@@ -85,6 +85,7 @@ function run() {
   assert.equal(stripeConnectAvailable("USD"), true);
   assert.equal(stripeConnectAvailable("GBP"), true);
 
+  assert.match(mapConnectOnboardError("connect_live_key_missing").text, /sk_live_/);
   assert.equal(mapConnectOnboardError("handle_missing").kind, "handle_missing");
   assert.match(mapConnectOnboardError("handle_missing").text, /boutique/);
   assert.equal(mapConnectOnboardError("server_error").kind, "server");

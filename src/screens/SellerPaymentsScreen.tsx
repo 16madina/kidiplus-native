@@ -188,6 +188,9 @@ export function SellerPaymentsScreen() {
               </>
             ) : phase === "choose" ? (
               <>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.stripeLiveSwitch")}
+                </Text>
                 <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
                   {t("sellerPayments.chooseTitle")}
                 </Text>

@@ -1420,6 +1420,7 @@
     "stripeTitle": "Stripe Connect (compte bancaire)",
     "stripeHint": "Onboarding Stripe Express dans Safari / Chrome. Stripe vérifie ton identité et ton IBAN une seule fois.",
     "stripeReady": "✅ Compte prêt. Tu peux retirer tes gains.",
+    "stripeLiveSwitch": "Stripe est passé en production. Reconfigure ton compte bancaire (l’ancien compte test ne sert plus).",
     "stripeTestMode": "Compte Stripe configuré en mode test. Les virements réels ne partent pas encore — utilise PayPal ou un IBAN.",
     "testBadge": "Mode test",
     "configureBank": "Configurer mon compte bancaire",

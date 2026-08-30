@@ -6,13 +6,15 @@
 
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { stripeClient } from "../_shared/stripe.ts";
+import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { isXofCurrency, pickConnectCountry } from "../_shared/connect-country.ts";
 import { connectClearPatch, connectPendingPatch } from "../_shared/connect-profile.ts";
 
-const stripe = stripeClient();
-
 const SITE = "https://kidiplus.com";
+
+function stripe() {
+  return stripeClient();
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
@@ -99,7 +101,7 @@ Deno.serve(async (req) => {
 
     let link: Stripe.AccountLink;
     try {
-      link = await stripe.accountLinks.create({
+      link = await stripe().accountLinks.create({
         account: accountId,
         refresh_url: refreshUrl,
         return_url: returnUrl,
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
         businessType,
         category: typeof profile?.category === "string" ? profile.category : null,
       });
-      link = await stripe.accountLinks.create({
+      link = await stripe().accountLinks.create({
         account: accountId,
         refresh_url: refreshUrl,
         return_url: returnUrl,
@@ -137,6 +139,9 @@ Deno.serve(async (req) => {
     const lower = message.toLowerCase();
     if (lower.includes("country")) {
       return json({ error: "connect_country_unsupported", message }, 400);
+    }
+    if (isStripeConfigError(e)) {
+      return json({ error: e.code, message: e.message }, 503);
     }
     return json({ error: "server_error", message }, 500);
   }
@@ -166,7 +171,7 @@ async function usableAccountId(
 ): Promise<string | null> {
   if (!stored) return null;
   try {
-    await stripe.accounts.retrieve(stored);
+    await stripe().accounts.retrieve(stored);
     return stored;
   } catch (e) {
     if (isStaleAccountError(e)) {
@@ -189,7 +194,7 @@ async function createExpressAccount(input: {
   businessType: "individual" | "company";
   category?: string | null;
 }): Promise<string> {
-  const account = await stripe.accounts.create({
+  const account = await stripe().accounts.create({
     type: "express",
     country: input.country,
     email: input.email,
@@ -223,7 +228,7 @@ async function createExpressAccount(input: {
   });
 
   if (input.businessType === "company") {
-    await stripe.accounts.createPerson(account.id, {
+    await stripe().accounts.createPerson(account.id, {
       first_name: input.names.first || undefined,
       last_name: input.names.last || undefined,
       email: input.email,

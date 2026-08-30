@@ -4,10 +4,9 @@
 // account that onboarding just wrote.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { stripeClient } from "../_shared/stripe.ts";
+import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { connectStatusFromAccount } from "../_shared/connect-profile.ts";
 
-const stripe = stripeClient();
 const CONNECT_CURRENCIES = new Set(["EUR", "CAD", "USD", "GBP"]);
 
 Deno.serve(async (req) => {
@@ -22,6 +21,7 @@ Deno.serve(async (req) => {
       authHeader.replace("Bearer ", ""),
     );
     if (userErr || !userData?.user) return json({ error: "unauthorized" }, 401);
+    const stripe = stripeClient();
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
@@ -117,6 +117,9 @@ Deno.serve(async (req) => {
       return json({ error: "transfer_failed", refunded: true, message: msg }, 502);
     }
   } catch (e) {
+    if (isStripeConfigError(e)) {
+      return json({ error: e.code, message: e.message }, 503);
+    }
     console.error("connect-payout", e);
     return json({ error: "server_error", message: String(e) }, 500);
   }

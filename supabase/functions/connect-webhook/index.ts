@@ -1,15 +1,14 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { stripeClient } from "../_shared/stripe.ts";
+import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { connectReadyPatch } from "../_shared/connect-profile.ts";
-
-const stripe = stripeClient();
 
 Deno.serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   const secret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   const raw = await req.text();
   try {
+    const stripe = stripeClient();
     const event = secret && signature
       ? stripe.webhooks.constructEvent(raw, signature, secret)
       : (JSON.parse(raw) as Stripe.Event);
@@ -30,6 +29,9 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true });
   } catch (e) {
+    if (isStripeConfigError(e)) {
+      return json({ error: e.code, message: e.message }, 503);
+    }
     console.error("connect-webhook", e);
     return json({ error: "server_error" }, 400);
   }
