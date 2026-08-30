@@ -1391,12 +1391,14 @@
   "myOrders": {
     "title": "My orders",
     "tabs": {
-      "sales": "Orders",
-      "purchases": "Ordered"
+      "sales": "My sales",
+      "purchases": "My purchases"
     },
     "salesHint": "Items buyers ordered from you — ship them once paid.",
     "purchasesHint": "Items you ordered from other sellers.",
-    "emptySales": "No sales yet.",
+    "soldBy": "From {{name}}",
+    "boughtBy": "For {{name}}",
+    "emptySales": "No orders to ship right now.",
     "awaitingBuyerPay": "Waiting for the buyer to pay",
     "buyerDidNotPay": "Buyer did not pay",
     "buyerDidNotPayHint": "24h deadline passed — the order was cancelled."

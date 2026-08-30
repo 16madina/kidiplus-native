@@ -41,10 +41,8 @@ export function HostLiveFxSync({ userId }: { userId: string }) {
       return;
     }
     if (!isLocalImageUri(local) || !userId) {
-      setPosterRemote(null);
       return;
     }
-    setPosterRemote(null);
     void uploadLiveOverlayImage(userId, local)
       .then((remote) => {
         if (!cancelled) setPosterRemote(remote);
@@ -69,10 +67,8 @@ export function HostLiveFxSync({ userId }: { userId: string }) {
       return;
     }
     if (!isLocalImageUri(local) || !userId) {
-      setBgRemote(null);
       return;
     }
-    setBgRemote(null);
     void uploadLiveOverlayImage(userId, local)
       .then((remote) => {
         if (!cancelled) setBgRemote(remote);

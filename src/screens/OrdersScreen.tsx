@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { FileText } from "lucide-react-native";
-import { Image } from "expo-image";
+import { FileText, ShoppingBag, Store } from "lucide-react-native";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
+import { OrderListCard } from "../components/orders/OrderListCard";
 import { OrderTimeline } from "../components/orders/OrderTimeline";
 import { InvoiceSheet } from "../components/orders/InvoiceSheet";
 import { LeaveReviewSheet } from "../components/orders/LeaveReviewSheet";
@@ -34,16 +34,6 @@ function statusLabel(status: MockOrder["status"], t: (k: string) => string) {
   if (status === "cancelled") return t("orders.status.cancelled");
   return t("activity.orderStatus.refunded");
 }
-
-const STATUS_COLOR: Record<MockOrder["status"], string> = {
-  awaitingPayment: "#C0392B",
-  paid: GOLD,
-  shipped: "#2E6BFF",
-  delivered: "#1B7A3A",
-  failed: "#C0392B",
-  cancelled: "#6B7289",
-  refunded: "#8B5CF6",
-};
 
 export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   const { t } = useTranslation();
@@ -156,19 +146,36 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("myOrders.title")} />
-      <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
-        {(["sales", "purchases"] as const).map((k) => (
-          <Press key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && { borderBottomColor: GOLD }]}>
-            <Text style={{ fontWeight: tab === k ? "800" : "600", color: tab === k ? colors.foreground : colors.mutedForeground }}>
-              {t(`myOrders.tabs.${k}`)}
-            </Text>
-          </Press>
-        ))}
-      </View>
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 4 }}>
+      <View style={styles.tabsWrap}>
+        <View style={[styles.segment, { borderColor: colors.border }]}>
+          {(["sales", "purchases"] as const).map((k) => {
+            const on = tab === k;
+            const Icon = k === "sales" ? Store : ShoppingBag;
+            return (
+              <Press
+                key={k}
+                onPress={() => setTab(k)}
+                style={[styles.segmentBtn, on && { backgroundColor: colors.foreground }]}
+              >
+                <Icon size={13} color={on ? colors.background : colors.mutedForeground} />
+                <Text
+                  style={{
+                    fontWeight: "700",
+                    fontSize: 13,
+                    color: on ? colors.background : colors.mutedForeground,
+                  }}
+                >
+                  {t(`myOrders.tabs.${k}`)}
+                </Text>
+              </Press>
+            );
+          })}
+        </View>
+        <Text style={{ color: colors.mutedForeground, fontSize: 11, lineHeight: 15, marginTop: 8 }}>
           {t(tab === "purchases" ? "myOrders.purchasesHint" : "myOrders.salesHint")}
         </Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.body}>
         {loading ? (
           <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
         ) : tab === "sales" && !user?.isSeller ? (
@@ -179,76 +186,75 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
           list.map((o) => {
             const busy = busyId === o.id;
             const isBuyer = tab === "purchases";
+            const canShip = !isBuyer && o.rawStatus === "paid" && o.fulfillment === "awaiting";
+            const canPay = isBuyer && o.status === "awaitingPayment";
+            const canReview = isBuyer && o.status === "delivered";
+            const canConfirm = isBuyer && o.rawStatus === "paid" && o.fulfillment === "shipped";
+            const canDispute =
+              isBuyer && o.rawStatus === "paid" && (o.fulfillment === "shipped" || o.fulfillment === "awaiting");
+            const hasActions = canShip || canPay || canReview || canConfirm || canDispute;
             return (
-              <Press
+              <OrderListCard
                 key={o.id}
+                name={o.name}
+                image={o.image}
+                party={
+                  isBuyer
+                    ? t("myOrders.soldBy", { name: o.seller })
+                    : t("myOrders.boughtBy", { name: o.seller })
+                }
+                price={o.price}
+                when={o.when}
+                status={o.status}
+                statusLabel={statusLabel(o.status, t)}
                 onPress={() => {
                   setDetailIsSale(!isBuyer);
                   setDetailOrder(o);
                 }}
-                style={{ minHeight: 0 }}
               >
-              <SurfaceCard padded={false}>
-                <View style={styles.card}>
-                  {o.image ? <Image source={{ uri: o.image }} style={styles.img} contentFit="cover" /> : <View style={styles.img} />}
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <Text style={{ fontWeight: "800", color: colors.foreground }}>{o.name}</Text>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{o.seller}</Text>
-                    <Text style={{ color: GOLD, fontWeight: "800", marginTop: 2 }}>{o.price}</Text>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>{o.when}</Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: `${STATUS_COLOR[o.status]}22` }]}>
-                    <Text style={{ color: STATUS_COLOR[o.status], fontWeight: "800", fontSize: 10 }}>
-                      {statusLabel(o.status, t)}
-                    </Text>
-                  </View>
-                </View>
-
-                {isBuyer && o.status === "awaitingPayment" ? (
-                  <Press onPress={() => setPaying(o)} style={styles.cta}>
-                    <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.payNow")}</Text>
-                  </Press>
-                ) : null}
-
-                {!isBuyer && o.rawStatus === "paid" && o.fulfillment === "awaiting" ? (
-                  <Press onPress={() => doShip(o)} disabled={busy} style={styles.cta}>
-                    {busy ? <ActivityIndicator color={NAVY} /> : (
-                      <Text style={{ fontWeight: "800", color: NAVY }}>{t("orders.shipCta")}</Text>
-                    )}
-                  </Press>
-                ) : null}
-
-                {isBuyer && o.status === "delivered" ? (
-                  <Press
-                    onPress={() => setReviewOrderId(o.id)}
-                    style={[styles.cta, reviewedIds.has(o.id) && { backgroundColor: "#E8F6EE" }]}
-                  >
-                    <Text style={{ fontWeight: "800", color: NAVY }}>
-                      {reviewedIds.has(o.id) ? `✓ ${t("reviews.left")}` : t("reviews.rateOrder")}
-                    </Text>
-                  </Press>
-                ) : null}
-
-                {isBuyer && o.rawStatus === "paid" && (o.fulfillment === "shipped" || o.fulfillment === "awaiting") ? (
-                  <View style={styles.actions}>
-                    {o.fulfillment === "shipped" ? (
-                      <Press onPress={() => doConfirm(o)} disabled={busy} style={[styles.cta, { flex: 1, marginHorizontal: 0 }]}>
-                        {busy ? <ActivityIndicator color={NAVY} /> : (
-                          <Text style={{ fontWeight: "800", color: NAVY, fontSize: 13 }}>{t("orders.confirmDelivery")}</Text>
+                {hasActions ? (
+                  <>
+                    {canPay ? (
+                      <Press onPress={() => setPaying(o)} style={styles.cta}>
+                        <Text style={styles.ctaTxt}>{t("orders.payNow")}</Text>
+                      </Press>
+                    ) : null}
+                    {canShip ? (
+                      <Press onPress={() => doShip(o)} disabled={busy} style={styles.cta}>
+                        {busy ? (
+                          <ActivityIndicator color={NAVY} />
+                        ) : (
+                          <Text style={styles.ctaTxt}>{t("orders.shipCta")}</Text>
                         )}
                       </Press>
                     ) : null}
-                    <Press
-                      onPress={() => doDispute(o)}
-                      disabled={busy}
-                      style={[styles.ghost, { borderColor: colors.border, flex: 1 }]}
-                    >
-                      <Text style={{ fontWeight: "700", color: "#C0392B", fontSize: 13 }}>{t("orders.reportProblem")}</Text>
-                    </Press>
-                  </View>
+                    {canConfirm ? (
+                      <Press onPress={() => doConfirm(o)} disabled={busy} style={styles.cta}>
+                        {busy ? (
+                          <ActivityIndicator color={NAVY} />
+                        ) : (
+                          <Text style={styles.ctaTxt}>{t("orders.confirmDelivery")}</Text>
+                        )}
+                      </Press>
+                    ) : null}
+                    {canReview ? (
+                      <Press
+                        onPress={() => setReviewOrderId(o.id)}
+                        style={[styles.cta, reviewedIds.has(o.id) && { backgroundColor: "#E8F6EE" }]}
+                      >
+                        <Text style={styles.ctaTxt}>
+                          {reviewedIds.has(o.id) ? `✓ ${t("reviews.left")}` : t("reviews.rateOrder")}
+                        </Text>
+                      </Press>
+                    ) : null}
+                    {canDispute ? (
+                      <Press onPress={() => doDispute(o)} disabled={busy} style={styles.report}>
+                        <Text style={styles.reportTxt}>{t("orders.reportProblem")}</Text>
+                      </Press>
+                    ) : null}
+                  </>
                 ) : null}
-              </SurfaceCard>
-              </Press>
+              </OrderListCard>
             );
           })
         )}
@@ -388,20 +394,41 @@ function SellerShipBlock({ order }: { order: OrderView }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  tab: { flex: 1, height: 44, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  body: { padding: 16, paddingBottom: 48, gap: 10 },
-  card: { flexDirection: "row", gap: 12, padding: 12, alignItems: "flex-start" },
-  img: { width: 64, height: 64, borderRadius: 12, backgroundColor: "#E8EAF1" },
-  badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" },
+  tabsWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  segment: {
+    flexDirection: "row",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    padding: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 36,
+    minHeight: 36,
+    borderRadius: 999,
+  },
+  body: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 48, gap: 10, alignItems: "stretch" },
   cta: {
-    marginHorizontal: 12,
-    marginBottom: 12,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: 8,
     height: 40,
+    minHeight: 40,
     borderRadius: 12,
     backgroundColor: GOLD,
   },
-  actions: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingBottom: 12 },
+  ctaTxt: { fontWeight: "800", color: NAVY, fontSize: 13 },
+  report: {
+    alignSelf: "stretch",
+    minHeight: 32,
+    height: 32,
+  },
+  reportTxt: { fontWeight: "600", color: "#C0392B", fontSize: 12 },
   ghost: {
     height: 40,
     minHeight: 40,
