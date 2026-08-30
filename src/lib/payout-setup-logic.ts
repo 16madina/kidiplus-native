@@ -91,6 +91,12 @@ export function payoutErrorI18nKey(code: string | null | undefined): string {
       return "payout.errors.insufficient";
     case "platform_funds":
       return "payout.errors.platformFunds";
+    case "payout_daily_limit":
+      return "risk.errors.payoutDailyLimit";
+    case "payout_weekly_limit":
+      return "risk.errors.payoutWeeklyLimit";
+    case "risk_restricted":
+      return "risk.errors.restricted";
     case "invalid_email":
       return "payout.errors.invalidEmail";
     default:

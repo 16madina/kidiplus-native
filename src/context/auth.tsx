@@ -34,6 +34,7 @@ export type AuthUser = {
   isAdmin: boolean;
   isReferred: boolean;
   isFrozen: boolean;
+  isVerified: boolean;
   avatarUrl?: string | null;
   bannerUrl?: string | null;
   bio?: string | null;
@@ -161,6 +162,7 @@ async function toAuthUser(
     isAdmin: !!profile?.is_admin,
     isReferred: !!profile?.is_referred,
     isFrozen: !!profile?.is_frozen,
+    isVerified: !!profile?.is_verified,
     avatarUrl,
     bannerUrl: (await resolveAvatarUrl(profile?.banner_url)) || null,
     bio: profile?.bio ?? null,

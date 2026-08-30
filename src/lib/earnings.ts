@@ -51,7 +51,7 @@ export async function fetchMyPayouts(userId: string, limit = 50): Promise<Payout
 
 export type RequestPayoutResult =
   | { ok: true; payoutId: string }
-  | { ok: false; error: string; min?: number; available?: number };
+  | { ok: false; error: string; min?: number; available?: number; used?: number; cap?: number; currency?: string };
 
 export async function requestPayout(
   amount: number,
@@ -73,6 +73,9 @@ export async function requestPayout(
     error: String(r.error ?? "request_failed"),
     ...(r.min != null ? { min: Number(r.min) } : {}),
     ...(r.available != null ? { available: Number(r.available) } : {}),
+    ...(r.used != null ? { used: Number(r.used) } : {}),
+    ...(r.cap != null ? { cap: Number(r.cap) } : {}),
+    ...(typeof r.currency === "string" ? { currency: r.currency } : {}),
   };
 }
 

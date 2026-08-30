@@ -40,6 +40,7 @@ import {
   savePayoutSetup,
   type PayoutSetup,
 } from "../../lib/payout-setup";
+import { payoutDailyCap, payoutWeeklyCap, riskTierFromProfile } from "../../lib/risk-limits";
 import { NAVY } from "../../theme";
 
 export function WithdrawSheet({
@@ -78,6 +79,9 @@ export function WithdrawSheet({
   const methods = payoutMethodsForCurrency(currency);
   const min = payoutMinimumFor(currency);
   const ready = payoutMethodReady(method, setup, stripeReady);
+  const riskTier = riskTierFromProfile({ isVerified: user?.isVerified });
+  const dayCap = payoutDailyCap(riskTier, currency);
+  const weekCap = payoutWeeklyCap(riskTier, currency);
 
   const applyFields = (next: PayoutSetup, nextMethod: PayoutMethod) => {
     if (nextMethod === "wave") {
@@ -202,6 +206,14 @@ export function WithdrawSheet({
       setBusy(false);
       if (res.min != null) {
         setError(t("payout.errors.belowMin", { min: formatMoney(res.min, currency, i18n.language) }));
+      } else if (res.error === "payout_daily_limit" || res.error === "payout_weekly_limit") {
+        const errCur = res.currency ?? currency;
+        setError(
+          t(payoutErrorI18nKey(res.error), {
+            used: formatMoney(res.used ?? 0, errCur, i18n.language),
+            cap: formatMoney(res.cap ?? (res.error === "payout_weekly_limit" ? weekCap : dayCap), errCur, i18n.language),
+          }),
+        );
       } else {
         setError(t(payoutErrorI18nKey(res.error)));
       }
@@ -239,6 +251,14 @@ export function WithdrawSheet({
             <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 10 }}>
               {t("payout.available")} : {formatMoney(available, currency, i18n.language)}
             </Text>
+            {dayCap > 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 6 }}>
+                {t("risk.payoutLimitsHint", {
+                  day: formatMoney(dayCap, currency, i18n.language),
+                  week: formatMoney(weekCap, currency, i18n.language),
+                })}
+              </Text>
+            ) : null}
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 12 }}>
               <View>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("payout.method.label")}</Text>

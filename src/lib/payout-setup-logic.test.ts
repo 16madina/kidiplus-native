@@ -61,6 +61,8 @@ function run() {
   assert.equal(payoutErrorI18nKey("connect_not_ready"), "payout.errors.connectNotReady");
   assert.equal(payoutErrorI18nKey("connect_test_mode"), "payout.errors.connectTestMode");
   assert.equal(payoutErrorI18nKey("platform_funds"), "payout.errors.platformFunds");
+  assert.equal(payoutErrorI18nKey("payout_daily_limit"), "risk.errors.payoutDailyLimit");
+  assert.equal(payoutErrorI18nKey("payout_weekly_limit"), "risk.errors.payoutWeeklyLimit");
   assert.equal(payoutErrorI18nKey("nope"), "payout.errors.generic");
 
   const empty = emptyPayoutSetup();
