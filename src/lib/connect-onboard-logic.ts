@@ -20,14 +20,49 @@ export function defaultCountryForCurrency(currency?: string | null): string {
   return "FR";
 }
 
+const COUNTRY_NAME_ALIAS: Record<string, string> = {
+  canada: "CA",
+  france: "FR",
+  usa: "US",
+  "united states": "US",
+  "etats unis": "US",
+  "united kingdom": "GB",
+  "royaume uni": "GB",
+  "cote divoire": "CI",
+  "ivory coast": "CI",
+  senegal: "SN",
+  belgique: "BE",
+  belgium: "BE",
+  switzerland: "CH",
+  suisse: "CH",
+};
+
+export function isoCountryFromLabel(raw?: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const upper = trimmed.toUpperCase();
+  if (/^[A-Z]{2}$/.test(upper)) return upper;
+  const withoutFlag = trimmed.replace(/^[^A-Za-zÀ-ÿ]+/u, "").trim();
+  if (/^[A-Za-z]{2}$/.test(withoutFlag)) return withoutFlag.toUpperCase();
+  const key = withoutFlag
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return COUNTRY_NAME_ALIAS[key] ?? null;
+}
+
 export function pickStripeConnectCountry(
   requested?: string | null,
   profileCountry?: string | null,
   currency?: string | null,
 ): string {
   for (const raw of [requested, profileCountry]) {
-    const cc = (raw ?? "").trim().toUpperCase();
-    if (/^[A-Z]{2}$/.test(cc) && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
+    const cc = isoCountryFromLabel(raw);
+    if (cc && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
   }
   return defaultCountryForCurrency(currency);
 }
@@ -98,7 +133,14 @@ export function mapConnectOnboardError(
       text: "Stripe Connect n'est pas disponible pour ce pays. On ouvre un compte France / Europe — réessaie.",
     };
   }
+  if (blob.includes("invalid api key") || blob.includes("invalid_api_key")) {
+    return { kind: "server", text: "Clé Stripe serveur invalide. Vérifie STRIPE_LIVE_API_KEY dans Supabase." };
+  }
   if (code === "server_error" || code === "http_error" || code === "network_error") {
+    const hint = (message ?? "").replace(/^Error:\s*/i, "").replace(/^Stripe\w*Error:\s*/i, "").trim();
+    if (hint.length > 12 && !/^error$/i.test(hint)) {
+      return { kind: "server", text: `Stripe : ${hint.slice(0, 180)}` };
+    }
     return { kind: "server", text: "Impossible de préparer Stripe. Réessaie." };
   }
   if (message?.trim() && !/^error:/i.test(message.trim())) {

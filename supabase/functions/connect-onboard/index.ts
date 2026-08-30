@@ -6,11 +6,9 @@
 
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { stripeClient } from "../_shared/stripe.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-  apiVersion: "2024-06-20",
-  httpClient: Stripe.createFetchHttpClient(),
-});
+const stripe = stripeClient();
 
 const SITE = "https://kidiplus.com";
 
@@ -269,11 +267,40 @@ const STRIPE_CONNECT_COUNTRIES = new Set([
   "TH", "US",
 ]);
 
+const COUNTRY_NAME_ALIAS: Record<string, string> = {
+  canada: "CA",
+  france: "FR",
+  usa: "US",
+  "united states": "US",
+  "etats unis": "US",
+  "united kingdom": "GB",
+  "royaume uni": "GB",
+  "cote divoire": "CI",
+  "ivory coast": "CI",
+};
+
+function isoFromLabel(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const upper = trimmed.toUpperCase();
+  if (/^[A-Z]{2}$/.test(upper)) return upper;
+  const withoutFlag = trimmed.replace(/^[^A-Za-zÀ-ÿ]+/u, "").trim();
+  if (/^[A-Za-z]{2}$/.test(withoutFlag)) return withoutFlag.toUpperCase();
+  const key = withoutFlag
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return COUNTRY_NAME_ALIAS[key] ?? null;
+}
+
 function pickConnectCountry(requested: unknown, profile: unknown, currency: unknown): string {
   for (const raw of [requested, profile]) {
-    if (typeof raw !== "string") continue;
-    const cc = raw.trim().toUpperCase();
-    if (/^[A-Z]{2}$/.test(cc) && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
+    const cc = isoFromLabel(raw);
+    if (cc && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
   }
   const cur = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   if (cur === "CAD") return "CA";

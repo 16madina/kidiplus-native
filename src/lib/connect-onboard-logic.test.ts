@@ -9,6 +9,7 @@ import {
   isStaleConnectAccountError,
   mapConnectOnboardError,
   parseStripeBusinessType,
+  isoCountryFromLabel,
   pickStripeConnectCountry,
   splitDisplayName,
 } from "./connect-onboard-logic.ts";
@@ -46,6 +47,10 @@ function run() {
   assert.equal(stripeAccountLinkUrls().returnUrl, "https://kidiplus.com/vendeur/stripe/retour");
   assert.ok(stripeAccountLinkUrls().refreshUrl.startsWith("https://"));
 
+  assert.equal(isoCountryFromLabel("Canada"), "CA");
+  assert.equal(isoCountryFromLabel("🇨🇦 Canada"), "CA");
+  assert.equal(pickStripeConnectCountry("Canada", "CI", "EUR"), "CA");
+  assert.equal(pickStripeConnectCountry("CI", "CI", "CAD"), "CA");
   assert.equal(pickStripeConnectCountry("CI", "CI", "EUR"), "FR");
   assert.equal(pickStripeConnectCountry("SN", null, "EUR"), "FR");
   assert.equal(pickStripeConnectCountry("FR", "CI", "EUR"), "FR");

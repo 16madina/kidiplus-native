@@ -3,6 +3,7 @@ import { AppState, Linking } from "react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
 import { paymentsEnvHeaders } from "./stripe-web";
 import { isConnectReturnUrl } from "./payout-setup-logic";
+import { normalizeCountryCode } from "./countries";
 import {
   isStaleConnectAccountError,
   mapConnectOnboardError,
@@ -184,7 +185,8 @@ export async function startConnectOnboarding(
     returnUrl: links.returnUrl,
     refreshUrl: links.refreshUrl,
   };
-  if (country && country.trim()) body.country = country.trim().toUpperCase();
+  const iso = normalizeCountryCode(country) ?? country?.trim().toUpperCase();
+  if (iso && /^[A-Z]{2}$/.test(iso)) body.country = iso;
   if (currency && currency.trim()) body.currency = currency.trim().toUpperCase();
 
   const edge = await postEdgeFunction("connect-onboard", body);

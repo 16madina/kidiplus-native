@@ -101,7 +101,11 @@ export function SellerPaymentsScreen() {
     const res = await startConnectOnboarding(user?.country, businessType, currency);
     setBusy(false);
     if (res.url) {
-      await openConnectUrl(res.url);
+      try {
+        await openConnectUrl(res.url);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("sellerPayments.retryHint"));
+      }
       return;
     }
     setError(res.error ?? t("sellerPayments.retryHint"));
