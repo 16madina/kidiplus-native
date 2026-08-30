@@ -1,6 +1,6 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
+import { accountLivemode, isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { connectReadyPatch } from "../_shared/connect-profile.ts";
 
 Deno.serve(async (req) => {
@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const userId = account.metadata?.kidi_user_id ?? account.metadata?.kidiplus_user_id;
-    const patch = connectReadyPatch(account);
+    const patch = connectReadyPatch(account, accountLivemode(account));
     if (userId) {
       await supabase.from("profiles").update(patch).eq("id", userId);
     } else {

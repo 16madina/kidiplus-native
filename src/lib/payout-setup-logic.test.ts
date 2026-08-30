@@ -56,6 +56,7 @@ function run() {
   assert.equal(isStripePayoutReady("active", true), true);
   assert.equal(isStripePayoutReady("pending", true, true), true);
   assert.equal(isStripePayoutReady("pending", null, true), true);
+  assert.equal(isStripePayoutReady("pending", false, true), false);
   assert.equal(isStripePayoutReady("active", null), true);
   assert.equal(payoutErrorI18nKey("connect_not_ready"), "payout.errors.connectNotReady");
   assert.equal(payoutErrorI18nKey("connect_test_mode"), "payout.errors.connectTestMode");

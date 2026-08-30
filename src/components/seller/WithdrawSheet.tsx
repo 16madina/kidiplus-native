@@ -73,6 +73,7 @@ export function WithdrawSheet({
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
   const [stripeReady, setStripeReady] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const methods = payoutMethodsForCurrency(currency);
   const min = payoutMinimumFor(currency);
@@ -99,6 +100,7 @@ export function WithdrawSheet({
     setAmount(String(available || ""));
     setError(null);
     void (async () => {
+      setChecking(true);
       const [stored, connect] = await Promise.all([
         user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
         fetchConnectStatus(),
@@ -110,6 +112,7 @@ export function WithdrawSheet({
       const first = firstReadyPayoutMethod(methods, stored, stripe) ?? defaultPayoutMethod(currency);
       setMethod(first);
       applyFields(stored, first);
+      setChecking(false);
     })();
     return () => {
       cancelled = true;
@@ -271,7 +274,11 @@ export function WithdrawSheet({
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
-              {!ready ? (
+              {checking && connect ? (
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
+                  {t("sellerPayments.checking")}
+                </Text>
+              ) : !ready ? (
                 <View style={[styles.needBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
                   <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>
                     {t("payout.methodNotReady")}
@@ -324,14 +331,14 @@ export function WithdrawSheet({
               ) : null}
               <GoldButton
                 label={
-                  busy
+                  busy || (checking && connect)
                     ? t("common.loading")
                     : ready
                       ? t("payout.submit")
                       : t("payout.configureMethod")
                 }
-                onPress={() => void (ready ? submit() : goConfigure())}
-                disabled={busy}
+                onPress={() => void (ready ? submit() : checking && connect ? undefined : goConfigure())}
+                disabled={busy || (checking && connect)}
               />
             </ScrollView>
           </View>

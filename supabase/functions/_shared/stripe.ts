@@ -46,6 +46,16 @@ export function stripeClient(): Stripe {
   });
 }
 
+/**
+ * v1 Account often omits `livemode`. A retrieve with sk_live_ only
+ * succeeds for a live connected account — treat that as live.
+ */
+export function accountLivemode(account: { livemode?: boolean | null }): boolean {
+  if (account.livemode === true) return true;
+  if (account.livemode === false) return false;
+  return isLiveSecret(stripeSecret());
+}
+
 export function isStripeConfigError(e: unknown): e is StripeConfigError {
   return e instanceof StripeConfigError || (e instanceof Error && e.name === "StripeConfigError");
 }

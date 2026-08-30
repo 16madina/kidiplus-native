@@ -5,6 +5,7 @@ import {
   connectStatusFromAccount,
   connectStatusFromFlags,
   connectUiPhase,
+  inferAccountLivemode,
   kidiStoreUrl,
   stripeAccountLinkUrls,
   isStaleConnectAccountError,
@@ -51,6 +52,11 @@ function run() {
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: true }), "active");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: false }), "pending");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true }), "active");
+  assert.equal(inferAccountLivemode(undefined, true), true);
+  assert.equal(inferAccountLivemode(undefined, false), false);
+  assert.equal(inferAccountLivemode(undefined), null);
+  assert.equal(inferAccountLivemode(false, true), false);
+  assert.equal(inferAccountLivemode(true, false), true);
   assert.equal(pickLegalPersonName({ firstName: "Deena", lastName: "Diallo" })?.first, "Deena");
   assert.equal(pickLegalPersonName({ firstName: "Dina", lastName: "" }), null);
   assert.equal(pickLegalPersonName({ firstName: "Deena 💎", lastName: "KiDi+" }), null);

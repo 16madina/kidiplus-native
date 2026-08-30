@@ -141,6 +141,21 @@ export function splitDisplayName(name: string | null | undefined): { first: stri
   return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
 }
 
+/**
+ * v1 Account often omits `livemode`. Never treat "missing" as test —
+ * only an explicit `false` is sandbox. A live secret implies live.
+ */
+export function inferAccountLivemode(
+  accountLivemode: boolean | null | undefined,
+  secretIsLive?: boolean | null,
+): boolean | null {
+  if (accountLivemode === true) return true;
+  if (accountLivemode === false) return false;
+  if (secretIsLive === true) return true;
+  if (secretIsLive === false) return false;
+  return null;
+}
+
 /** Legal identity for Stripe — never the shop name or @handle. */
 export function pickLegalPersonName(input: {
   firstName?: string | null;

@@ -4,7 +4,7 @@
 // account that onboarding just wrote.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
+import { accountLivemode, isStripeConfigError, stripeClient } from "../_shared/stripe.ts";
 import { connectStatusFromAccount } from "../_shared/connect-profile.ts";
 
 const CONNECT_CURRENCIES = new Set(["EUR", "CAD", "USD", "GBP"]);
@@ -68,11 +68,12 @@ Deno.serve(async (req) => {
     if (!accountId) return json({ error: "connect_not_ready", status: "none" }, 409);
 
     const account = await stripe.accounts.retrieve(accountId);
-    if (account.livemode !== true) {
+    const live = accountLivemode(account);
+    if (!live) {
       await refundPayout(supabase, payoutId, userId, "Compte Stripe test — virement réel impossible. Gains recrédités.");
       return json({ error: "connect_test_mode", refunded: true }, 409);
     }
-    const status = connectStatusFromAccount(account);
+    const status = connectStatusFromAccount({ ...account, livemode: live });
     if (status !== "active") {
       await refundPayout(supabase, payoutId, userId, "Compte Stripe pas prêt. Gains recrédités.");
       return json({ error: "connect_not_ready", refunded: true, status }, 409);

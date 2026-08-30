@@ -5,6 +5,7 @@ import { paymentsEnvHeaders } from "./stripe-web";
 import { isConnectReturnUrl } from "./payout-setup-logic";
 import { normalizeCountryCode } from "./countries";
 import {
+  inferAccountLivemode,
   isStaleConnectAccountError,
   mapConnectOnboardError,
   parseStripeBusinessType,
@@ -106,8 +107,11 @@ function asCountry(json: Record<string, unknown>): string {
   return "";
 }
 
-export async function fetchConnectStatus(): Promise<ConnectState> {
-  const empty: ConnectState = {
+const CONNECT_CACHE_MS = 45_000;
+let connectCache: { at: number; state: ConnectState } | null = null;
+
+function emptyConnectState(): ConnectState {
+  return {
     ok: false,
     connected: false,
     chargesEnabled: false,
@@ -120,6 +124,45 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     country: "",
     livemode: null,
   };
+}
+
+async function connectStateFromProfile(): Promise<ConnectState | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select(
+      "stripe_account_id, stripe_connect_id, connect_status, connect_payouts_enabled, stripe_payouts_enabled, connect_charges_enabled",
+    )
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  const accountId =
+    (typeof row.stripe_connect_id === "string" && row.stripe_connect_id) ||
+    (typeof row.stripe_account_id === "string" && row.stripe_account_id) ||
+    "";
+  const payoutsEnabled = Boolean(row.connect_payouts_enabled || row.stripe_payouts_enabled);
+  const status = asStatus(row.connect_status);
+  if (!accountId && status === "none" && !payoutsEnabled) return null;
+  const resolved: ConnectStatus = status !== "none" ? status : payoutsEnabled ? "active" : accountId ? "pending" : "none";
+  return {
+    ok: true,
+    connected: Boolean(accountId) || resolved !== "none",
+    chargesEnabled: Boolean(row.connect_charges_enabled),
+    payoutsEnabled,
+    detailsSubmitted: payoutsEnabled || resolved === "active",
+    eligible: true,
+    connectUnavailable: false,
+    status: resolved,
+    currency: "EUR",
+    country: "",
+    livemode: payoutsEnabled || resolved === "active" ? true : null,
+  };
+}
+
+export async function fetchConnectStatus(): Promise<ConnectState> {
+  if (connectCache && Date.now() - connectCache.at < CONNECT_CACHE_MS) {
+    return connectCache.state;
+  }
+  const empty = emptyConnectState();
   const edge = await postEdgeFunction("connect-status");
   const json = edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
     ? await postConnect("/api/connect/status")
@@ -127,7 +170,13 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
   if (json.ok === false || json.error) {
     const message = typeof json.message === "string" ? json.message : undefined;
     if (isStaleConnectAccountError(message)) {
-      return { ...empty, ok: true, status: "none", livemode: null };
+      connectCache = { at: Date.now(), state: { ...empty, ok: true, status: "none", livemode: null } };
+      return connectCache.state;
+    }
+    const cached = await connectStateFromProfile();
+    if (cached) {
+      connectCache = { at: Date.now(), state: cached };
+      return cached;
     }
     return {
       ...empty,
@@ -147,7 +196,10 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
         : hasAccount || detailsSubmitted || chargesEnabled
           ? "pending"
           : "none";
-  return {
+  const rawLive = json.livemode === false ? false : json.livemode === true ? true : null;
+  // Missing livemode + payouts on = live Express. Only explicit false is test.
+  const livemode = inferAccountLivemode(rawLive, payoutsEnabled || status === "active" ? true : null);
+  const state: ConnectState = {
     ok: true,
     connected: hasAccount || status !== "none",
     chargesEnabled,
@@ -158,8 +210,10 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     status,
     currency: String(json.currency ?? "EUR"),
     country: asCountry(json),
-    livemode: json.livemode === false ? false : json.livemode === true ? true : null,
+    livemode,
   };
+  connectCache = { at: Date.now(), state };
+  return state;
 }
 
 function mapOnboardError(code: string | undefined, message?: string): string {

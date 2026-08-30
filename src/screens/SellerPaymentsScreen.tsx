@@ -11,6 +11,7 @@ import { useAppTheme } from "../context/theme";
 import {
   emptyPayoutSetup,
   formatConnectCountry,
+  isStripePayoutReady,
   isValidBankHolder,
   isValidIban,
   isValidPaypalEmail,
@@ -64,7 +65,7 @@ export function SellerPaymentsScreen() {
   const currency = user?.walletCurrency ?? "EUR";
   const available = payoutSetupMethodsForCurrency(currency);
   const phase = connectUiPhase({ payoutsEnabled, connected, status, livemode });
-  const stripeReady = phase === "ready";
+  const stripeReady = isStripePayoutReady(status, livemode, payoutsEnabled);
   const locale = i18n.language?.startsWith("en") ? "en" : "fr";
   const countryLabel = formatConnectCountry(connectCountry || user?.country, locale);
 

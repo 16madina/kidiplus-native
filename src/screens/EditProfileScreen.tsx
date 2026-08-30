@@ -149,6 +149,9 @@ export function EditProfileScreen() {
             </Text>
           </View>
 
+          <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17 }}>
+            {t("sellerPayments.legalNameHint")}
+          </Text>
           <FormField
             required
             label={t("auth.signUp.firstName")}
@@ -172,7 +175,7 @@ export function EditProfileScreen() {
           />
           <FormField
             required
-            label={t("profile.handleLabel", { defaultValue: "Handle (@pseudo)" })}
+            label={t("auth.signUp.handle")}
             value={handle}
             onChangeText={(v) => setHandle(v.toLowerCase())}
             autoCapitalize="none"
