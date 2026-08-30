@@ -12,6 +12,7 @@ import {
   isoCountryFromLabel,
   pickStripeConnectCountry,
   splitDisplayName,
+  stripeConnectAvailable,
 } from "./connect-onboard-logic.ts";
 
 function run() {
@@ -49,13 +50,26 @@ function run() {
 
   assert.equal(isoCountryFromLabel("Canada"), "CA");
   assert.equal(isoCountryFromLabel("🇨🇦 Canada"), "CA");
+  assert.equal(isoCountryFromLabel("Australie"), "AU");
+  assert.equal(isoCountryFromLabel("Australia"), "AU");
+  assert.equal(isoCountryFromLabel("États-Unis"), "US");
+  assert.equal(isoCountryFromLabel("United States"), "US");
+  assert.equal(isoCountryFromLabel("France"), "FR");
+  assert.equal(isoCountryFromLabel("Allemagne"), "DE");
   assert.equal(pickStripeConnectCountry("Canada", "CI", "EUR"), "CA");
+  assert.equal(pickStripeConnectCountry("Australie", null, "USD"), "AU");
+  assert.equal(pickStripeConnectCountry("États-Unis", null, "EUR"), "US");
+  assert.equal(pickStripeConnectCountry("France", null, "CAD"), "FR");
   assert.equal(pickStripeConnectCountry("CI", "CI", "CAD"), "CA");
   assert.equal(pickStripeConnectCountry("CI", "CI", "EUR"), "FR");
   assert.equal(pickStripeConnectCountry("SN", null, "EUR"), "FR");
-  assert.equal(pickStripeConnectCountry("FR", "CI", "EUR"), "FR");
   assert.equal(pickStripeConnectCountry(null, "CA", "CAD"), "CA");
   assert.equal(pickStripeConnectCountry(null, null, "USD"), "US");
+  assert.equal(stripeConnectAvailable("XOF"), false);
+  assert.equal(stripeConnectAvailable("EUR"), true);
+  assert.equal(stripeConnectAvailable("CAD"), true);
+  assert.equal(stripeConnectAvailable("USD"), true);
+  assert.equal(stripeConnectAvailable("GBP"), true);
 
   assert.equal(mapConnectOnboardError("handle_missing").kind, "handle_missing");
   assert.match(mapConnectOnboardError("handle_missing").text, /boutique/);

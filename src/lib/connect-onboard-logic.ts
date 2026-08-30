@@ -4,13 +4,21 @@ export const KIDI_SITE = "https://kidiplus.com";
 export const CONNECT_MCC_RETAIL = "5399";
 export const COMPANY_PERSON_TITLE = "Propriétaire";
 
-/** Countries Stripe Express can host. West Africa (CI, SN, …) is not in this set. */
+/**
+ * Stripe Express connected-account countries (platform can create Express
+ * for these). West-Africa CFA (CI, SN, …) is intentionally absent.
+ * Gate is currency === XOF, not GPS / vacation location.
+ */
 export const STRIPE_CONNECT_COUNTRIES = new Set([
   "AE", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
   "FI", "FR", "GB", "GI", "GR", "HK", "HR", "HU", "IE", "IT", "JP", "LI", "LT", "LU",
   "LV", "MT", "MX", "MY", "NL", "NO", "NZ", "PL", "PT", "RO", "SE", "SG", "SI", "SK",
   "TH", "US",
 ]);
+
+export function stripeConnectAvailable(currency?: string | null): boolean {
+  return (currency ?? "").trim().toUpperCase() !== "XOF";
+}
 
 export function defaultCountryForCurrency(currency?: string | null): string {
   const c = (currency ?? "").trim().toUpperCase();
@@ -20,22 +28,77 @@ export function defaultCountryForCurrency(currency?: string | null): string {
   return "FR";
 }
 
-const COUNTRY_NAME_ALIAS: Record<string, string> = {
-  canada: "CA",
-  france: "FR",
-  usa: "US",
-  "united states": "US",
-  "etats unis": "US",
-  "united kingdom": "GB",
-  "royaume uni": "GB",
-  "cote divoire": "CI",
-  "ivory coast": "CI",
-  senegal: "SN",
-  belgique: "BE",
+const NAME_TO_ISO: Record<string, string> = {
+  australia: "AU",
+  australie: "AU",
+  austria: "AT",
+  autriche: "AT",
   belgium: "BE",
+  belgique: "BE",
+  brazil: "BR",
+  bresil: "BR",
+  bulgaria: "BG",
+  bulgarie: "BG",
+  canada: "CA",
   switzerland: "CH",
   suisse: "CH",
+  cyprus: "CY",
+  chypre: "CY",
+  germany: "DE",
+  allemagne: "DE",
+  denmark: "DK",
+  danemark: "DK",
+  spain: "ES",
+  espagne: "ES",
+  finland: "FI",
+  finlande: "FI",
+  france: "FR",
+  "united kingdom": "GB",
+  "royaume uni": "GB",
+  "hong kong": "HK",
+  croatia: "HR",
+  croatie: "HR",
+  hungary: "HU",
+  hongrie: "HU",
+  ireland: "IE",
+  irlande: "IE",
+  italy: "IT",
+  italie: "IT",
+  japan: "JP",
+  japon: "JP",
+  luxembourg: "LU",
+  mexico: "MX",
+  mexique: "MX",
+  netherlands: "NL",
+  "pays bas": "NL",
+  norway: "NO",
+  norvege: "NO",
+  "new zealand": "NZ",
+  "nouvelle zelande": "NZ",
+  poland: "PL",
+  pologne: "PL",
+  portugal: "PT",
+  sweden: "SE",
+  suede: "SE",
+  singapore: "SG",
+  singapour: "SG",
+  thailand: "TH",
+  thailande: "TH",
+  "united states": "US",
+  "etats unis": "US",
+  usa: "US",
 };
+
+function foldCountryName(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export function isoCountryFromLabel(raw?: string | null): string | null {
   if (!raw) return null;
@@ -45,16 +108,10 @@ export function isoCountryFromLabel(raw?: string | null): string | null {
   if (/^[A-Z]{2}$/.test(upper)) return upper;
   const withoutFlag = trimmed.replace(/^[^A-Za-zÀ-ÿ]+/u, "").trim();
   if (/^[A-Za-z]{2}$/.test(withoutFlag)) return withoutFlag.toUpperCase();
-  const key = withoutFlag
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/['’]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return COUNTRY_NAME_ALIAS[key] ?? null;
+  return NAME_TO_ISO[foldCountryName(withoutFlag)] ?? null;
 }
 
+/** Prefer the seller's registered country when Stripe supports it; else the wallet currency. */
 export function pickStripeConnectCountry(
   requested?: string | null,
   profileCountry?: string | null,
@@ -122,15 +179,20 @@ export function mapConnectOnboardError(
     };
   }
   const blob = `${code ?? ""} ${message ?? ""}`.toLowerCase();
+  if (code === "connect_currency_unsupported" || blob.includes("xof") && blob.includes("connect")) {
+    return {
+      kind: "server",
+      text: "Stripe Connect n'est pas disponible en FCFA. Utilise Wave, Orange Money, PayPal ou un virement.",
+    };
+  }
   if (
     code === "connect_country_unsupported" ||
-    code === "connect_currency_unsupported" ||
-    blob.includes("cannot create") && blob.includes("country") ||
-    blob.includes("unsupported") && blob.includes("country")
+    (blob.includes("cannot create") && blob.includes("country")) ||
+    (blob.includes("unsupported") && blob.includes("country"))
   ) {
     return {
       kind: "server",
-      text: "Stripe Connect n'est pas disponible pour ce pays. On ouvre un compte France / Europe — réessaie.",
+      text: "Stripe Connect n'est pas disponible pour ce pays. On ouvre un compte selon ta devise — réessaie.",
     };
   }
   if (blob.includes("invalid api key") || blob.includes("invalid_api_key")) {

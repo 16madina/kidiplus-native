@@ -7,6 +7,7 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { stripeClient } from "../_shared/stripe.ts";
+import { isXofCurrency, pickConnectCountry } from "../_shared/connect-country.ts";
 
 const stripe = stripeClient();
 
@@ -55,6 +56,16 @@ Deno.serve(async (req) => {
       typeof profile?.last_name === "string" ? profile.last_name : "",
       displayName,
     );
+    if (isXofCurrency(body.currency)) {
+      return json(
+        {
+          error: "connect_currency_unsupported",
+          message: "Stripe Connect n'est pas disponible en FCFA.",
+        },
+        400,
+      );
+    }
+
     const country = pickConnectCountry(
       body.country,
       profile?.country,
@@ -258,55 +269,6 @@ async function loadProfile(
 
 function httpsOrFallback(raw: unknown, fallback: string): string {
   return typeof raw === "string" && raw.startsWith("https://") ? raw : fallback;
-}
-
-const STRIPE_CONNECT_COUNTRIES = new Set([
-  "AE", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
-  "FI", "FR", "GB", "GI", "GR", "HK", "HR", "HU", "IE", "IT", "JP", "LI", "LT", "LU",
-  "LV", "MT", "MX", "MY", "NL", "NO", "NZ", "PL", "PT", "RO", "SE", "SG", "SI", "SK",
-  "TH", "US",
-]);
-
-const COUNTRY_NAME_ALIAS: Record<string, string> = {
-  canada: "CA",
-  france: "FR",
-  usa: "US",
-  "united states": "US",
-  "etats unis": "US",
-  "united kingdom": "GB",
-  "royaume uni": "GB",
-  "cote divoire": "CI",
-  "ivory coast": "CI",
-};
-
-function isoFromLabel(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const upper = trimmed.toUpperCase();
-  if (/^[A-Z]{2}$/.test(upper)) return upper;
-  const withoutFlag = trimmed.replace(/^[^A-Za-zÀ-ÿ]+/u, "").trim();
-  if (/^[A-Za-z]{2}$/.test(withoutFlag)) return withoutFlag.toUpperCase();
-  const key = withoutFlag
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/['’]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return COUNTRY_NAME_ALIAS[key] ?? null;
-}
-
-function pickConnectCountry(requested: unknown, profile: unknown, currency: unknown): string {
-  for (const raw of [requested, profile]) {
-    const cc = isoFromLabel(raw);
-    if (cc && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
-  }
-  const cur = typeof currency === "string" ? currency.trim().toUpperCase() : "";
-  if (cur === "CAD") return "CA";
-  if (cur === "USD") return "US";
-  if (cur === "GBP") return "GB";
-  return "FR";
 }
 
 function splitName(first: string, last: string, display: string): { first: string; last: string } {

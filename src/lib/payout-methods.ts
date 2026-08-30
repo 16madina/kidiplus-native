@@ -1,10 +1,12 @@
 import { normalizeCurrency } from "./money";
+import { stripeConnectAvailable } from "./connect-onboard-logic";
 import type { PayoutMethod } from "./earnings";
 
-/** Withdraw + setup screen: Stripe only outside XOF; Wave / OM only for XOF. */
+/** Stripe Connect for every non-CFA wallet. Wave / OM only for XOF. */
 export function payoutMethodsForCurrency(currency: string | null | undefined): PayoutMethod[] {
-  const cur = normalizeCurrency(currency);
-  if (cur === "XOF") return ["wave", "orange_money", "paypal", "bank_transfer"];
+  if (!stripeConnectAvailable(currency)) {
+    return ["wave", "orange_money", "paypal", "bank_transfer"];
+  }
   return ["stripe_connect", "paypal", "bank_transfer"];
 }
 
