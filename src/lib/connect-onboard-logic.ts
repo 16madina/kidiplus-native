@@ -196,7 +196,7 @@ export function mapConnectOnboardError(
     };
   }
   if (blob.includes("invalid api key") || blob.includes("invalid_api_key")) {
-    return { kind: "server", text: "Clé Stripe serveur invalide. Vérifie STRIPE_LIVE_API_KEY dans Supabase." };
+    return { kind: "server", text: "Clé Stripe serveur invalide. Vérifie STRIPE_SECRET_KEY dans Supabase." };
   }
   if (code === "server_error" || code === "http_error" || code === "network_error") {
     const hint = (message ?? "").replace(/^Error:\s*/i, "").replace(/^Stripe\w*Error:\s*/i, "").trim();
