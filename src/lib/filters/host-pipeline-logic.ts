@@ -29,12 +29,11 @@ export function hostPipelineMode(opts: {
 }
 
 /**
- * Android Camera Kit owns the camera for the whole live (even unfiltered),
- * like kidiplus.com. iOS `setPublishEnabled` is a stub — do not steal the
- * camera there or viewers get a black frame.
+ * Phone Camera Kit owns the camera for the whole live (even unfiltered),
+ * like kidiplus.com. Confirmed only when native status reports real frames.
  */
 export function canAttemptKitPublish(os: string, cameraKit: boolean): boolean {
-  return os === "android" && cameraKit;
+  return (os === "android" || os === "ios") && cameraKit;
 }
 
 /** Android reports real published frames. iOS status has neither field. */

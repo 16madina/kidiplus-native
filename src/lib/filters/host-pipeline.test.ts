@@ -38,7 +38,8 @@ async function main() {
 
   assert.equal(canAttemptKitPublish("android", true), true);
   assert.equal(canAttemptKitPublish("android", false), false);
-  assert.equal(canAttemptKitPublish("ios", true), false);
+  assert.equal(canAttemptKitPublish("ios", true), true);
+  assert.equal(canAttemptKitPublish("ios", false), false);
   assert.equal(canAttemptKitPublish("web", true), false);
 
   assert.equal(kitPublishConfirmed({ publishing: true, frameCount: 3 }), true);
@@ -61,8 +62,14 @@ async function main() {
   const noLens = await runFilteredPublish({ ...args, facing: "environment", lens: null }, fakeDeps());
   assert.equal(noLens.path, "kit_publish");
 
-  const ios = await runFilteredPublish(args, fakeDeps({ os: "ios" }));
-  assert.equal(ios.path, "web_overlay");
+  const iosOk = await runFilteredPublish(args, fakeDeps({ os: "ios" }));
+  assert.equal(iosOk.path, "kit_publish");
+
+  const iosStub = await runFilteredPublish(
+    args,
+    fakeDeps({ os: "ios", getStatus: async () => ({ ready: true }) }),
+  );
+  assert.equal(iosStub.path, "web_overlay");
 
   const stubStatus = await runFilteredPublish(
     args,

@@ -1,4 +1,4 @@
-/** Same host video pipeline as kidiplus.com `broadcast-video.applyHostPipeline`. */
+/** Same host video pipeline as kidiplus.com: Camera Kit frames go into LiveKit. */
 
 import { Platform } from "react-native";
 import { KidiCameraKit } from "../../../modules/kidi-camera-kit/src";

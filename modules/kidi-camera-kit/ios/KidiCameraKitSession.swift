@@ -1,6 +1,9 @@
 import ARKit
 import AVFoundation
 import Foundation
+#if canImport(LiveKit)
+import LiveKit
+#endif
 import SCSDKCameraKit
 import UIKit
 
@@ -44,8 +47,14 @@ final class KidiCameraKitSession: NSObject {
     private let lensQueue = DispatchQueue(label: "com.kidiplus.camerakit.lenses")
 
     private var frameOutput: KidiCameraKitFrameOutput?
+    private var frameCount: Int64 = 0
     private var publishEnabled = false
     private var idleStopWork: DispatchWorkItem?
+    #if canImport(LiveKit)
+    private var liveKitRoom: Room?
+    private var liveKitVideoTrack: LocalVideoTrack?
+    private var bufferCapturer: BufferCapturer?
+    #endif
 
     /// RN `KidiCameraKitPreviewView` host. When set, PreviewView is attached
     /// here instead of behind the opaque React root (which would hide AR).
@@ -100,6 +109,8 @@ final class KidiCameraKitSession: NSObject {
             "initialized": isInitialized,
             "sessionStarted": sessionStarted,
             "captureRunning": captureSession?.isRunning ?? false,
+            "publishing": publishEnabled,
+            "frameCount": frameCount,
             "plistToken": !plistToken.isEmpty,
             "plistGroup": plistGroup,
         ]
@@ -279,7 +290,7 @@ final class KidiCameraKitSession: NSObject {
         }
     }
 
-    // MARK: - Live publish (JS LiveKit owns the room for now)
+    // MARK: - Live publish (Camera Kit frames → LiveKit, like kidiplus.com)
 
     func setPublishEnabled(
         enabled: Bool,
@@ -287,25 +298,167 @@ final class KidiCameraKitSession: NSObject {
         token: String?,
         completion: @escaping (Result<Bool, Error>) -> Void
     ) {
-        // Native BufferCapturer publish is deferred until LiveKit Swift is
-        // linked via SPM. Keep Camera Kit preview/lenses running; JS continues
-        // to publish via @livekit/react-native.
-        publishEnabled = enabled
-        DispatchQueue.main.async {
+        if !enabled {
+            Task { @MainActor in
+                await self.stopPublishing()
+                completion(.success(false))
+            }
+            return
+        }
+        let url = roomUrl ?? ""
+        let tok = token ?? ""
+        guard !url.isEmpty, !tok.isEmpty else {
+            completion(.failure(KidiCameraKitError.message("Missing roomUrl or token")))
+            return
+        }
+        #if canImport(LiveKit)
+        Task { @MainActor in
             do {
-                try self.bootstrapSession(apiToken: nil, groupIds: nil)
+                try await self.startPublishing(url: url, token: tok)
+                completion(.success(true))
+            } catch {
+                await self.stopPublishing()
+                completion(.failure(error))
+            }
+        }
+        #else
+        completion(.failure(KidiCameraKitError.message("LiveKit Swift not linked — rebuild iOS")))
+        #endif
+    }
+
+    private func attachFrameOutputIfNeeded() {
+        guard let cameraKit, frameOutput == nil else { return }
+        let output = KidiCameraKitFrameOutput()
+        output.onSampleBuffer = { [weak self] sample in
+            guard let self else { return }
+            self.frameCount += 1
+            #if canImport(LiveKit)
+            self.bufferCapturer?.capture(sample)
+            #endif
+        }
+        cameraKit.add(output: output)
+        frameOutput = output
+    }
+
+    #if canImport(LiveKit)
+    @MainActor
+    private func startPublishing(url: String, token: String) async throws {
+        publishEnabled = true
+        idleStopWork?.cancel()
+        idleStopWork = nil
+        frameCount = 0
+        frameOutput?.resetFrameFlag()
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            do {
+                try bootstrapSession(apiToken: nil, groupIds: nil)
             } catch {
                 print("[KidiCameraKit] publish bootstrap: \(error.localizedDescription)")
             }
-            self.ensureSessionStarted(
-                facing: self.cameraPosition == .front ? "user" : "environment",
-                waitForCapture: false
-            ) { _ in
-                print("[KidiCameraKit] setPublishEnabled enabled=\(enabled) (JS LiveKit path)")
-                completion(.success(enabled))
+            ensureSessionStarted(
+                facing: cameraPosition == .front ? "user" : "environment",
+                waitForCapture: true
+            ) { ok in
+                if ok {
+                    cont.resume()
+                } else {
+                    cont.resume(throwing: KidiCameraKitError.message("Camera preview failed to start"))
+                }
             }
         }
+
+        guard isInitialized, cameraKit != nil else {
+            throw KidiCameraKitError.message("Camera Kit session missing")
+        }
+
+        attachFrameOutputIfNeeded()
+
+        let room = liveKitRoom ?? Room()
+        liveKitRoom = room
+        if room.connectionState != .connected {
+            try await withTimeout(seconds: 12) {
+                try await room.connect(url: url, token: token)
+            }
+        }
+
+        let videoTrack = LocalVideoTrack.createBufferTrack(
+            name: "camera",
+            source: .camera,
+            options: BufferCaptureOptions()
+        )
+        liveKitVideoTrack = videoTrack
+        bufferCapturer = videoTrack.capturer as? BufferCapturer
+
+        let gotFrame = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            var resumed = false
+            frameOutput?.onFirstFrame = {
+                guard !resumed else { return }
+                resumed = true
+                cont.resume(returning: true)
+            }
+            if frameOutput?.didEmitFrame == true {
+                guard !resumed else { return }
+                resumed = true
+                cont.resume(returning: true)
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                guard !resumed else { return }
+                resumed = true
+                cont.resume(returning: false)
+            }
+        }
+        if !gotFrame && frameCount == 0 {
+            throw KidiCameraKitError.message("Camera Kit produced no published frame")
+        }
+
+        try await room.localParticipant.publish(videoTrack: videoTrack)
+        _ = try? await room.localParticipant.setMicrophone(enabled: true)
+        print("[KidiCameraKit] LiveKit video published frames=\(frameCount)")
     }
+
+    @MainActor
+    private func stopPublishing() async {
+        publishEnabled = false
+        bufferCapturer = nil
+        if let publication = liveKitRoom?.localParticipant.trackPublications.values
+            .compactMap({ $0 as? LocalTrackPublication })
+            .first(where: { $0.source == .camera })
+        {
+            try? await liveKitRoom?.localParticipant.unpublish(publication: publication)
+        }
+        liveKitVideoTrack = nil
+        await liveKitRoom?.disconnect()
+        liveKitRoom = nil
+        if previewView?.superview == nil {
+            sessionInput?.stopRunning()
+        }
+        print("[KidiCameraKit] LiveKit publish stopped")
+    }
+
+    private func withTimeout<T>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw KidiCameraKitError.message("Timed out after \(Int(seconds))s")
+            }
+            guard let result = try await group.next() else {
+                throw KidiCameraKitError.message("Timed out")
+            }
+            group.cancelAll()
+            return result
+        }
+    }
+    #else
+    @MainActor
+    private func stopPublishing() async {
+        publishEnabled = false
+    }
+    #endif
 }
 
 // MARK: - Preview host (accessed from KidiCameraKitPreviewView)
@@ -466,6 +619,7 @@ private extension KidiCameraKitSession {
                 self.previewView = preview
             }
             self.attachPreview(preview)
+            self.attachFrameOutputIfNeeded()
 
             if waitForCapture {
                 self.startCaptureWithRetry(input: input, attempt: 0, completion: completion)
