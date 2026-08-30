@@ -1,5 +1,5 @@
 import { bootLiveKit } from "../lib/livekit-boot";
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { ActivityIndicator, Alert, AppState, LogBox, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,6 +18,7 @@ import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
+import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { useNav } from "../context/navigation";
 import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
 import {
@@ -28,7 +29,14 @@ import {
   useBattleForLive,
   type HydratedBattle,
 } from "../lib/battles";
-import { stopBridgePreview, setNativeLensApplyAllowed } from "../lib/filters/camera-kit-bridge";
+import {
+  flipBridgeCamera,
+  setBridgePublishEnabled,
+  setNativeLensApplyAllowed,
+  stopBridgePreview,
+} from "../lib/filters/camera-kit-bridge";
+import { useFilter } from "../lib/filters/filter-context";
+import { stopFilteredPublish, tryStartFilteredPublish } from "../lib/filters/host-pipeline";
 import { stopNativeLiveEffects } from "../lib/filters/live-effects-native-bridge";
 import {
   delayMs,
@@ -68,8 +76,12 @@ export function BroadcastLiveHost({
   facing: CameraType;
 }) {
   const { closeOverlay } = useNav();
+  const { activeLens } = useFilter();
   const endingRef = useRef(false);
+  const lensRef = useRef(activeLens);
+  lensRef.current = activeLens;
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
+  const [kitPublishing, setKitPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<LiveSummaryStats | null>(null);
 
@@ -80,7 +92,19 @@ export function BroadcastLiveHost({
         bootLiveKit();
         await AudioSession.startAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "host");
-        if (!cancelled) setSession(s);
+        if (cancelled) return;
+        const kit = await tryStartFilteredPublish({
+          url: s.url,
+          token: s.token,
+          facing: facing === "back" ? "environment" : "user",
+          lens: lensRef.current,
+        });
+        if (cancelled) {
+          await stopFilteredPublish();
+          return;
+        }
+        setKitPublishing(kit.path === "kit_publish");
+        setSession(s);
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : "Connexion LiveKit impossible";
@@ -95,8 +119,9 @@ export function BroadcastLiveHost({
     })();
     return () => {
       cancelled = true;
+      void stopFilteredPublish();
     };
-  }, [roomName, identity, displayName]);
+  }, [roomName, identity, displayName, facing]);
 
   useEffect(() => {
     return () => {
@@ -107,6 +132,7 @@ export function BroadcastLiveHost({
   useEffect(() => {
     if (!summary) return;
     void AudioSession.stopAudioSession();
+    void stopFilteredPublish();
   }, [summary]);
 
   if (summary) {
@@ -140,6 +166,20 @@ export function BroadcastLiveHost({
     );
   }
 
+  if (kitPublishing) {
+    return (
+      <HostKitStage
+        liveId={liveId}
+        identity={identity}
+        displayName={displayName}
+        facing={facing}
+        session={session}
+        endingRef={endingRef}
+        onEnded={setSummary}
+      />
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <LiveKitRoom
@@ -161,7 +201,7 @@ export function BroadcastLiveHost({
         }}
       >
         <PublishLocalMedia facing={facing} />
-        <HostStage
+        <HostLiveKitStage
           liveId={liveId}
           identity={identity}
           displayName={displayName}
@@ -184,46 +224,10 @@ function PublishLocalMedia({ facing }: { facing: CameraType }) {
   return null;
 }
 
-function HostStage({
-  liveId,
-  identity,
-  displayName,
-  facing: initialFacing,
-  endingRef,
-  onEnded,
-}: {
-  liveId: string;
-  identity: string;
-  displayName: string;
-  facing: CameraType;
-  endingRef: MutableRefObject<boolean>;
-  onEnded: (stats: LiveSummaryStats) => void;
-}) {
-  const { t } = useTranslation();
-  const { closeOverlay } = useNav();
-  const room = useRoomContext();
-  const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
-  const tracks = useTracks([Track.Source.Camera]);
-  const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
-  const guestCamTrack = tracks.find(
-    (t) =>
-      isTrackReference(t) &&
-      !t.participant.isLocal &&
-      isBattleGuestIdentity(t.participant.identity),
-  );
-  const people = useParticipants();
-  const [busy, setBusy] = useState(false);
-  const [facing, setFacing] = useState<CameraType>(initialFacing);
-  const [flipBusy, setFlipBusy] = useState(false);
+function useHostLiveExtras(liveId: string) {
   const [battleOverride, setBattleOverride] = useState<HydratedBattle | null>(null);
   const startedAtMsRef = useRef(Date.now());
   const peakRef = useRef(0);
-  const facingRef = useRef(initialFacing);
-  const participantRef = useRef(localParticipant);
-  const camWantedRef = useRef(true);
-  const pickingRef = useRef(false);
-  facingRef.current = facing;
-  participantRef.current = localParticipant;
   const liveBattle = useBattleForLive(liveId);
   const battle = battleOverride ?? liveBattle;
   const battleActive = isBattleLiveActive(battle);
@@ -236,27 +240,6 @@ function HostStage({
     () => battle?.lives.find((l) => l.live_id !== liveId) ?? null,
     [battle, liveId],
   );
-
-  const getBattleSourceTrack = useCallback((): LocalVideoTrack | null => {
-    const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-    const track = pub?.track;
-    return track instanceof LocalVideoTrack ? track : null;
-  }, [localParticipant]);
-
-  const getBattleSourceAudioTrack = useCallback((): LocalAudioTrack | null => {
-    const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
-    const track = pub?.track;
-    return track instanceof LocalAudioTrack ? track : null;
-  }, [localParticipant]);
-
-  const remoteBattleStatus = useBattleGuestPublish({
-    enabled: battleActive,
-    userId: identity,
-    displayName,
-    remoteRoomName: opponentLive?.room_name ?? null,
-    getSourceTrack: getBattleSourceTrack,
-    getSourceAudioTrack: getBattleSourceAudioTrack,
-  });
 
   useEffect(() => {
     if (!battleActive || !battle?.session.id) return;
@@ -303,10 +286,307 @@ function HostStage({
     };
   }, [liveId]);
 
+  return {
+    battleActive,
+    myLive,
+    opponentLive,
+    startedAtMsRef,
+    peakRef,
+    onBattleAccepted,
+  };
+}
+
+function HostChrome({
+  liveId,
+  identity,
+  displayName,
+  facing,
+  hostVideo,
+  guestVideo,
+  hostFighter,
+  guestFighter,
+  guestStatus,
+  battleActive,
+  viewerFallback,
+  micOn,
+  camOn,
+  busy,
+  fxSync,
+  onToggleMic,
+  onToggleCam,
+  onFlip,
+  onEnd,
+  onBattleAccepted,
+}: {
+  liveId: string;
+  identity: string;
+  displayName: string;
+  facing: CameraType;
+  hostVideo: ReactNode;
+  guestVideo: ReactNode;
+  hostFighter: { displayName: string; avatarUrl: string | null };
+  guestFighter: { displayName: string; avatarUrl: string | null } | null;
+  guestStatus?: string;
+  battleActive: boolean;
+  viewerFallback: number;
+  micOn: boolean;
+  camOn: boolean;
+  busy: boolean;
+  fxSync?: ReactNode;
+  onToggleMic: () => void;
+  onToggleCam: () => void;
+  onFlip: () => void;
+  onEnd: () => void;
+  onBattleAccepted?: () => void;
+}) {
+  const { t } = useTranslation();
+  const { closeOverlay } = useNav();
+  return (
+    <View style={styles.root}>
+      <BattleSplitStage
+        active={battleActive}
+        hostVideo={hostVideo}
+        hostFighter={hostFighter}
+        guestVideo={guestVideo}
+        guestFighter={guestFighter}
+        guestStatus={guestStatus}
+      />
+      {fxSync}
+      <HostStudioHud
+        liveId={liveId}
+        identity={identity}
+        displayName={displayName}
+        viewerFallback={viewerFallback}
+        micOn={micOn}
+        camOn={camOn}
+        onToggleMic={onToggleMic}
+        onToggleCam={onToggleCam}
+        onFlip={onFlip}
+        onEnd={onEnd}
+        onMinimize={closeOverlay}
+        onBattleAccepted={onBattleAccepted}
+        cameraFacing={facing}
+      />
+      {busy ? (
+        <View style={[FILL, styles.ending]} pointerEvents="auto">
+          <ActivityIndicator color={GOLD} />
+          <Text style={styles.wait}>{t("live.endingLive")}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Android Camera Kit publishes filtered frames with its own LiveKit room
+ * (same as kidiplus.com). Do not also connect the JS room — same token
+ * would kick the native publisher and viewers would lose the video.
+ */
+function HostKitStage({
+  liveId,
+  identity,
+  displayName,
+  facing: initialFacing,
+  session,
+  endingRef,
+  onEnded,
+}: {
+  liveId: string;
+  identity: string;
+  displayName: string;
+  facing: CameraType;
+  session: { url: string; token: string };
+  endingRef: MutableRefObject<boolean>;
+  onEnded: (stats: LiveSummaryStats) => void;
+}) {
+  const { t } = useTranslation();
+  const extras = useHostLiveExtras(liveId);
+  const [busy, setBusy] = useState(false);
+  const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const [flipBusy, setFlipBusy] = useState(false);
+  const [camOn, setCamOn] = useState(true);
+  const [micOn, setMicOn] = useState(true);
+  const camBusyRef = useRef(false);
+
+  useEffect(() => {
+    setNativeLensApplyAllowed(true);
+    void stopNativeLiveEffects();
+    registerHostPickerPause(async (work) => work());
+    return () => {
+      registerHostPickerPause(null);
+    };
+  }, []);
+
+  const actuallyFinish = async () => {
+    if (busy || endingRef.current) return;
+    endingRef.current = true;
+    setBusy(true);
+    const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
+    const peakViewers = extras.peakRef.current;
+
+    const ended = await endLiveInDb(liveId);
+    if (!ended.ok) {
+      endingRef.current = false;
+      setBusy(false);
+      Alert.alert(t("live.endFailed"));
+      return;
+    }
+    await stopLiveReplay(liveId).catch(() => undefined);
+    notifyHostLiveEnded(liveId);
+    await stopFilteredPublish();
+    void stopBridgePreview();
+    onEnded({ durationSec, peakViewers });
+  };
+
+  const finish = () => {
+    if (busy) return;
+    Alert.alert(t("live.confirmEnd"), t("live.confirmEndBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("live.endLive"),
+        style: "destructive",
+        onPress: () => {
+          void actuallyFinish();
+        },
+      },
+    ]);
+  };
+
+  const flip = async () => {
+    if (flipBusy || !camOn) return;
+    setFlipBusy(true);
+    try {
+      const result = await flipBridgeCamera();
+      if (result?.facing === "environment" || result?.facing === "user") {
+        setFacing(result.facing === "environment" ? "back" : "front");
+      } else {
+        setFacing((prev) => (prev === "back" ? "front" : "back"));
+      }
+    } finally {
+      setFlipBusy(false);
+    }
+  };
+
+  return (
+    <HostChrome
+      liveId={liveId}
+      identity={identity}
+      displayName={displayName}
+      facing={facing}
+      hostVideo={
+        camOn ? (
+          <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+        ) : (
+          <View style={[FILL, styles.center]}>
+            <Text style={styles.wait}>Caméra coupée</Text>
+          </View>
+        )
+      }
+      guestVideo={null}
+      hostFighter={
+        extras.myLive
+          ? { displayName: extras.myLive.display_name, avatarUrl: extras.myLive.avatar_url }
+          : { displayName, avatarUrl: null }
+      }
+      guestFighter={
+        extras.opponentLive
+          ? {
+              displayName: extras.opponentLive.display_name,
+              avatarUrl: extras.opponentLive.avatar_url,
+            }
+          : null
+      }
+      battleActive={extras.battleActive}
+      viewerFallback={0}
+      micOn={micOn}
+      camOn={camOn}
+      busy={busy}
+      onToggleMic={() => setMicOn((v) => !v)}
+      onToggleCam={() => {
+        if (camBusyRef.current) return;
+        const next = !camOn;
+        setCamOn(next);
+        camBusyRef.current = true;
+        void setBridgePublishEnabled(
+          next
+            ? { enabled: true, roomUrl: session.url, token: session.token }
+            : { enabled: false },
+        )
+          .catch(() => setCamOn(!next))
+          .finally(() => {
+            camBusyRef.current = false;
+          });
+      }}
+      onFlip={() => void flip()}
+      onEnd={finish}
+      onBattleAccepted={extras.onBattleAccepted}
+    />
+  );
+}
+
+function HostLiveKitStage({
+  liveId,
+  identity,
+  displayName,
+  facing: initialFacing,
+  endingRef,
+  onEnded,
+}: {
+  liveId: string;
+  identity: string;
+  displayName: string;
+  facing: CameraType;
+  endingRef: MutableRefObject<boolean>;
+  onEnded: (stats: LiveSummaryStats) => void;
+}) {
+  const { t } = useTranslation();
+  const room = useRoomContext();
+  const { isMicrophoneEnabled, isCameraEnabled, localParticipant } = useLocalParticipant();
+  const tracks = useTracks([Track.Source.Camera]);
+  const cameraTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
+  const guestCamTrack = tracks.find(
+    (t) =>
+      isTrackReference(t) &&
+      !t.participant.isLocal &&
+      isBattleGuestIdentity(t.participant.identity),
+  );
+  const people = useParticipants();
+  const extras = useHostLiveExtras(liveId);
+  const [busy, setBusy] = useState(false);
+  const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const [flipBusy, setFlipBusy] = useState(false);
+  const facingRef = useRef(initialFacing);
+  const participantRef = useRef(localParticipant);
+  const camWantedRef = useRef(true);
+  const pickingRef = useRef(false);
+  facingRef.current = facing;
+  participantRef.current = localParticipant;
+
+  const getBattleSourceTrack = useCallback((): LocalVideoTrack | null => {
+    const pub = localParticipant.getTrackPublication(Track.Source.Camera);
+    const track = pub?.track;
+    return track instanceof LocalVideoTrack ? track : null;
+  }, [localParticipant]);
+
+  const getBattleSourceAudioTrack = useCallback((): LocalAudioTrack | null => {
+    const pub = localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = pub?.track;
+    return track instanceof LocalAudioTrack ? track : null;
+  }, [localParticipant]);
+
+  const remoteBattleStatus = useBattleGuestPublish({
+    enabled: extras.battleActive,
+    userId: identity,
+    displayName,
+    remoteRoomName: extras.opponentLive?.room_name ?? null,
+    getSourceTrack: getBattleSourceTrack,
+    getSourceAudioTrack: getBattleSourceAudioTrack,
+  });
+
   useEffect(() => {
     const n = Math.max(0, people.length - 1);
-    if (n > peakRef.current) peakRef.current = n;
-  }, [people.length]);
+    if (n > extras.peakRef.current) extras.peakRef.current = n;
+  }, [people.length, extras.peakRef]);
 
   useEffect(() => {
     setNativeLensApplyAllowed(false);
@@ -363,8 +643,8 @@ function HostStage({
     if (busy || endingRef.current) return;
     endingRef.current = true;
     setBusy(true);
-    const durationSec = Math.max(0, Math.floor((Date.now() - startedAtMsRef.current) / 1000));
-    const peakViewers = Math.max(peakRef.current, Math.max(0, people.length - 1));
+    const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
+    const peakViewers = Math.max(extras.peakRef.current, Math.max(0, people.length - 1));
 
     const ended = await endLiveInDb(liveId);
     if (!ended.ok) {
@@ -454,49 +734,39 @@ function HostStage({
     ) : null;
 
   return (
-    <View style={styles.root}>
-      <BattleSplitStage
-        active={battleActive}
-        hostVideo={hostVideo}
-        hostFighter={
-          myLive
-            ? { displayName: myLive.display_name, avatarUrl: myLive.avatar_url }
-            : { displayName, avatarUrl: null }
-        }
-        guestVideo={guestVideo}
-        guestFighter={
-          opponentLive
-            ? {
-                displayName: opponentLive.display_name,
-                avatarUrl: opponentLive.avatar_url,
-              }
-            : null
-        }
-        guestStatus={remoteBattleStatus}
-      />
-      <HostLiveFxSync userId={identity} />
-      <HostStudioHud
-        liveId={liveId}
-        identity={identity}
-        displayName={displayName}
-        viewerFallback={Math.max(0, people.length - 1)}
-        micOn={isMicrophoneEnabled}
-        camOn={isCameraEnabled}
-        onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
-        onToggleCam={toggleCam}
-        onFlip={() => void flip()}
-        onEnd={finish}
-        onMinimize={closeOverlay}
-        onBattleAccepted={onBattleAccepted}
-        cameraFacing={facing}
-      />
-      {busy ? (
-        <View style={[FILL, styles.ending]} pointerEvents="auto">
-          <ActivityIndicator color={GOLD} />
-          <Text style={styles.wait}>{t("live.endingLive")}</Text>
-        </View>
-      ) : null}
-    </View>
+    <HostChrome
+      liveId={liveId}
+      identity={identity}
+      displayName={displayName}
+      facing={facing}
+      hostVideo={hostVideo}
+      guestVideo={guestVideo}
+      hostFighter={
+        extras.myLive
+          ? { displayName: extras.myLive.display_name, avatarUrl: extras.myLive.avatar_url }
+          : { displayName, avatarUrl: null }
+      }
+      guestFighter={
+        extras.opponentLive
+          ? {
+              displayName: extras.opponentLive.display_name,
+              avatarUrl: extras.opponentLive.avatar_url,
+            }
+          : null
+      }
+      guestStatus={remoteBattleStatus}
+      battleActive={extras.battleActive}
+      viewerFallback={Math.max(0, people.length - 1)}
+      micOn={isMicrophoneEnabled}
+      camOn={isCameraEnabled}
+      busy={busy}
+      fxSync={<HostLiveFxSync userId={identity} />}
+      onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
+      onToggleCam={toggleCam}
+      onFlip={() => void flip()}
+      onEnd={finish}
+      onBattleAccepted={extras.onBattleAccepted}
+    />
   );
 }
 

@@ -102,8 +102,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     void clearBridgeLens();
   }, []);
 
-  // Styles locaux (teintes) + lenses Snap. En live, seules les teintes
-  // sont publiées aux viewers — Snap AR ouvrirait une 2e caméra.
+  // Styles locaux (teintes) + lenses Snap. Sur Android en live, Camera Kit
+  // publie la vidéo filtrée (comme kidiplus.com). iPhone : teinte / calque.
   const lenses = useMemo(
     () => [NONE_LENS, ...STYLE_LENSES.filter((l) => l.lensId !== "none"), ...snapLenses],
     [snapLenses],

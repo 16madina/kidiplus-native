@@ -17,8 +17,11 @@ const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom:
  */
 export function SnapCameraPreview({
   facing,
+  persistPreviewOnUnmount = false,
 }: {
   facing: "user" | "environment" | "front" | "back";
+  /** Keep Camera Kit running when this view unmounts (go-live / host stage). */
+  persistPreviewOnUnmount?: boolean;
 }) {
   const { activeLens, cameraKitReady } = useFilter();
   const facingNorm =
@@ -33,9 +36,9 @@ export function SnapCameraPreview({
     });
     return () => {
       cancelled = true;
-      void stopBridgePreview();
+      if (!persistPreviewOnUnmount) void stopBridgePreview();
     };
-  }, [cameraKitReady, facingNorm]);
+  }, [cameraKitReady, facingNorm, persistPreviewOnUnmount]);
 
   if (!isCameraKitSupported() || !cameraKitReady || !NativePreview) {
     return (
