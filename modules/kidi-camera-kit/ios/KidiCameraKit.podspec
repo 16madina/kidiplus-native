@@ -23,9 +23,10 @@ Pod::Spec.new do |s|
   # (Swift import remains `SCSDKCameraKit`).
   s.dependency 'SCCameraKit'
 
-  # Same as kidiplus.com iOS: Camera Kit frames → LiveKit BufferCapturer.
-  # Requires the LiveKit podspecs source (see plugins/withLiveKitIos.js).
-  s.dependency 'LiveKitClient', '~> 2.2'
+  # CocoaPods module name is LiveKitClient (Swift `import LiveKitClient`).
+  # SPM product is LiveKit (`import LiveKit`). See KidiLiveKit.swift.
+  # Requires source https://github.com/livekit/podspecs.git (plugins/withLiveKitIos.js).
+  s.dependency 'LiveKitClient', '~> 2.6'
 
   s.source_files = "**/*.{h,m,swift}"
   s.pod_target_xcconfig = {

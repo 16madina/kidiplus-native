@@ -7,6 +7,7 @@ const SOURCE_MARKER = "# kidiplus-livekit-client-source";
  * LiveKit WebRTC + Expo SDK 57 (precompiled React as frameworks) needs
  * non-modular React headers allowed on the LiveKit pods.
  * Camera Kit iOS publish also needs LiveKitClient from livekit/podspecs.
+ * The Swift module name of that pod is LiveKitClient (not LiveKit).
  */
 function withLiveKitIos(config) {
   return withPodfile(config, (config) => {
@@ -44,4 +45,4 @@ function withLiveKitIos(config) {
   });
 }
 
-module.exports = createRunOncePlugin(withLiveKitIos, "withLiveKitIos", "1.1.0");
+module.exports = createRunOncePlugin(withLiveKitIos, "withLiveKitIos", "1.2.0");

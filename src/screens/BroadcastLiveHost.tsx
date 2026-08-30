@@ -114,6 +114,12 @@ export function BroadcastLiveHost({
           await stopFilteredPublish();
           return;
         }
+        if (kit.path === "kit_failed") {
+          setError(
+            "Le filtre n’a pas pu partir dans la vidéo. Sur Mac : git pull origin main && npm run rebuild:ios, puis ouvre KiDi+ (pas Expo Go).",
+          );
+          return;
+        }
         setKitPublishing(kit.path === "kit_publish");
         setSession(s);
       } catch (e) {

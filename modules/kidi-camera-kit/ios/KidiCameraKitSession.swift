@@ -3,6 +3,8 @@ import AVFoundation
 import Foundation
 #if canImport(LiveKit)
 import LiveKit
+#elseif canImport(LiveKitClient)
+import LiveKitClient
 #endif
 import SCSDKCameraKit
 import UIKit
@@ -12,14 +14,10 @@ private typealias CameraKitSession = SCSDKCameraKit.Session
 
 // MARK: - KiDi+ Camera Kit native bridge
 //
-// SDK Snap natif (SCSDKCameraKit) : preview + lenses.
-// Publication LiveKit filtrée : via @livekit/react-native côté JS pour l’instant
-// (pas d’import LiveKit Swift — évite l’échec CocoaPods `no such module LiveKit`).
-//
-// Plain Swift class (no Capacitor / CAPPlugin dependency) so it can be driven
-// by any host — currently the ExpoModulesCore `KidiCameraKitModule`. All
-// public entry points use completion handlers instead of `CAPPluginCall`, and
-// events are forwarded through `onEvent` instead of `notifyListeners`.
+// SDK Snap (SCSDKCameraKit) : preview + lenses.
+// Publication LiveKit : frames filtrées → BufferCapturer (comme kidiplus.com).
+// CocoaPods expose le module `LiveKitClient` (pas `LiveKit`). SPM expose `LiveKit`.
+// On importe les deux pour que canImport soit vrai après prebuild.
 final class KidiCameraKitSession: NSObject {
     /// Single native camera pipeline shared across module (re)instantiations.
     static let shared = KidiCameraKitSession()
@@ -50,7 +48,7 @@ final class KidiCameraKitSession: NSObject {
     private var frameCount: Int64 = 0
     private var publishEnabled = false
     private var idleStopWork: DispatchWorkItem?
-    #if canImport(LiveKit)
+    #if canImport(LiveKit) || canImport(LiveKitClient)
     private var liveKitRoom: Room?
     private var liveKitVideoTrack: LocalVideoTrack?
     private var bufferCapturer: BufferCapturer?
@@ -111,6 +109,7 @@ final class KidiCameraKitSession: NSObject {
             "captureRunning": captureSession?.isRunning ?? false,
             "publishing": publishEnabled,
             "frameCount": frameCount,
+            "liveKitSwift": KidiLiveKit.linked,
             "plistToken": !plistToken.isEmpty,
             "plistGroup": plistGroup,
         ]
@@ -311,7 +310,7 @@ final class KidiCameraKitSession: NSObject {
             completion(.failure(KidiCameraKitError.message("Missing roomUrl or token")))
             return
         }
-        #if canImport(LiveKit)
+        #if canImport(LiveKit) || canImport(LiveKitClient)
         Task { @MainActor in
             do {
                 try await self.startPublishing(url: url, token: tok)
@@ -332,7 +331,7 @@ final class KidiCameraKitSession: NSObject {
         output.onSampleBuffer = { [weak self] sample in
             guard let self else { return }
             self.frameCount += 1
-            #if canImport(LiveKit)
+            #if canImport(LiveKit) || canImport(LiveKitClient)
             self.bufferCapturer?.capture(sample)
             #endif
         }
@@ -340,7 +339,7 @@ final class KidiCameraKitSession: NSObject {
         frameOutput = output
     }
 
-    #if canImport(LiveKit)
+    #if canImport(LiveKit) || canImport(LiveKitClient)
     @MainActor
     private func startPublishing(url: String, token: String) async throws {
         publishEnabled = true
@@ -409,7 +408,7 @@ final class KidiCameraKitSession: NSObject {
             }
         }
         if !gotFrame && frameCount == 0 {
-            throw KidiCameraKitError.message("Camera Kit produced no published frame")
+            print("[KidiCameraKit] no Camera Kit frame yet — publishing anyway")
         }
 
         try await room.localParticipant.publish(videoTrack: videoTrack)

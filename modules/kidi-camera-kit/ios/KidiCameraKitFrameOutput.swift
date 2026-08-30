@@ -4,9 +4,7 @@ import Foundation
 import SCSDKCameraKit
 
 /// Reçoit les frames filtrées Camera Kit (CMSampleBuffer).
-/// La publication LiveKit native (BufferCapturer) sera rebranchée via SPM
-/// `client-sdk-swift` — pour l’instant on ne dépend plus de `import LiveKit`
-/// afin que CocoaPods / Expo prebuild compilent.
+/// KidiCameraKitSession les envoie au BufferCapturer LiveKit.
 final class KidiCameraKitFrameOutput: NSObject, Output, OutputRequiringPixelBuffer {
     var currentlyRequiresPixelBuffer: Bool = true {
         didSet {

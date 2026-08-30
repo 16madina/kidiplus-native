@@ -28,6 +28,7 @@ rebranche, attends 30s, relance.
 2. Tu dois voir la preview Snap (pas expo-camera).
 3. Tape **Filtre** → carrousel des lenses du groupe `df287f43-…`.
 4. Applique une lens : AR visible sur ton visage.
+5. Dans la console Xcode, tu dois voir `[KidiCameraKit] LiveKit video published frames=` avec un compteur qui monte. Les autres voient alors le filtre **dans** la vidéo (même une vieille app).
 
 Si le carrousel dit encore « rebuild natif requis », le module n’est pas
 dans le binary → refais `npm run rebuild:ios` (pas seulement `expo start`).

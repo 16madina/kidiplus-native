@@ -12,6 +12,9 @@ function fakeDeps(overrides: Partial<KitPublishDeps> = {}): KitPublishDeps & { c
   return {
     os: "android",
     cameraKit: true,
+    confirmAttempts: 1,
+    confirmDelayMs: 0,
+    sleep: async () => undefined,
     startPreview: async () => {
       calls.push("preview");
     },
@@ -69,7 +72,7 @@ async function main() {
     args,
     fakeDeps({ os: "ios", getStatus: async () => ({ ready: true }) }),
   );
-  assert.equal(iosStub.path, "web_overlay");
+  assert.equal(iosStub.path, "kit_failed");
 
   const stubStatus = await runFilteredPublish(
     args,
@@ -87,6 +90,37 @@ async function main() {
   const boom = await runFilteredPublish(args, failed);
   assert.equal(boom.path, "web_overlay");
   assert.ok(failCalls.includes("unpublish"));
+
+  const iosFailCalls: string[] = [];
+  const iosFailed = fakeDeps({
+    os: "ios",
+    setPublish: async (opts) => {
+      if (opts.enabled) throw new Error("LiveKit Swift not linked");
+      iosFailCalls.push("unpublish");
+    },
+  });
+  const iosBoom = await runFilteredPublish(args, iosFailed);
+  assert.equal(iosBoom.path, "kit_failed");
+  assert.ok(iosFailCalls.includes("unpublish"));
+
+  let polls = 0;
+  const lateFrames = await runFilteredPublish(
+    args,
+    fakeDeps({
+      os: "ios",
+      confirmAttempts: 4,
+      confirmDelayMs: 1,
+      sleep: async () => undefined,
+      getStatus: async () => {
+        polls += 1;
+        return polls < 3
+          ? { publishing: true, frameCount: 0 }
+          : { publishing: true, frameCount: 5 };
+      },
+    }),
+  );
+  assert.equal(lateFrames.path, "kit_publish");
+  assert.ok(polls >= 3);
 
   const withLens = fakeDeps();
   await runFilteredPublish(args, withLens);

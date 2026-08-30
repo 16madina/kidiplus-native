@@ -476,7 +476,7 @@
       "none": "None",
       "refresh": "Refresh",
       "nativePending": "Snap AR filters: run npm run rebuild:ios then try again.",
-      "liveHint": "The photo you pin on the live goes to viewers. Face filters (Snap) are not in the outgoing video yet."
+      "liveHint": "The filter and pinned photo go to viewers. Face filters are in the outgoing video (same as kidiplus.com)."
     },
     "setup": {
       "titlePlaceholder": "Live title…",
