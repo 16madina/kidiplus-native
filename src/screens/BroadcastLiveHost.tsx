@@ -57,6 +57,9 @@ bootLiveKit();
 LogBox.ignoreLogs(["error reading from signal stream"]);
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+const HOST_ROOM_OPTIONS = { adaptiveStream: { pixelDensity: "screen" as const }, dynacast: true };
+const HOST_CONNECT_OPTIONS = { autoSubscribe: true };
+const ignoreDisconnect = () => undefined;
 
 type LiveSummaryStats = { durationSec: number; peakViewers: number };
 
@@ -84,6 +87,14 @@ export function BroadcastLiveHost({
   const [kitPublishing, setKitPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<LiveSummaryStats | null>(null);
+  const handleRoomError = useCallback((e: Error) => {
+    if (endingRef.current) return;
+    if (e.name === "ConnectionError") {
+      setError("Connexion live coupée. Vérifie le Wi-Fi et relance.");
+      return;
+    }
+    setError(e.message);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,17 +199,10 @@ export function BroadcastLiveHost({
         connect
         audio={false}
         video={false}
-        options={{ adaptiveStream: { pixelDensity: "screen" }, dynacast: true }}
-        connectOptions={{ autoSubscribe: true }}
-        onDisconnected={() => undefined}
-        onError={(e) => {
-          if (endingRef.current) return;
-          if (e.name === "ConnectionError") {
-            setError("Connexion live coupée. Vérifie le Wi-Fi et relance.");
-            return;
-          }
-          setError(e.message);
-        }}
+        options={HOST_ROOM_OPTIONS}
+        connectOptions={HOST_CONNECT_OPTIONS}
+        onDisconnected={ignoreDisconnect}
+        onError={handleRoomError}
       >
         <PublishLocalMedia facing={facing} />
         <HostLiveKitStage
