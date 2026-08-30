@@ -1019,8 +1019,14 @@
     "signUp": {
       "title": "Créer ton compte",
       "subtitle": "Rejoins la communauté KiDi+",
-      "displayName": "Nom affiché",
-      "displayNamePlaceholder": "Comment on t'appelle ?",
+      "firstName": "Prénom (pièce d'identité)",
+      "firstNamePlaceholder": "Ton prénom légal",
+      "lastName": "Nom (pièce d'identité)",
+      "lastNamePlaceholder": "Ton nom de famille légal",
+      "handle": "Pseudo boutique",
+      "handlePlaceholder": "deenadiallo",
+      "displayName": "Nom affiché (boutique)",
+      "displayNamePlaceholder": "Ex. Deena 💎 KiDi+",
       "email": "Email",
       "emailConfirm": "Confirme ton email",
       "country": "Pays",
@@ -1092,7 +1098,10 @@
       "phoneRequired": "Entre un numéro de téléphone valide.",
       "passwordRequired": "Mot de passe requis.",
       "passwordShort": "Le mot de passe doit contenir au moins 6 caractères.",
-      "nameRequired": "Nom requis."
+      "nameRequired": "Nom requis.",
+      "firstNameRequired": "Prénom légal requis (comme sur ta pièce d'identité).",
+      "lastNameRequired": "Nom légal requis (comme sur ta pièce d'identité).",
+      "handleInvalid": "Le pseudo doit faire 2 à 30 caractères (minuscules, chiffres, _ ou .)."
     },
     "errors": {
       "invalidCredentials": "Email ou mot de passe incorrect.",
@@ -1429,6 +1438,9 @@
     "chooseCompany": "Je suis une entreprise",
     "chooseLocked": "Ce choix ne pourra pas être modifié ensuite.",
     "handleMissing": "Choisis le nom de ta boutique avant de connecter ton compte de paiement.",
+    "legalNameTitle": "Ton identité légale (Stripe)",
+    "legalNameHint": "Prénom et nom comme sur ta pièce d'identité — pas le nom de ta boutique.",
+    "legalNameSave": "Enregistrer mon nom légal",
     "retryHint": "Impossible de préparer Stripe. Réessaie.",
     "resumeStripe": "Reprendre la configuration",
     "manage": "Gérer mes infos de paiement",

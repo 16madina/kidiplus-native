@@ -35,16 +35,17 @@ import {
 import {
   connectUiPhase,
   mapConnectOnboardError,
+  pickLegalPersonName,
   type StripeBusinessType,
 } from "../lib/connect-onboard-logic";
 import { GOLD } from "../theme";
 
-type EditKey = "paypal" | "wave" | "orange" | "bank";
+type EditKey = "paypal" | "wave" | "orange" | "bank" | "legal";
 
 export function SellerPaymentsScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState<EditKey | null>(null);
@@ -56,6 +57,9 @@ export function SellerPaymentsScreen() {
   const [livemode, setLivemode] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const legalName = pickLegalPersonName({ firstName, lastName });
 
   const currency = user?.walletCurrency ?? "EUR";
   const available = payoutSetupMethodsForCurrency(currency);
@@ -93,11 +97,38 @@ export function SellerPaymentsScreen() {
     });
   }, [refresh]);
 
+  const persistLegalName = async (): Promise<boolean> => {
+    if (!user?.id) return false;
+    const next = pickLegalPersonName({ firstName, lastName });
+    if (!next) {
+      setError(t("sellerPayments.legalNameHint"));
+      return false;
+    }
+    if (user.firstName === next.first && user.lastName === next.last) return true;
+    setSaving("legal");
+    setError(null);
+    try {
+      await updateProfile({ first_name: next.first, last_name: next.last });
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("sellerPayments.saveFail"));
+      return false;
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const onboard = async (businessType?: StripeBusinessType) => {
     if (!user?.handle?.trim()) {
       setError(t("sellerPayments.handleMissing"));
       return;
     }
+    if (!legalName) {
+      setError(t("sellerPayments.legalNameHint"));
+      return;
+    }
+    const saved = await persistLegalName();
+    if (!saved) return;
     setBusy(true);
     setError(null);
     const res = await startConnectOnboarding(user?.country, businessType, currency);
@@ -192,17 +223,37 @@ export function SellerPaymentsScreen() {
                   {t("sellerPayments.stripeLiveSwitch")}
                 </Text>
                 <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
+                  {t("sellerPayments.legalNameTitle")}
+                </Text>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.legalNameHint")}
+                </Text>
+                <FormField
+                  required
+                  label={t("auth.signUp.firstName")}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  maxLength={40}
+                />
+                <FormField
+                  required
+                  label={t("auth.signUp.lastName")}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  maxLength={40}
+                />
+                <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
                   {t("sellerPayments.chooseTitle")}
                 </Text>
                 <GoldButton
                   label={busy ? t("common.loading") : t("sellerPayments.chooseIndividual")}
                   onPress={() => void onboard("individual")}
-                  disabled={busy}
+                  disabled={busy || !legalName || saving === "legal"}
                 />
                 <OutlineButton
                   label={t("sellerPayments.chooseCompany")}
                   onPress={() => void onboard("company")}
-                  disabled={busy}
+                  disabled={busy || !legalName || saving === "legal"}
                 />
                 <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
                   {t("sellerPayments.chooseLocked")}

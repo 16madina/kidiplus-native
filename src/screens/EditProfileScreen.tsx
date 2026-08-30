@@ -31,6 +31,8 @@ export function EditProfileScreen() {
   const { closeOverlay } = useNav();
   const { colors } = useAppTheme();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [handle, setHandle] = useState(user?.handle ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [country, setCountry] = useState(user?.country ?? "");
@@ -74,6 +76,8 @@ export function EditProfileScreen() {
   };
 
   const validate = (): string | null => {
+    if (firstName.trim().length < 2) return t("auth.validation.firstNameRequired");
+    if (lastName.trim().length < 2) return t("auth.validation.lastNameRequired");
     if (!displayName.trim() || displayName.trim().length < 2) {
       return t("auth.validation.nameRequired");
     }
@@ -96,6 +100,8 @@ export function EditProfileScreen() {
     try {
       await updateProfile({
         display_name: displayName.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
         handle: handle.trim(),
         bio: bio.trim() || null,
         country: country || null,
@@ -143,6 +149,20 @@ export function EditProfileScreen() {
             </Text>
           </View>
 
+          <FormField
+            required
+            label={t("auth.signUp.firstName")}
+            value={firstName}
+            onChangeText={setFirstName}
+            maxLength={40}
+          />
+          <FormField
+            required
+            label={t("auth.signUp.lastName")}
+            value={lastName}
+            onChangeText={setLastName}
+            maxLength={40}
+          />
           <FormField
             required
             label={t("auth.signUp.displayName")}

@@ -11,6 +11,7 @@ import {
   mapConnectOnboardError,
   parseStripeBusinessType,
   isoCountryFromLabel,
+  pickLegalPersonName,
   pickStripeConnectCountry,
   splitDisplayName,
   stripeConnectAvailable,
@@ -49,7 +50,10 @@ function run() {
   assert.equal(connectUiPhase({ status: "active", livemode: false }), "test");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: true }), "active");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: false }), "pending");
-  assert.equal(connectStatusFromAccount({ payouts_enabled: true }), "pending");
+  assert.equal(connectStatusFromAccount({ payouts_enabled: true }), "active");
+  assert.equal(pickLegalPersonName({ firstName: "Deena", lastName: "Diallo" })?.first, "Deena");
+  assert.equal(pickLegalPersonName({ firstName: "Dina", lastName: "" }), null);
+  assert.equal(pickLegalPersonName({ firstName: "Deena 💎", lastName: "KiDi+" }), null);
   assert.equal(
     connectStatusFromAccount({
       details_submitted: true,

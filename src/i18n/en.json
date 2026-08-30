@@ -1019,8 +1019,14 @@
     "signUp": {
       "title": "Create your account",
       "subtitle": "Join the KiDi+ community",
-      "displayName": "Display name",
-      "displayNamePlaceholder": "What should we call you?",
+      "firstName": "First name (ID)",
+      "firstNamePlaceholder": "Your legal first name",
+      "lastName": "Last name (ID)",
+      "lastNamePlaceholder": "Your legal last name",
+      "handle": "Shop handle",
+      "handlePlaceholder": "deenadiallo",
+      "displayName": "Shop display name",
+      "displayNamePlaceholder": "e.g. Deena 💎 KiDi+",
       "email": "Email",
       "emailConfirm": "Confirm your email",
       "country": "Country",
@@ -1092,7 +1098,10 @@
       "phoneRequired": "Enter a valid phone number.",
       "passwordRequired": "Password is required.",
       "passwordShort": "Password must be at least 6 characters.",
-      "nameRequired": "Name is required."
+      "nameRequired": "Name is required.",
+      "firstNameRequired": "Legal first name is required (as on your ID).",
+      "lastNameRequired": "Legal last name is required (as on your ID).",
+      "handleInvalid": "Handle must be 2–30 characters (lowercase, digits, _ or .)."
     },
     "errors": {
       "invalidCredentials": "Wrong email or password.",
@@ -1428,6 +1437,9 @@
     "chooseCompany": "I'm a company",
     "chooseLocked": "This choice cannot be changed later.",
     "handleMissing": "Choose your shop name before connecting a payout account.",
+    "legalNameTitle": "Your legal identity (Stripe)",
+    "legalNameHint": "First and last name as on your ID — not your shop name.",
+    "legalNameSave": "Save my legal name",
     "retryHint": "Could not prepare Stripe. Try again.",
     "resumeStripe": "Resume setup",
     "manage": "Manage payout details",

@@ -26,6 +26,8 @@ export type AuthUser = {
   email: string;
   displayName: string;
   handle: string;
+  firstName: string;
+  lastName: string;
   country: string;
   phone: string;
   isSeller: boolean;
@@ -60,6 +62,9 @@ type Ctx = {
     email: string;
     password: string;
     displayName: string;
+    firstName: string;
+    lastName: string;
+    handle: string;
     country: string;
     phone: string;
     promoCode?: string;
@@ -71,6 +76,8 @@ type Ctx = {
   updateProfile: (patch: {
     display_name?: string;
     handle?: string;
+    first_name?: string;
+    last_name?: string;
     bio?: string | null;
     country?: string | null;
     avatar_url?: string;
@@ -109,6 +116,9 @@ export function mapAuthError(err: unknown): Error {
   if (m.includes("already registered") || m.includes("already been registered")) {
     return new Error(t("auth.errors.alreadyRegistered"));
   }
+  if (m.includes("duplicate") || m.includes("unique") && m.includes("handle")) {
+    return new Error(t("profile.handleTaken"));
+  }
   if (m.includes("password should be at least")) return new Error(t("auth.errors.passwordShort"));
   if (m.includes("rate") || m.includes("too many")) return new Error(t("auth.errors.rateLimit"));
   if (m.includes("invalid email")) return new Error(t("auth.errors.invalidEmail"));
@@ -142,6 +152,8 @@ async function toAuthUser(
     email: authUser.email ?? "",
     displayName,
     handle: profile?.handle || slug(displayName),
+    firstName: (profile?.first_name ?? (typeof meta.first_name === "string" ? meta.first_name : "")).trim(),
+    lastName: (profile?.last_name ?? (typeof meta.last_name === "string" ? meta.last_name : "")).trim(),
     country:
       profile?.country || (typeof meta.country === "string" ? meta.country : "") || "",
     phone: profile?.phone || (typeof meta.phone === "string" ? meta.phone : "") || "",
@@ -280,6 +292,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string;
       password: string;
       displayName: string;
+      firstName: string;
+      lastName: string;
+      handle: string;
       country: string;
       phone: string;
       promoCode?: string;
@@ -290,6 +305,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           data: {
             display_name: input.displayName,
+            first_name: input.firstName,
+            last_name: input.lastName,
+            handle: input.handle,
             country: input.country,
             phone: input.phone,
           },
@@ -297,13 +315,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw mapAuthError(error);
       const uid = data.user?.id ?? data.session?.user?.id;
-      if (uid && (input.country || input.phone)) {
+      if (uid) {
         void supabase
           .from("profiles")
           .update({
             ...(input.country ? { country: input.country } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
             display_name: input.displayName,
+            first_name: input.firstName,
+            last_name: input.lastName,
+            handle: input.handle,
           })
           .eq("id", uid);
       }
@@ -357,6 +378,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (patch: {
       display_name?: string;
       handle?: string;
+      first_name?: string;
+      last_name?: string;
       bio?: string | null;
       country?: string | null;
       avatar_url?: string;

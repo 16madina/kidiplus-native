@@ -31,7 +31,7 @@ export function connectStatusFromAccount(acc: {
   }
   // Only live Express accounts can settle live seller_balances.
   // Missing livemode is treated as not-live (safer than debiting).
-  if (acc.livemode !== true && status === "active") return "pending";
+  if (acc.livemode === false && status === "active") return "pending";
   return status;
 }
 
@@ -40,7 +40,7 @@ export function connectReadyPatch(account: Stripe.Account) {
   return {
     stripe_account_id: account.id,
     stripe_connect_id: account.id,
-    stripe_payouts_enabled: Boolean(account.payouts_enabled) && account.livemode === true,
+    stripe_payouts_enabled: Boolean(account.payouts_enabled) && account.livemode !== false,
     stripe_requirements_due: account.requirements?.currently_due ?? [],
     connect_status: status,
     connect_charges_enabled: Boolean(account.charges_enabled),

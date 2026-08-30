@@ -104,7 +104,7 @@ export function WithdrawSheet({
         fetchConnectStatus(),
       ]);
       if (cancelled) return;
-      const stripe = isStripePayoutReady(connect.status, connect.livemode);
+      const stripe = isStripePayoutReady(connect.status, connect.livemode, connect.payoutsEnabled);
       setSetup(stored);
       setStripeReady(stripe);
       const first = firstReadyPayoutMethod(methods, stored, stripe) ?? defaultPayoutMethod(currency);

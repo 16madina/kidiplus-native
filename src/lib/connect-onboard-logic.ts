@@ -141,6 +141,18 @@ export function splitDisplayName(name: string | null | undefined): { first: stri
   return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
 }
 
+/** Legal identity for Stripe — never the shop name or @handle. */
+export function pickLegalPersonName(input: {
+  firstName?: string | null;
+  lastName?: string | null;
+}): { first: string; last: string } | null {
+  const first = (input.firstName ?? "").trim();
+  const last = (input.lastName ?? "").trim();
+  if (first.length < 2 || last.length < 2) return null;
+  if (/[\u{1F300}-\u{1FAFF}]/u.test(`${first} ${last}`)) return null;
+  return { first, last };
+}
+
 export function buildConnectProductDescription(input: {
   category?: string | null;
   displayName?: string | null;
@@ -170,6 +182,12 @@ export function mapConnectOnboardError(
     return {
       kind: "handle_missing",
       text: "Choisis le nom de ta boutique avant de connecter ton compte de paiement.",
+    };
+  }
+  if (code === "legal_name_missing") {
+    return {
+      kind: "handle_missing",
+      text: "Indique ton prénom et ton nom légaux (pièce d’identité), pas le nom de ta boutique.",
     };
   }
   if (isStaleConnectAccountError(message) || code === "stale_account") {
@@ -257,7 +275,7 @@ export function connectStatusFromAccount(acc: {
   } else if (pastDue.length > 0 || acc.requirements?.disabled_reason) {
     status = "restricted";
   }
-  if (acc.livemode !== true && status === "active") return "pending";
+  if (acc.livemode === false && status === "active") return "pending";
   return status;
 }
 

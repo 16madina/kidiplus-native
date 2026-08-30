@@ -55,11 +55,28 @@ Deno.serve(async (req) => {
     const email =
       (typeof profile?.email === "string" && profile.email.trim()) || authEmail;
     const displayName = typeof profile?.display_name === "string" ? profile.display_name : "";
-    const names = splitName(
+    const names = legalPersonName(
       typeof profile?.first_name === "string" ? profile.first_name : "",
       typeof profile?.last_name === "string" ? profile.last_name : "",
-      displayName,
     );
+    if (!names) {
+      return json(
+        {
+          error: "legal_name_missing",
+          message: "Indique ton prénom et ton nom légaux (pièce d'identité), pas le nom de ta boutique.",
+        },
+        400,
+      );
+    }
+    if (!email) {
+      return json(
+        {
+          error: "legal_name_missing",
+          message: "Ton adresse e-mail de compte est requise pour Stripe.",
+        },
+        400,
+      );
+    }
     if (isXofCurrency(body.currency)) {
       return json(
         {
@@ -83,6 +100,10 @@ Deno.serve(async (req) => {
         (typeof profile?.stripe_connect_id === "string" && profile.stripe_connect_id) ||
         null,
     );
+
+    if (accountId) {
+      await syncLegalIdentity(accountId, names, email, businessType);
+    }
 
     if (!accountId) {
       accountId = await createExpressAccount({
@@ -258,7 +279,7 @@ async function loadProfile(
   const full =
     "id, handle, display_name, first_name, last_name, email, phone, country, category, stripe_account_id, stripe_connect_id";
   const safe =
-    "id, handle, display_name, phone, country, stripe_account_id, stripe_connect_id";
+    "id, handle, display_name, first_name, last_name, phone, country, stripe_account_id, stripe_connect_id";
   const first = await supabase.from("profiles").select(full).eq("id", userId).maybeSingle();
   if (!first.error && first.data) return first.data as Record<string, unknown>;
   const second = await supabase.from("profiles").select(safe).eq("id", userId).maybeSingle();
@@ -271,12 +292,32 @@ function bounceUrl(raw: unknown, fallback: string): string {
     : fallback;
 }
 
-function splitName(first: string, last: string, display: string): { first: string; last: string } {
-  if (first.trim() || last.trim()) return { first: first.trim(), last: last.trim() };
-  const parts = display.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { first: "", last: "" };
-  if (parts.length === 1) return { first: parts[0] ?? "", last: "" };
-  return { first: parts[0] ?? "", last: parts.slice(1).join(" ") };
+function legalPersonName(first: string, last: string): { first: string; last: string } | null {
+  const f = first.trim();
+  const l = last.trim();
+  if (f.length < 2 || l.length < 2) return null;
+  if (/[\u{1F300}-\u{1FAFF}]/u.test(`${f} ${l}`)) return null;
+  return { first: f, last: l };
+}
+
+async function syncLegalIdentity(
+  accountId: string,
+  names: { first: string; last: string },
+  email: string,
+  businessType: "individual" | "company",
+) {
+  try {
+    if (businessType === "individual") {
+      await stripe().accounts.update(accountId, {
+        email,
+        individual: { first_name: names.first, last_name: names.last, email },
+      });
+    } else {
+      await stripe().accounts.update(accountId, { email });
+    }
+  } catch {
+    /* Already submitted fields may be locked — hosted onboarding still shows them. */
+  }
 }
 
 function buildDescription(p: { category?: string | null; display_name?: string | null }) {
