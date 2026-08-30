@@ -98,7 +98,7 @@ export function SellerPaymentsScreen() {
     }
     setBusy(true);
     setError(null);
-    const res = await startConnectOnboarding(user?.country, businessType);
+    const res = await startConnectOnboarding(user?.country, businessType, currency);
     setBusy(false);
     if (res.url) {
       await openConnectUrl(res.url);

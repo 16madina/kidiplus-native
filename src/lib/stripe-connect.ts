@@ -171,6 +171,7 @@ function mapOnboardError(code: string | undefined, message?: string): string {
 export async function startConnectOnboarding(
   country?: string | null,
   businessType?: StripeBusinessType | null,
+  currency?: string | null,
 ): Promise<{
   url: string | null;
   error?: string;
@@ -184,6 +185,7 @@ export async function startConnectOnboarding(
     refreshUrl: links.refreshUrl,
   };
   if (country && country.trim()) body.country = country.trim().toUpperCase();
+  if (currency && currency.trim()) body.currency = currency.trim().toUpperCase();
 
   const edge = await postEdgeFunction("connect-onboard", body);
   const json =

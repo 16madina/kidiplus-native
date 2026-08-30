@@ -4,6 +4,34 @@ export const KIDI_SITE = "https://kidiplus.com";
 export const CONNECT_MCC_RETAIL = "5399";
 export const COMPANY_PERSON_TITLE = "Propriétaire";
 
+/** Countries Stripe Express can host. West Africa (CI, SN, …) is not in this set. */
+export const STRIPE_CONNECT_COUNTRIES = new Set([
+  "AE", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
+  "FI", "FR", "GB", "GI", "GR", "HK", "HR", "HU", "IE", "IT", "JP", "LI", "LT", "LU",
+  "LV", "MT", "MX", "MY", "NL", "NO", "NZ", "PL", "PT", "RO", "SE", "SG", "SI", "SK",
+  "TH", "US",
+]);
+
+export function defaultCountryForCurrency(currency?: string | null): string {
+  const c = (currency ?? "").trim().toUpperCase();
+  if (c === "CAD") return "CA";
+  if (c === "USD") return "US";
+  if (c === "GBP") return "GB";
+  return "FR";
+}
+
+export function pickStripeConnectCountry(
+  requested?: string | null,
+  profileCountry?: string | null,
+  currency?: string | null,
+): string {
+  for (const raw of [requested, profileCountry]) {
+    const cc = (raw ?? "").trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(cc) && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
+  }
+  return defaultCountryForCurrency(currency);
+}
+
 export function parseStripeBusinessType(raw: unknown): StripeBusinessType {
   return raw === "company" ? "company" : "individual";
 }
@@ -56,6 +84,18 @@ export function mapConnectOnboardError(
     return {
       kind: "server",
       text: "L'ancien compte Stripe n'est plus valide. Réessaie : on va en créer un nouveau.",
+    };
+  }
+  const blob = `${code ?? ""} ${message ?? ""}`.toLowerCase();
+  if (
+    code === "connect_country_unsupported" ||
+    code === "connect_currency_unsupported" ||
+    blob.includes("cannot create") && blob.includes("country") ||
+    blob.includes("unsupported") && blob.includes("country")
+  ) {
+    return {
+      kind: "server",
+      text: "Stripe Connect n'est pas disponible pour ce pays. On ouvre un compte France / Europe — réessaie.",
     };
   }
   if (code === "server_error" || code === "http_error" || code === "network_error") {

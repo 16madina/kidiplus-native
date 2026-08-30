@@ -57,9 +57,11 @@ Deno.serve(async (req) => {
       typeof profile?.last_name === "string" ? profile.last_name : "",
       displayName,
     );
-    const country = twoLetterCountry(body.country) ||
-      twoLetterCountry(profile?.country) ||
-      "FR";
+    const country = pickConnectCountry(
+      body.country,
+      profile?.country,
+      body.currency,
+    );
 
     let accountId = await usableAccountId(
       supabase,
@@ -80,7 +82,6 @@ Deno.serve(async (req) => {
         names,
         country,
         businessType,
-        phone: typeof profile?.phone === "string" ? profile.phone : undefined,
         category: typeof profile?.category === "string" ? profile.category : null,
       });
     }
@@ -107,7 +108,6 @@ Deno.serve(async (req) => {
         names,
         country,
         businessType,
-        phone: typeof profile?.phone === "string" ? profile.phone : undefined,
         category: typeof profile?.category === "string" ? profile.category : null,
       });
       link = await stripe.accountLinks.create({
@@ -119,10 +119,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    return json({ ok: true, url: link.url, account_id: accountId });
+    return json({ ok: true, url: link.url, account_id: accountId, country });
   } catch (e) {
     console.error("connect-onboard", e);
-    return json({ error: "server_error", message: String(e) }, 500);
+    const message = String(e);
+    const lower = message.toLowerCase();
+    if (lower.includes("country")) {
+      return json({ error: "connect_country_unsupported", message }, 400);
+    }
+    return json({ error: "server_error", message }, 500);
   }
 });
 
@@ -179,7 +184,6 @@ async function createExpressAccount(input: {
   names: { first: string; last: string };
   country: string;
   businessType: "individual" | "company";
-  phone?: string;
   category?: string | null;
 }): Promise<string> {
   const account = await stripe.accounts.create({
@@ -207,7 +211,6 @@ async function createExpressAccount(input: {
             first_name: input.names.first || undefined,
             last_name: input.names.last || undefined,
             email: input.email,
-            phone: input.phone,
           },
         }
       : {
@@ -221,7 +224,6 @@ async function createExpressAccount(input: {
       first_name: input.names.first || undefined,
       last_name: input.names.last || undefined,
       email: input.email,
-      phone: input.phone,
       relationship: {
         representative: true,
         owner: true,
@@ -260,10 +262,24 @@ function httpsOrFallback(raw: unknown, fallback: string): string {
   return typeof raw === "string" && raw.startsWith("https://") ? raw : fallback;
 }
 
-function twoLetterCountry(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const c = raw.trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(c) ? c : null;
+const STRIPE_CONNECT_COUNTRIES = new Set([
+  "AE", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
+  "FI", "FR", "GB", "GI", "GR", "HK", "HR", "HU", "IE", "IT", "JP", "LI", "LT", "LU",
+  "LV", "MT", "MX", "MY", "NL", "NO", "NZ", "PL", "PT", "RO", "SE", "SG", "SI", "SK",
+  "TH", "US",
+]);
+
+function pickConnectCountry(requested: unknown, profile: unknown, currency: unknown): string {
+  for (const raw of [requested, profile]) {
+    if (typeof raw !== "string") continue;
+    const cc = raw.trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(cc) && STRIPE_CONNECT_COUNTRIES.has(cc)) return cc;
+  }
+  const cur = typeof currency === "string" ? currency.trim().toUpperCase() : "";
+  if (cur === "CAD") return "CA";
+  if (cur === "USD") return "US";
+  if (cur === "GBP") return "GB";
+  return "FR";
 }
 
 function splitName(first: string, last: string, display: string): { first: string; last: string } {
