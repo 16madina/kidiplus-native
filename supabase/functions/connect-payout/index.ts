@@ -28,6 +28,16 @@ Deno.serve(async (req) => {
     if (!settleOk && (userErr || !userData?.user)) return json({ error: "unauthorized" }, 401);
     const stripe = stripeClient();
 
+    if (settleOk && body.checkBalance === true) {
+      const bal = await stripe.balance.retrieve();
+      return json({
+        ok: true,
+        livemode: bal.livemode === true,
+        available: bal.available,
+        pending: bal.pending,
+      });
+    }
+
     const payoutId = typeof body.payoutId === "string" ? body.payoutId.trim() : "";
     if (!payoutId || !/^[0-9a-f-]{36}$/i.test(payoutId)) {
       return json({ error: "invalid_payout_id" }, 400);
