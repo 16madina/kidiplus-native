@@ -17,14 +17,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: userData, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-    if (userErr || !userData?.user) return json({ error: "unauthorized" }, 401);
-    const stripe = stripeClient();
-    const userId = userData.user.id;
-
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const settleSecret = Deno.env.get("SETTLE_PAYOUT_SECRET") ?? "";
+    const settleOk = Boolean(
+      settleSecret && req.headers.get("x-settle-secret") === settleSecret,
+    );
+    const { data: userData, error: userErr } = settleOk
+      ? { data: { user: null }, error: null }
+      : await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (!settleOk && (userErr || !userData?.user)) return json({ error: "unauthorized" }, 401);
+    const stripe = stripeClient();
+
     const payoutId = typeof body.payoutId === "string" ? body.payoutId.trim() : "";
     if (!payoutId || !/^[0-9a-f-]{36}$/i.test(payoutId)) {
       return json({ error: "invalid_payout_id" }, 400);
@@ -37,7 +40,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!payout) return json({ error: "payout_not_found" }, 404);
     const row = payout as Record<string, unknown>;
-    if (row.seller_id !== userId) return json({ error: "forbidden" }, 403);
+    const userId = settleOk ? String(row.seller_id ?? "") : userData!.user!.id;
+    if (!userId || row.seller_id !== userId) return json({ error: "forbidden" }, 403);
     if (row.method !== "stripe_connect") return json({ error: "not_connect_method" }, 400);
     if (row.status === "paid" || row.status === "rejected") {
       return json({ error: "already_processed", status: row.status }, 409);
