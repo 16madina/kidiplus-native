@@ -12,7 +12,14 @@ import {
 } from "./live-host";
 import { sendGift as sendGiftRpc, type GiftKey } from "./gifts";
 import { nextBidAmount, normalizeCurrency, type Currency } from "./money";
-import { EMPTY_LIVE_FX, LIVE_FX_EVENT, sanitizeLiveFx, type LiveFxPayload } from "./live-fx";
+import {
+  EMPTY_LIVE_FX,
+  LIVE_FX_EVENT,
+  LIVE_FX_REQUEST_EVENT,
+  liveFxChannelName,
+  sanitizeLiveFx,
+  type LiveFxPayload,
+} from "./live-fx";
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -359,6 +366,27 @@ export function useViewerLiveRoom(
           event: "join",
           payload: { name: displayNameRef.current || "Viewer", at: Date.now() },
         });
+        void channel.send({
+          type: "broadcast",
+          event: LIVE_FX_REQUEST_EVENT,
+          payload: { identity: opts.identity, at: Date.now() },
+        });
+      });
+
+    const fxCh = supabase
+      .channel(liveFxChannelName(liveId), {
+        config: { broadcast: { self: false } },
+      })
+      .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
+        setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
+      })
+      .subscribe((status) => {
+        if (status !== "SUBSCRIBED") return;
+        void fxCh.send({
+          type: "broadcast",
+          event: LIVE_FX_REQUEST_EVENT,
+          payload: { identity: opts.identity, at: Date.now() },
+        });
       });
 
     const productsCh = supabase
@@ -470,6 +498,7 @@ export function useViewerLiveRoom(
       void supabase.removeChannel(productsCh);
       void supabase.removeChannel(liveCh);
       void supabase.removeChannel(giftsCh);
+      void supabase.removeChannel(fxCh);
       channelRef.current = null;
     };
   }, [liveId, opts.identity, pushChat, refreshProducts]);

@@ -18,7 +18,13 @@ function clampPosterTransform(t: PosterTransform): PosterTransform {
 export const LIVE_FX_TOPIC = "kidi-live-fx";
 /** Same live room channel as chat / enchères — the website can listen later. */
 export const LIVE_FX_EVENT = "live:fx";
+/** Viewer asks the host to resend the current image / teinte. */
+export const LIVE_FX_REQUEST_EVENT = "live:fx:request";
 export const LIVE_FX_VERSION = 1;
+
+export function liveFxChannelName(liveId: string): string {
+  return `live-fx:${liveId}`;
+}
 export const LIVE_FX_HEARTBEAT_MS = 4_000;
 
 export type LiveFxPayload = {
