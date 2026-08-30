@@ -1,5 +1,10 @@
 import { fetchVitrinePosts, createVitrinePost, type VitrineFeedPost } from "./vitrine";
-import { encodeAfficheCaption, parseAfficheCaption, type AfficheLayout } from "./vitrine-affiche-logic";
+import {
+  afficheArticleCount,
+  encodeAfficheCaption,
+  parseAfficheCaption,
+  type AfficheLayout,
+} from "./vitrine-affiche-logic";
 
 export * from "./vitrine-affiche-logic";
 
@@ -9,8 +14,11 @@ export type VitrineAffiche = {
   title: string;
   layout: AfficheLayout;
   sellerName: string;
+  shopName: string;
   handle: string;
   avatarUrl: string | null;
+  category: string;
+  articleCount: number;
   createdAt: string;
 };
 
@@ -26,9 +34,12 @@ export function postToAffiche(post: VitrineFeedPost): VitrineAffiche | null {
       backgroundUri: layout.backgroundUri || post.mediaUrls[0] || null,
     },
     sellerName: post.sellerName,
+    shopName: layout.shopName.trim() || `${post.sellerName} Boutique`,
     handle: post.handle,
     avatarUrl: post.avatarUrl,
-    createdAt: post.id,
+    category: layout.category.trim(),
+    articleCount: afficheArticleCount(layout),
+    createdAt: post.createdAt || post.id,
   };
 }
 

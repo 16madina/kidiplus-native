@@ -21,6 +21,7 @@ export type VitrineFeedPost = {
   sellerName: string;
   handle: string;
   avatarUrl: string | null;
+  createdAt: string;
 };
 
 type SellerEmbed = {
@@ -40,6 +41,7 @@ type VitrineRow = {
   live_id: string | null;
   like_count: number | null;
   comment_count: number | null;
+  created_at?: string | null;
   seller: SellerEmbed | SellerEmbed[] | null;
 };
 
@@ -109,6 +111,7 @@ async function mapRow(row: VitrineRow, likedIds: Set<string>): Promise<VitrineFe
     sellerName,
     handle,
     avatarUrl,
+    createdAt: row.created_at || new Date().toISOString(),
   };
 }
 

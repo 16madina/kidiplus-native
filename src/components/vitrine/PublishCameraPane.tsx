@@ -71,13 +71,21 @@ export function PublishCameraPane({
   const [clipDuration, setClipDuration] = useState<number | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
+  const [camReady, setCamReady] = useState(false);
   const maxSec = maxVideoSecForMode(mode);
 
   useEffect(() => {
-    if (!active) return;
-    if (permission && !permission.granted && permission.canAskAgain) void requestPermission();
-    if (mode !== "photo" && micPerm && !micPerm.granted && micPerm.canAskAgain) void requestMic();
-  }, [active, mode, permission, micPerm, requestPermission, requestMic]);
+    if (!active) {
+      setCamReady(false);
+      return;
+    }
+    if (!permission?.granted) void requestPermission();
+    if (mode !== "photo" && !micPerm?.granted) void requestMic();
+  }, [active, mode, permission?.granted, micPerm?.granted, requestPermission, requestMic]);
+
+  useEffect(() => {
+    setCamReady(false);
+  }, [facing, mode, active]);
 
   useEffect(() => {
     setDraft(null);
@@ -118,8 +126,12 @@ export function PublishCameraPane({
   };
 
   const takePhoto = async () => {
+    if (!camReady || !camRef.current) {
+      Alert.alert("KiDi+", t("publish.cameraOpening"));
+      return;
+    }
     try {
-      const pic = await camRef.current?.takePictureAsync({ quality: 0.9 });
+      const pic = await camRef.current.takePictureAsync({ quality: 0.9 });
       if (!pic?.uri) return;
       openEdit(await pickedMediaFromUri(pic.uri, "image/jpeg", "shot.jpg", { width: pic.width, height: pic.height }));
     } catch {
@@ -129,9 +141,20 @@ export function PublishCameraPane({
 
   const startRecord = async () => {
     if (recording) return;
+    if (!camReady || !camRef.current) {
+      Alert.alert("KiDi+", t("publish.cameraOpening"));
+      return;
+    }
+    if (!micPerm?.granted) {
+      const next = await requestMic();
+      if (!next.granted) {
+        Alert.alert("KiDi+", t("publish.micDenied"));
+        return;
+      }
+    }
     try {
       setRecording(true);
-      const rec = await camRef.current?.recordAsync({ maxDuration: maxSec });
+      const rec = await camRef.current.recordAsync({ maxDuration: maxSec });
       setRecording(false);
       holdRef.current = false;
       if (!rec?.uri) return;
@@ -268,7 +291,7 @@ export function PublishCameraPane({
     );
   }
 
-  const cameraReady = permission?.granted && Platform.OS !== "web";
+  const cameraReady = !!active && !!permission?.granted && Platform.OS !== "web";
   const progress = recording ? Math.min(1, elapsed / maxSec) : 0;
 
   return (
@@ -279,7 +302,12 @@ export function PublishCameraPane({
           style={FILL}
           facing={facing}
           mode={mode === "photo" ? "picture" : "video"}
+          mute={false}
+          active={active}
+          videoQuality="720p"
           mirror={facing === "front" && Platform.OS === "ios"}
+          onCameraReady={() => setCamReady(true)}
+          onMountError={() => setCamReady(false)}
         />
       ) : (
         <View style={[FILL, styles.center]}>
@@ -293,6 +321,12 @@ export function PublishCameraPane({
           ) : null}
         </View>
       )}
+      {cameraReady && !camReady ? (
+        <View pointerEvents="none" style={[FILL, styles.center]}>
+          <ActivityIndicator color="#fff" />
+          <Text style={styles.hint}>{t("publish.cameraOpening")}</Text>
+        </View>
+      ) : null}
 
       {recording ? (
         <View style={styles.recBarWrap}>
@@ -322,7 +356,7 @@ export function PublishCameraPane({
         </Press>
 
         <Pressable
-          disabled={!cameraReady && mode !== "photo"}
+          disabled={!cameraReady || (!camReady && mode !== "photo")}
           onPress={() => {
             if (mode === "photo") {
               void takePhoto();

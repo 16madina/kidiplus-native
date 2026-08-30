@@ -34,32 +34,78 @@ export type AfficheImageLayer = {
 
 export type AfficheLayer = AfficheTextLayer | AfficheImageLayer;
 
+export type AfficheSoonField = "badge" | "seller" | "shop" | "title" | "date" | "time";
+
 export type AfficheLayout = {
   kidiAffiche: true;
   title: string;
+  /** Yellow “Bientôt” chip. Empty → UI default. */
+  badge: string;
+  sellerName: string;
+  shopName: string;
+  category: string;
   backgroundColor: string;
   backgroundUri: string | null;
+  /** ISO datetime of the event / drop — used for « Me rappeler ». */
+  eventAt: string | null;
+  remindFollowers: boolean;
   layers: AfficheLayer[];
 };
 
-export function newAfficheLayout(): AfficheLayout {
+export type AfficheLayoutSeed = {
+  title?: string;
+  badge?: string;
+  sellerName?: string;
+  shopName?: string;
+  category?: string;
+};
+
+function asText(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+export function defaultAfficheEventAt(fromMs = Date.now()): string {
+  const d = new Date(fromMs);
+  d.setDate(d.getDate() + 1);
+  d.setHours(18, 0, 0, 0);
+  return d.toISOString();
+}
+
+export function parseAfficheEventAt(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+export function splitAfficheEventAt(iso: string | null | undefined): { date: string; time: string } {
+  const ms = iso ? new Date(iso).getTime() : NaN;
+  const d = Number.isFinite(ms) ? new Date(ms) : new Date(defaultAfficheEventAt());
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+export function joinAfficheEventAt(date: string, time: string): string | null {
+  const raw = `${date.trim()}T${time.trim() || "18:00"}`;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+export function newAfficheLayout(seed: AfficheLayoutSeed = {}): AfficheLayout {
   return {
     kidiAffiche: true,
-    title: "",
+    title: seed.title ?? "",
+    badge: seed.badge ?? "",
+    sellerName: seed.sellerName ?? "",
+    shopName: seed.shopName ?? "",
+    category: seed.category ?? "",
     backgroundColor: "#10162B",
     backgroundUri: null,
-    layers: [
-      {
-        id: "title",
-        kind: "text",
-        text: "Mon affiche",
-        x: 0.5,
-        y: 0.22,
-        scale: 1,
-        color: "#FFFFFF",
-        font: "system",
-      },
-    ],
+    eventAt: defaultAfficheEventAt(),
+    remindFollowers: true,
+    layers: [],
   };
 }
 
@@ -74,14 +120,24 @@ export function parseAfficheCaption(caption: string | null | undefined): Affiche
     if (!raw || raw.kidiAffiche !== true) return null;
     return {
       kidiAffiche: true,
-      title: typeof raw.title === "string" ? raw.title : "",
+      title: asText(raw.title),
+      badge: asText(raw.badge),
+      sellerName: asText(raw.sellerName),
+      shopName: asText(raw.shopName),
+      category: asText(raw.category),
       backgroundColor: typeof raw.backgroundColor === "string" ? raw.backgroundColor : "#10162B",
       backgroundUri: typeof raw.backgroundUri === "string" ? raw.backgroundUri : null,
+      eventAt: parseAfficheEventAt(raw.eventAt),
+      remindFollowers: raw.remindFollowers !== false,
       layers: Array.isArray(raw.layers) ? (raw.layers as AfficheLayer[]) : [],
     };
   } catch {
     return null;
   }
+}
+
+export function afficheArticleCount(layout: AfficheLayout): number {
+  return layout.layers.filter((l) => l.kind === "image").length;
 }
 
 export function afficheFontFamily(font: AfficheFont): string | undefined {
