@@ -87,6 +87,13 @@ function run() {
     ).text,
     /nouveau/,
   );
+  assert.match(
+    mapConnectOnboardError(
+      "server_error",
+      "Please review the responsibilities of managing losses for connected accounts at https://dashboard.stripe.com/settings/connect/platform-profile.",
+    ).text,
+    /platform-profile/,
+  );
 
   console.log("connect-onboard-logic: all checks passed");
 }

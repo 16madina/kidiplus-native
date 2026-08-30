@@ -198,6 +198,12 @@ export function mapConnectOnboardError(
   if (blob.includes("invalid api key") || blob.includes("invalid_api_key")) {
     return { kind: "server", text: "Clé Stripe serveur invalide. Vérifie STRIPE_SECRET_KEY dans Supabase." };
   }
+  if (blob.includes("managing losses") || blob.includes("platform-profile") || blob.includes("platform profile")) {
+    return {
+      kind: "server",
+      text: "À faire une fois dans Stripe (compte KiDi+, pas le tien) : dashboard.stripe.com/settings/connect/platform-profile — accepte les responsabilités Connect, puis réessaie.",
+    };
+  }
   if (code === "server_error" || code === "http_error" || code === "network_error") {
     const hint = (message ?? "").replace(/^Error:\s*/i, "").replace(/^Stripe\w*Error:\s*/i, "").trim();
     if (hint.length > 12 && !/^error$/i.test(hint)) {
