@@ -1349,6 +1349,8 @@
     },
     "salesHint": "Articles que des acheteurs t’ont commandés — à livrer une fois payés.",
     "purchasesHint": "Articles que tu as commandés chez d’autres vendeurs.",
+    "soldBy": "Chez {{name}}",
+    "boughtBy": "Pour {{name}}",
     "emptySales": "Aucune vente pour le moment.",
     "awaitingBuyerPay": "En attente que l’acheteur paie",
     "buyerDidNotPay": "Acheteur n’a pas payé",

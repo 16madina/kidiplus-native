@@ -1348,6 +1348,8 @@
     },
     "salesHint": "Items buyers ordered from you — ship them once paid.",
     "purchasesHint": "Items you ordered from other sellers.",
+    "soldBy": "From {{name}}",
+    "boughtBy": "For {{name}}",
     "emptySales": "No sales yet.",
     "awaitingBuyerPay": "Waiting for the buyer to pay",
     "buyerDidNotPay": "Buyer did not pay",
