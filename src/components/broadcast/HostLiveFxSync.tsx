@@ -130,10 +130,13 @@ export function HostLiveFxSync({
       transportRef.current?.send(next);
       if (!liveKit) return;
       const bytes = encodeLiveFx(next);
-      void Promise.resolve(
-        liveKit.publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC }),
-      ).catch(() => undefined);
-      void Promise.resolve(liveKit.publishData(bytes, { reliable: true })).catch(() => undefined);
+      // Codex: publishData can throw sync while LiveKit reconnects (red screen).
+      void Promise.resolve()
+        .then(() => liveKit.publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC }))
+        .catch(() => undefined);
+      void Promise.resolve()
+        .then(() => liveKit.publishData(bytes, { reliable: true }))
+        .catch(() => undefined);
     };
 
     if (!liveFxEquals(payload, lastSentRef.current)) {
