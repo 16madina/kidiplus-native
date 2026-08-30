@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { FileText } from "lucide-react-native";
+import { FileText, ShoppingBag, Store } from "lucide-react-native";
 import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { OrderListCard } from "../components/orders/OrderListCard";
 import { OrderTimeline } from "../components/orders/OrderTimeline";
@@ -146,19 +146,36 @@ export function OrdersScreen({ orderId }: { orderId?: string } = {}) {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("myOrders.title")} />
-      <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
-        {(["sales", "purchases"] as const).map((k) => (
-          <Press key={k} onPress={() => setTab(k)} style={[styles.tab, tab === k && { borderBottomColor: GOLD }]}>
-            <Text style={{ fontWeight: tab === k ? "800" : "600", color: tab === k ? colors.foreground : colors.mutedForeground }}>
-              {t(`myOrders.tabs.${k}`)}
-            </Text>
-          </Press>
-        ))}
-      </View>
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 4 }}>
+      <View style={styles.tabsWrap}>
+        <View style={[styles.segment, { borderColor: colors.border }]}>
+          {(["sales", "purchases"] as const).map((k) => {
+            const on = tab === k;
+            const Icon = k === "sales" ? Store : ShoppingBag;
+            return (
+              <Press
+                key={k}
+                onPress={() => setTab(k)}
+                style={[styles.segmentBtn, on && { backgroundColor: colors.foreground }]}
+              >
+                <Icon size={13} color={on ? colors.background : colors.mutedForeground} />
+                <Text
+                  style={{
+                    fontWeight: "700",
+                    fontSize: 13,
+                    color: on ? colors.background : colors.mutedForeground,
+                  }}
+                >
+                  {t(`myOrders.tabs.${k}`)}
+                </Text>
+              </Press>
+            );
+          })}
+        </View>
+        <Text style={{ color: colors.mutedForeground, fontSize: 11, lineHeight: 15, marginTop: 8 }}>
           {t(tab === "purchases" ? "myOrders.purchasesHint" : "myOrders.salesHint")}
         </Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.body}>
         {loading ? (
           <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
         ) : tab === "sales" && !user?.isSeller ? (
@@ -377,9 +394,25 @@ function SellerShipBlock({ order }: { order: OrderView }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  tab: { flex: 1, height: 44, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  body: { padding: 16, paddingBottom: 48, gap: 10, alignItems: "stretch" },
+  tabsWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  segment: {
+    flexDirection: "row",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    padding: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 36,
+    minHeight: 36,
+    borderRadius: 999,
+  },
+  body: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 48, gap: 10, alignItems: "stretch" },
   cta: {
     alignSelf: "stretch",
     flexDirection: "row",

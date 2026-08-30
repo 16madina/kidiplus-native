@@ -50,7 +50,7 @@ export function OrderListCard({
         )}
         <View style={styles.info}>
           <View style={styles.titleRow}>
-            <Text numberOfLines={2} style={[styles.name, { color: colors.foreground }]}>
+            <Text numberOfLines={1} style={[styles.name, { color: colors.foreground }]}>
               {name || "—"}
             </Text>
             <View style={[styles.badge, { backgroundColor: `${tone}22` }]}>

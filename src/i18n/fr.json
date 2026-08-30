@@ -1344,14 +1344,14 @@
   "myOrders": {
     "title": "Mes commandes",
     "tabs": {
-      "sales": "Commandes",
-      "purchases": "Commandé"
+      "sales": "Mes ventes",
+      "purchases": "Mes achats"
     },
     "salesHint": "Articles que des acheteurs t’ont commandés — à livrer une fois payés.",
     "purchasesHint": "Articles que tu as commandés chez d’autres vendeurs.",
     "soldBy": "Chez {{name}}",
     "boughtBy": "Pour {{name}}",
-    "emptySales": "Aucune vente pour le moment.",
+    "emptySales": "Aucune commande à expédier pour le moment.",
     "awaitingBuyerPay": "En attente que l’acheteur paie",
     "buyerDidNotPay": "Acheteur n’a pas payé",
     "buyerDidNotPayHint": "Délai de 24 h dépassé — la commande a été annulée."
