@@ -1,5 +1,5 @@
 import { bootLiveKit } from "../../lib/livekit-boot";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,6 +32,8 @@ import { GOLD } from "../../theme";
 bootLiveKit();
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+const VIEWER_ROOM_OPTIONS = { adaptiveStream: false, dynacast: true };
+const VIEWER_CONNECT_OPTIONS = { autoSubscribe: true };
 
 export function LiveKitRemoteVideo({
   roomName,
@@ -89,13 +91,37 @@ export function LiveKitRemoteVideo({
     };
   }, []);
 
-  const retry = () => {
+  const retry = useCallback(() => {
     retriesRef.current += 1;
     setError(null);
     setPhase("reconnecting");
     setSession(null);
     setRoomKey((k) => k + 1);
-  };
+  }, []);
+
+  const handleDisconnected = useCallback(() => {
+    if (liveEnded) return;
+    if (retriesRef.current >= 4) {
+      setPhase("failed");
+      setError(t("live.viewerConnectFailed"));
+      return;
+    }
+    setPhase("reconnecting");
+    setTimeout(retry, 900);
+  }, [liveEnded, retry, t]);
+
+  const handleRoomError = useCallback(
+    (e: Error) => {
+      if (liveEnded) return;
+      if (e.name === "ConnectionError") {
+        setPhase("reconnecting");
+        return;
+      }
+      setPhase("failed");
+      setError(e.message || t("live.viewerConnectFailed"));
+    },
+    [liveEnded, t],
+  );
 
   if (liveEnded) {
     return (
@@ -134,32 +160,12 @@ export function LiveKitRemoteVideo({
         connect
         audio={VIEWER_PUBLISH_MIC}
         video={false}
-        options={{
-          // Always off: adaptiveStream in the 118×210 mini player drops
-          // frames, so iOS/Android PiP would open on a black surface.
-          adaptiveStream: false,
-          dynacast: true,
-        }}
-        connectOptions={{ autoSubscribe: true }}
-        onDisconnected={() => {
-          if (liveEnded) return;
-          if (retriesRef.current >= 4) {
-            setPhase("failed");
-            setError(t("live.viewerConnectFailed"));
-            return;
-          }
-          setPhase("reconnecting");
-          setTimeout(() => retry(), 900);
-        }}
-        onError={(e) => {
-          if (liveEnded) return;
-          if (e.name === "ConnectionError") {
-            setPhase("reconnecting");
-            return;
-          }
-          setPhase("failed");
-          setError(e.message || t("live.viewerConnectFailed"));
-        }}
+        // Always off: adaptiveStream in the 118×210 mini player drops frames,
+        // so iOS/Android PiP would open on a black surface.
+        options={VIEWER_ROOM_OPTIONS}
+        connectOptions={VIEWER_CONNECT_OPTIONS}
+        onDisconnected={handleDisconnected}
+        onError={handleRoomError}
       >
         <RemoteCamera
           battleActive={battleActive}
