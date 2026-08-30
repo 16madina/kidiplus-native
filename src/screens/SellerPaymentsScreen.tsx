@@ -53,12 +53,13 @@ export function SellerPaymentsScreen() {
   const [connected, setConnected] = useState(false);
   const [payoutsEnabled, setPayoutsEnabled] = useState(false);
   const [connectCountry, setConnectCountry] = useState("");
+  const [livemode, setLivemode] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
 
   const currency = user?.walletCurrency ?? "EUR";
   const available = payoutSetupMethodsForCurrency(currency);
-  const phase = connectUiPhase({ payoutsEnabled, connected, status });
+  const phase = connectUiPhase({ payoutsEnabled, connected, status, livemode });
   const stripeReady = phase === "ready";
   const locale = i18n.language?.startsWith("en") ? "en" : "fr";
   const countryLabel = formatConnectCountry(connectCountry || user?.country, locale);
@@ -72,6 +73,7 @@ export function SellerPaymentsScreen() {
     setConnected(connect.connected);
     setPayoutsEnabled(connect.payoutsEnabled);
     setConnectCountry(connect.country);
+    setLivemode(connect.livemode);
     setError(
       connect.ok
         ? null
@@ -158,11 +160,24 @@ export function SellerPaymentsScreen() {
             title={t("sellerPayments.stripeTitle")}
             ready={stripeReady}
             dimmed={!stripeReady}
+            badge={phase === "test" ? t("sellerPayments.testBadge") : undefined}
           >
             {stripeReady ? (
               <>
                 <Text style={styles.readyLine}>
                   {t("sellerPayments.stripeReady")}
+                  {countryLabel ? ` · ${countryLabel}` : ""}
+                </Text>
+                <OutlineButton
+                  label={busy ? t("common.loading") : t("sellerPayments.manage")}
+                  onPress={() => void openDashboard()}
+                  disabled={busy}
+                />
+              </>
+            ) : phase === "test" ? (
+              <>
+                <Text style={[styles.methodHint, { color: colors.foreground }]}>
+                  {t("sellerPayments.stripeTestMode")}
                   {countryLabel ? ` · ${countryLabel}` : ""}
                 </Text>
                 <OutlineButton
@@ -350,23 +365,26 @@ function MethodCard({
   title,
   ready,
   dimmed,
+  badge,
   children,
 }: {
   title: string;
   ready: boolean;
   dimmed?: boolean;
+  badge?: string;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const faded = dimmed ?? !ready;
+  const pillReady = ready && !badge;
   return (
     <SurfaceCard style={faded ? { opacity: 0.72 } : undefined}>
       <View style={styles.methodHead}>
         <Text style={[styles.methodTitle, { color: colors.foreground }]}>{title}</Text>
-        <View style={[styles.pill, { backgroundColor: ready ? "rgba(52,211,153,0.16)" : "rgba(148,163,184,0.18)" }]}>
-          <Text style={[styles.pillText, { color: ready ? "#1B7A3A" : "#64748B" }]}>
-            {ready ? t("sellerPayments.configured") : t("sellerPayments.notConfigured")}
+        <View style={[styles.pill, { backgroundColor: pillReady ? "rgba(52,211,153,0.16)" : "rgba(148,163,184,0.18)" }]}>
+          <Text style={[styles.pillText, { color: pillReady ? "#1B7A3A" : "#64748B" }]}>
+            {badge ?? (ready ? t("sellerPayments.configured") : t("sellerPayments.notConfigured"))}
           </Text>
         </View>
       </View>

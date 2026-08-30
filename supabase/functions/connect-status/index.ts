@@ -1,6 +1,7 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { stripeClient } from "../_shared/stripe.ts";
+import { connectClearPatch, connectReadyPatch, connectStatusFromAccount } from "../_shared/connect-profile.ts";
 
 const stripe = stripeClient();
 
@@ -35,6 +36,7 @@ Deno.serve(async (req) => {
         payouts_enabled: false,
         currently_due: [],
         status: "none",
+        livemode: null,
       });
     }
 
@@ -47,17 +49,10 @@ Deno.serve(async (req) => {
         msg.includes("not connected to your platform") ||
         msg.includes("no such account") ||
         msg.includes("resource_missing") ||
+        msg.includes("does not have access to account") ||
         (msg.includes("account") && msg.includes("does not exist"));
       if (!stale) throw e;
-      await supabase
-        .from("profiles")
-        .update({
-          stripe_account_id: null,
-          stripe_connect_id: null,
-          stripe_payouts_enabled: false,
-          stripe_requirements_due: null,
-        })
-        .eq("id", userData.user.id);
+      await supabase.from("profiles").update(connectClearPatch()).eq("id", userData.user.id);
       return json({
         ok: true,
         connected: false,
@@ -65,24 +60,17 @@ Deno.serve(async (req) => {
         payouts_enabled: false,
         currently_due: [],
         status: "none",
+        livemode: null,
       });
     }
+
     const currentlyDue = account.requirements?.currently_due ?? [];
     const payoutsEnabled = Boolean(account.payouts_enabled);
     const chargesEnabled = Boolean(account.charges_enabled);
-    const status = payoutsEnabled
-      ? "active"
-      : currentlyDue.length || account.requirements?.disabled_reason
-        ? "restricted"
-        : "pending";
+    const livemode = account.livemode !== false;
+    const status = connectStatusFromAccount(account);
 
-    await supabase
-      .from("profiles")
-      .update({
-        stripe_payouts_enabled: payoutsEnabled,
-        stripe_requirements_due: currentlyDue,
-      })
-      .eq("id", userData.user.id);
+    await supabase.from("profiles").update(connectReadyPatch(account)).eq("id", userData.user.id);
 
     return json({
       ok: true,
@@ -95,6 +83,7 @@ Deno.serve(async (req) => {
       detailsSubmitted: Boolean(account.details_submitted),
       currently_due: currentlyDue,
       status,
+      livemode,
       country: account.country ?? "",
     });
   } catch (e) {

@@ -1,6 +1,7 @@
 import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { stripeClient } from "../_shared/stripe.ts";
+import { connectReadyPatch } from "../_shared/connect-profile.ts";
 
 const stripe = stripeClient();
 
@@ -19,11 +20,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const userId = account.metadata?.kidi_user_id;
-    const patch = {
-      stripe_payouts_enabled: Boolean(account.payouts_enabled),
-      stripe_requirements_due: account.requirements?.currently_due ?? [],
-    };
+    const userId = account.metadata?.kidi_user_id ?? account.metadata?.kidiplus_user_id;
+    const patch = connectReadyPatch(account);
     if (userId) {
       await supabase.from("profiles").update(patch).eq("id", userId);
     } else {

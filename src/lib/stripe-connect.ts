@@ -31,6 +31,7 @@ export type ConnectState = {
   status: ConnectStatus;
   currency: string;
   country: string;
+  livemode: boolean | null;
   error?: string;
   message?: string;
 };
@@ -117,6 +118,7 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     status: "none",
     currency: "EUR",
     country: "",
+    livemode: null,
   };
   const edge = await postEdgeFunction("connect-status");
   const json = edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
@@ -125,7 +127,7 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
   if (json.ok === false || json.error) {
     const message = typeof json.message === "string" ? json.message : undefined;
     if (isStaleConnectAccountError(message)) {
-      return { ...empty, ok: true, status: "none" };
+      return { ...empty, ok: true, status: "none", livemode: null };
     }
     return {
       ...empty,
@@ -156,6 +158,7 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     status,
     currency: String(json.currency ?? "EUR"),
     country: asCountry(json),
+    livemode: json.livemode === false ? false : json.livemode === true ? true : null,
   };
 }
 
@@ -223,11 +226,15 @@ export async function startConnectLoginLink(): Promise<{ url: string | null; err
 }
 
 export async function dispatchConnectPayout(payoutId: string): Promise<{ ok: boolean; error?: string }> {
-  const json = await postConnect("/api/connect/payout", { payoutId });
+  const edge = await postEdgeFunction("connect-payout", { payoutId });
+  const json =
+    edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
+      ? await postConnect("/api/connect/payout", { payoutId })
+      : edge;
   if (json.ok) return { ok: true };
   return {
     ok: false,
-    error: typeof json.message === "string" ? json.message : String(json.error ?? "transfer_failed"),
+    error: typeof json.error === "string" ? json.error : String(json.message ?? "transfer_failed"),
   };
 }
 

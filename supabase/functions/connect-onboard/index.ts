@@ -8,6 +8,7 @@ import Stripe from "https://esm.sh/stripe@16.8.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { stripeClient } from "../_shared/stripe.ts";
 import { isXofCurrency, pickConnectCountry } from "../_shared/connect-country.ts";
+import { connectClearPatch, connectPendingPatch } from "../_shared/connect-profile.ts";
 
 const stripe = stripeClient();
 
@@ -155,15 +156,7 @@ async function clearStaleAccount(
   supabase: ReturnType<typeof createClient>,
   userId: string,
 ) {
-  await supabase
-    .from("profiles")
-    .update({
-      stripe_account_id: null,
-      stripe_connect_id: null,
-      stripe_payouts_enabled: false,
-      stripe_requirements_due: null,
-    })
-    .eq("id", userId);
+  await supabase.from("profiles").update(connectClearPatch()).eq("id", userId);
 }
 
 async function usableAccountId(
@@ -245,8 +238,7 @@ async function createExpressAccount(input: {
   await input.supabase
     .from("profiles")
     .update({
-      stripe_account_id: account.id,
-      stripe_connect_id: account.id,
+      ...connectPendingPatch(account.id),
       stripe_business_type: input.businessType,
     })
     .eq("id", input.userId);

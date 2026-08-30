@@ -228,12 +228,46 @@ export function connectStatusFromFlags(input: {
   return "none";
 }
 
+/**
+ * Same rules as kidiplus.com `statusFromAccount`, plus: a test Express
+ * account is never `active` for live seller_balances.
+ */
+export function connectStatusFromAccount(acc: {
+  payouts_enabled?: boolean | null;
+  details_submitted?: boolean | null;
+  livemode?: boolean | null;
+  requirements?: {
+    disabled_reason?: string | null;
+    currently_due?: string[] | null;
+    past_due?: string[] | null;
+  } | null;
+}): "none" | "pending" | "active" | "restricted" {
+  const currentlyDue = acc.requirements?.currently_due ?? [];
+  const pastDue = acc.requirements?.past_due ?? [];
+  let status: "pending" | "active" | "restricted" = "pending";
+  if (acc.payouts_enabled) status = "active";
+  else if (acc.details_submitted && currentlyDue.length === 0 && pastDue.length === 0) {
+    status = "active";
+  } else if (pastDue.length > 0 || acc.requirements?.disabled_reason) {
+    status = "restricted";
+  }
+  if (acc.livemode === false && status === "active") return "pending";
+  return status;
+}
+
 /** UI Stripe: never re-ask particular / entreprise once a Connect account exists. */
 export function connectUiPhase(input: {
   payoutsEnabled?: boolean;
   connected?: boolean;
   status?: string | null;
-}): "choose" | "needs_info" | "ready" {
+  livemode?: boolean | null;
+}): "choose" | "needs_info" | "ready" | "test" {
+  if (
+    input.livemode === false &&
+    (input.payoutsEnabled || input.status === "active")
+  ) {
+    return "test";
+  }
   if (input.payoutsEnabled || input.status === "active") return "ready";
   if (input.connected || input.status === "pending" || input.status === "restricted") {
     return "needs_info";

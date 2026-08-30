@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildConnectProductDescription,
   COMPANY_PERSON_TITLE,
+  connectStatusFromAccount,
   connectStatusFromFlags,
   connectUiPhase,
   kidiStoreUrl,
@@ -44,6 +45,18 @@ function run() {
   assert.equal(connectUiPhase({ status: "restricted" }), "needs_info");
   assert.equal(connectUiPhase({ payoutsEnabled: true }), "ready");
   assert.equal(connectUiPhase({ status: "active" }), "ready");
+  assert.equal(connectUiPhase({ payoutsEnabled: true, livemode: false }), "test");
+  assert.equal(connectUiPhase({ status: "active", livemode: false }), "test");
+  assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: true }), "active");
+  assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: false }), "pending");
+  assert.equal(
+    connectStatusFromAccount({
+      details_submitted: true,
+      livemode: true,
+      requirements: { currently_due: [], past_due: [] },
+    }),
+    "active",
+  );
 
   assert.ok(stripeAccountLinkUrls().returnUrl.includes("connect-bounce"));
   assert.ok(stripeAccountLinkUrls().refreshUrl.includes("next=refresh"));

@@ -1400,6 +1400,9 @@
       "aboveAvailable": "Amount exceeds available balance",
       "missingDestination": "Enter your payout details",
       "invalidEmail": "Invalid email address",
+      "connectNotReady": "Your Stripe bank account is not ready for a transfer yet. Reopen “My payout methods” to sync, or use PayPal.",
+      "connectTestMode": "This Stripe account is in test mode. Live bank transfers cannot go out. Use PayPal or an IBAN transfer.",
+      "connectCurrency": "Stripe Connect is not available for this currency. Use PayPal or a bank transfer.",
       "generic": "Could not process the request."
     }
   },
@@ -1415,6 +1418,8 @@
     "stripeTitle": "Stripe Connect (bank account)",
     "stripeHint": "Stripe Express onboarding opens in Safari / Chrome. Stripe verifies your identity and bank details once.",
     "stripeReady": "✅ Account ready. You can withdraw earnings.",
+    "stripeTestMode": "Stripe account set up in test mode. Live bank transfers cannot go out yet — use PayPal or an IBAN.",
+    "testBadge": "Test mode",
     "configureBank": "Set up my bank account",
     "chooseTitle": "How do you want to get paid?",
     "chooseIndividual": "I'm an individual",

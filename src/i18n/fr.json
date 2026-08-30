@@ -1401,6 +1401,9 @@
       "aboveAvailable": "Montant supérieur au solde disponible",
       "missingDestination": "Renseigne les coordonnées de retrait",
       "invalidEmail": "Adresse e-mail invalide",
+      "connectNotReady": "Ton compte bancaire Stripe n'est pas encore prêt pour un virement. Rouvre « Mes méthodes de paiement » pour synchroniser, ou utilise PayPal.",
+      "connectTestMode": "Ce compte Stripe est en mode test. Les virements réels ne partent pas. Utilise PayPal ou un virement IBAN.",
+      "connectCurrency": "Stripe Connect n'est pas disponible pour cette devise. Utilise PayPal ou un virement.",
       "generic": "Impossible de traiter la demande."
     }
   },
@@ -1416,6 +1419,8 @@
     "stripeTitle": "Stripe Connect (compte bancaire)",
     "stripeHint": "Onboarding Stripe Express dans Safari / Chrome. Stripe vérifie ton identité et ton IBAN une seule fois.",
     "stripeReady": "✅ Compte prêt. Tu peux retirer tes gains.",
+    "stripeTestMode": "Compte Stripe configuré en mode test. Les virements réels ne partent pas encore — utilise PayPal ou un IBAN.",
+    "testBadge": "Mode test",
     "configureBank": "Configurer mon compte bancaire",
     "chooseTitle": "Comment veux-tu être payé ?",
     "chooseIndividual": "Je suis un particulier",

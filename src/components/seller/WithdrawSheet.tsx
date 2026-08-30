@@ -31,6 +31,7 @@ import {
   emptyPayoutSetup,
   firstReadyPayoutMethod,
   isStripePayoutReady,
+  payoutErrorI18nKey,
   isValidBankHolder,
   isValidIban,
   isValidPayoutPhone,
@@ -103,7 +104,7 @@ export function WithdrawSheet({
         fetchConnectStatus(),
       ]);
       if (cancelled) return;
-      const stripe = isStripePayoutReady(connect.status);
+      const stripe = isStripePayoutReady(connect.status, connect.livemode);
       setSetup(stored);
       setStripeReady(stripe);
       const first = firstReadyPayoutMethod(methods, stored, stripe) ?? defaultPayoutMethod(currency);
@@ -199,7 +200,7 @@ export function WithdrawSheet({
       if (res.min != null) {
         setError(t("payout.errors.belowMin", { min: formatMoney(res.min, currency, i18n.language) }));
       } else {
-        setError(res.error || t("payout.errors.generic"));
+        setError(t(payoutErrorI18nKey(res.error)));
       }
       return;
     }

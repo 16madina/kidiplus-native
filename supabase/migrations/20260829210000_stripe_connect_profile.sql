@@ -8,6 +8,11 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stripe_connect_id text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stripe_business_type text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stripe_payouts_enabled boolean DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stripe_requirements_due jsonb;
+-- Already on kidiplus.com — request_payout reads connect_status, not stripe_payouts_enabled.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS connect_status text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS connect_charges_enabled boolean DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS connect_payouts_enabled boolean DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS connect_updated_at timestamptz;
 
 COMMENT ON COLUMN public.profiles.stripe_account_id IS 'Stripe Connect Express account id (acct_...)';
 COMMENT ON COLUMN public.profiles.stripe_business_type IS 'individual | company — set once at onboarding';
