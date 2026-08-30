@@ -251,7 +251,7 @@ export function connectStatusFromAccount(acc: {
   } else if (pastDue.length > 0 || acc.requirements?.disabled_reason) {
     status = "restricted";
   }
-  if (acc.livemode === false && status === "active") return "pending";
+  if (acc.livemode !== true && status === "active") return "pending";
   return status;
 }
 

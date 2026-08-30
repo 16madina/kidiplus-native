@@ -211,7 +211,7 @@ export function WithdrawSheet({
       const sent = await dispatchConnectPayout(res.payoutId);
       setBusy(false);
       if (!sent.ok) {
-        onDone(t("payout.connectQueued"));
+        onDone(sent.refunded ? t("payout.connectRefunded") : t("payout.connectQueued"));
         return;
       }
       onDone(t("payout.connectSent"));

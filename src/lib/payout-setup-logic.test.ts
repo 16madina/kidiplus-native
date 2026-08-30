@@ -49,11 +49,12 @@ function run() {
   assert.equal(isValidIban("FR76 ACCT-000009"), false);
   assert.equal(isValidBankHolder("Jean"), true);
   assert.equal(isValidBankHolder("J"), false);
-  assert.equal(isStripePayoutReady("active"), true);
+  assert.equal(isStripePayoutReady("active"), false);
   assert.equal(isStripePayoutReady("pending"), false);
   assert.equal(isStripePayoutReady("none"), false);
   assert.equal(isStripePayoutReady("active", false), false);
   assert.equal(isStripePayoutReady("active", true), true);
+  assert.equal(isStripePayoutReady("active", null), false);
   assert.equal(payoutErrorI18nKey("connect_not_ready"), "payout.errors.connectNotReady");
   assert.equal(payoutErrorI18nKey("connect_test_mode"), "payout.errors.connectTestMode");
   assert.equal(payoutErrorI18nKey("nope"), "payout.errors.generic");

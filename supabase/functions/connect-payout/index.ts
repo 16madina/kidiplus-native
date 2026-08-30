@@ -46,6 +46,11 @@ Deno.serve(async (req) => {
       return json({ ok: true, transferId: row.stripe_transfer_id, alreadySent: true });
     }
 
+    if (body.refund === true) {
+      const refunded = await refundPayout(supabase, payoutId, userId, "Annulé : le virement Stripe n'est pas parti. Gains recrédités.");
+      return json(refunded.ok ? { ok: true, refunded: true } : { error: refunded.error }, refunded.ok ? 200 : 409);
+    }
+
     const currency = String(row.currency ?? "EUR").toUpperCase();
     if (!CONNECT_CURRENCIES.has(currency)) {
       return json({ error: "connect_currency_unsupported", currency }, 400);
@@ -63,12 +68,14 @@ Deno.serve(async (req) => {
     if (!accountId) return json({ error: "connect_not_ready", status: "none" }, 409);
 
     const account = await stripe.accounts.retrieve(accountId);
-    if (account.livemode === false) {
-      return json({ error: "connect_test_mode", message: "Compte Stripe test — virement réel impossible." }, 409);
+    if (account.livemode !== true) {
+      await refundPayout(supabase, payoutId, userId, "Compte Stripe test — virement réel impossible. Gains recrédités.");
+      return json({ error: "connect_test_mode", refunded: true }, 409);
     }
     const status = connectStatusFromAccount(account);
     if (status !== "active") {
-      return json({ error: "connect_not_ready", status }, 409);
+      await refundPayout(supabase, payoutId, userId, "Compte Stripe pas prêt. Gains recrédités.");
+      return json({ error: "connect_not_ready", refunded: true, status }, 409);
     }
 
     const amountMinor = toStripeAmount(Number(row.amount), currency);
@@ -101,14 +108,67 @@ Deno.serve(async (req) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("connect-payout transfer", msg);
-      await supabase.from("payouts").update({ stripe_error: msg }).eq("id", payoutId);
-      return json({ error: "transfer_failed", message: msg }, 502);
+      await refundPayout(
+        supabase,
+        payoutId,
+        userId,
+        `Virement Stripe impossible (${msg.slice(0, 160)}). Gains recrédités.`,
+      );
+      return json({ error: "transfer_failed", refunded: true, message: msg }, 502);
     }
   } catch (e) {
     console.error("connect-payout", e);
     return json({ error: "server_error", message: String(e) }, 500);
   }
 });
+
+async function refundPayout(
+  supabase: ReturnType<typeof createClient>,
+  payoutId: string,
+  userId: string,
+  note: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: locked, error: lockErr } = await supabase
+    .from("payouts")
+    .update({
+      status: "rejected",
+      processed_at: new Date().toISOString(),
+      admin_note: note,
+    })
+    .eq("id", payoutId)
+    .eq("seller_id", userId)
+    .in("status", ["requested", "processing"])
+    .is("stripe_transfer_id", null)
+    .select("amount, source")
+    .maybeSingle();
+  if (lockErr) return { ok: false, error: lockErr.message };
+  if (!locked) return { ok: false, error: "already_processed" };
+  const amount = Number((locked as { amount?: number }).amount);
+  const source = String((locked as { source?: string }).source ?? "seller");
+  const now = new Date().toISOString();
+  if (source === "wallet") {
+    const { data: w } = await supabase.from("wallets").select("balance").eq("user_id", userId).maybeSingle();
+    const next = Number((w as { balance?: number } | null)?.balance ?? 0) + amount;
+    await supabase.from("wallets").update({ balance: next, updated_at: now }).eq("user_id", userId);
+  } else if (source === "referral") {
+    const { data: r } = await supabase
+      .from("referral_balances")
+      .select("available")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    const next = Number((r as { available?: number } | null)?.available ?? 0) + amount;
+    await supabase.from("referral_balances").update({ available: next, updated_at: now }).eq("owner_id", userId);
+  } else {
+    const { data: b } = await supabase
+      .from("seller_balances")
+      .select("available")
+      .eq("seller_id", userId)
+      .maybeSingle();
+    const next = Number((b as { available?: number } | null)?.available ?? 0) + amount;
+    await supabase.from("seller_balances").update({ available: next, updated_at: now }).eq("seller_id", userId);
+  }
+  return { ok: true };
+}
 
 function toStripeAmount(amount: number, currency: string): number {
   return currency === "XOF" ? Math.round(amount) : Math.round(amount * 100);

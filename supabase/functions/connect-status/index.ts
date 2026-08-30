@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const currentlyDue = account.requirements?.currently_due ?? [];
     const payoutsEnabled = Boolean(account.payouts_enabled);
     const chargesEnabled = Boolean(account.charges_enabled);
-    const livemode = account.livemode !== false;
+    const livemode = account.livemode === true;
     const status = connectStatusFromAccount(account);
 
     await supabase.from("profiles").update(connectReadyPatch(account)).eq("id", userData.user.id);

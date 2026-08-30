@@ -71,9 +71,9 @@ export function isValidBankHolder(holder: string): boolean {
 
 export function isStripePayoutReady(
   status: string | null | undefined,
-  livemode: boolean | null | undefined = true,
+  livemode: boolean | null | undefined = undefined,
 ): boolean {
-  return status === "active" && livemode !== false;
+  return status === "active" && livemode === true;
 }
 
 /** RPC / Edge error codes → i18n key under `payout.errors`. */

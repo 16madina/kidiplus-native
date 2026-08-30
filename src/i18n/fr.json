@@ -1373,6 +1373,7 @@
     "successTitle": "Demande envoyée ✅",
     "successBody": "Traitement sous 48h.",
     "connectQueued": "Demande enregistrée. Le virement Stripe n'est pas parti tout de suite — notre système le retraitera.",
+    "connectRefunded": "Le virement Stripe n'a pas pu partir. Tes gains sont de nouveau disponibles — utilise PayPal ou un IBAN.",
     "connectSent": "Virement Stripe envoyé vers ton compte bancaire.",
     "stripeConnectHint": "Le virement part vers ton compte bancaire Stripe Connect (Europe / Amérique / UK).",
     "methodNotReady": "Cette méthode n'est pas encore configurée.",

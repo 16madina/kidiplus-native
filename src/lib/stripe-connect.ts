@@ -225,15 +225,26 @@ export async function startConnectLoginLink(): Promise<{ url: string | null; err
   };
 }
 
-export async function dispatchConnectPayout(payoutId: string): Promise<{ ok: boolean; error?: string }> {
+export async function dispatchConnectPayout(payoutId: string): Promise<{
+  ok: boolean;
+  refunded?: boolean;
+  error?: string;
+}> {
   const edge = await postEdgeFunction("connect-payout", { payoutId });
   const json =
     edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
       ? await postConnect("/api/connect/payout", { payoutId })
       : edge;
-  if (json.ok) return { ok: true };
+  if (json.ok && !json.refunded) return { ok: true };
+  if (!json.ok && json.refunded !== true) {
+    const refund = await postEdgeFunction("connect-payout", { payoutId, refund: true });
+    if (refund.ok || refund.refunded) {
+      return { ok: false, refunded: true, error: typeof json.error === "string" ? json.error : "transfer_failed" };
+    }
+  }
   return {
     ok: false,
+    refunded: json.refunded === true,
     error: typeof json.error === "string" ? json.error : String(json.message ?? "transfer_failed"),
   };
 }

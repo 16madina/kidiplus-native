@@ -49,6 +49,7 @@ function run() {
   assert.equal(connectUiPhase({ status: "active", livemode: false }), "test");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: true }), "active");
   assert.equal(connectStatusFromAccount({ payouts_enabled: true, livemode: false }), "pending");
+  assert.equal(connectStatusFromAccount({ payouts_enabled: true }), "pending");
   assert.equal(
     connectStatusFromAccount({
       details_submitted: true,

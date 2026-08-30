@@ -1372,6 +1372,7 @@
     "successTitle": "Request sent ✅",
     "successBody": "Processed within 48h.",
     "connectQueued": "Request saved. The Stripe transfer did not go out yet — we will retry it.",
+    "connectRefunded": "The Stripe transfer could not go out. Your earnings are available again — use PayPal or an IBAN.",
     "connectSent": "Stripe payout sent to your bank account.",
     "stripeConnectHint": "The transfer goes to your Stripe Connect bank account (Europe / Americas / UK).",
     "methodNotReady": "This method is not set up yet.",
