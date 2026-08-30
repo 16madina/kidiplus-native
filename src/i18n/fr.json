@@ -1427,6 +1427,7 @@
     "manage": "Gérer mes infos de paiement",
     "dashboardFail": "Impossible d'ouvrir le tableau de bord Stripe. Réessaie.",
     "paypalTitle": "PayPal",
+    "paypalHint": "C’est l’adresse où KiDi+ t’envoie tes gains. Pas de connexion PayPal : ce n’est pas un paiement, c’est un destinataire.",
     "paypalReady": "✅ PayPal : {{email}}",
     "waveTitle": "Wave",
     "waveReady": "✅ Wave : {{phone}}",

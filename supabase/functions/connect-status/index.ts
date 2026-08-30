@@ -40,7 +40,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    const account = await stripe.accounts.retrieve(accountId);
+    let account: Stripe.Account;
+    try {
+      account = await stripe.accounts.retrieve(accountId);
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      const stale =
+        msg.includes("not connected to your platform") ||
+        msg.includes("no such account") ||
+        msg.includes("resource_missing") ||
+        (msg.includes("account") && msg.includes("does not exist"));
+      if (!stale) throw e;
+      await supabase
+        .from("profiles")
+        .update({
+          stripe_account_id: null,
+          stripe_connect_id: null,
+          stripe_payouts_enabled: false,
+          stripe_requirements_due: null,
+        })
+        .eq("id", userData.user.id);
+      return json({
+        ok: true,
+        connected: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        currently_due: [],
+        status: "none",
+      });
+    }
     const currentlyDue = account.requirements?.currently_due ?? [];
     const payoutsEnabled = Boolean(account.payouts_enabled);
     const chargesEnabled = Boolean(account.charges_enabled);

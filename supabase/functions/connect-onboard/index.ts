@@ -61,79 +61,63 @@ Deno.serve(async (req) => {
       twoLetterCountry(profile?.country) ||
       "FR";
 
-    let accountId =
+    let accountId = await usableAccountId(
+      supabase,
+      userId,
       (typeof profile?.stripe_account_id === "string" && profile.stripe_account_id) ||
-      (typeof profile?.stripe_connect_id === "string" && profile.stripe_connect_id) ||
-      null;
+        (typeof profile?.stripe_connect_id === "string" && profile.stripe_connect_id) ||
+        null,
+    );
 
     if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: "express",
-        country,
+      accountId = await createExpressAccount({
+        supabase,
+        userId,
+        handle,
+        storeUrl,
         email,
-        business_type: businessType,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-        business_profile: {
-          url: storeUrl,
-          product_description: buildDescription({
-            category: typeof profile?.category === "string" ? profile.category : null,
-            display_name: displayName,
-          }),
-          support_email: email,
-          support_url: storeUrl,
-          mcc: "5399",
-        },
-        ...(businessType === "individual"
-          ? {
-              individual: {
-                first_name: names.first || undefined,
-                last_name: names.last || undefined,
-                email,
-                phone: typeof profile?.phone === "string" ? profile.phone : undefined,
-              },
-            }
-          : {
-              company: { name: displayName || undefined },
-            }),
-        metadata: { kidi_user_id: userId, kidi_handle: handle },
+        displayName,
+        names,
+        country,
+        businessType,
+        phone: typeof profile?.phone === "string" ? profile.phone : undefined,
+        category: typeof profile?.category === "string" ? profile.category : null,
       });
-
-      accountId = account.id;
-
-      if (businessType === "company") {
-        await stripe.accounts.createPerson(accountId, {
-          first_name: names.first || undefined,
-          last_name: names.last || undefined,
-          email,
-          phone: typeof profile?.phone === "string" ? profile.phone : undefined,
-          relationship: {
-            representative: true,
-            owner: true,
-            title: "Propriétaire",
-          },
-        });
-      }
-
-      await supabase
-        .from("profiles")
-        .update({
-          stripe_account_id: accountId,
-          stripe_connect_id: accountId,
-          stripe_business_type: businessType,
-        })
-        .eq("id", userId);
     }
 
-    const link = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: "account_onboarding",
-      collection_options: { fields: "eventually_due" },
-    });
+    let link: Stripe.AccountLink;
+    try {
+      link = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: refreshUrl,
+        return_url: returnUrl,
+        type: "account_onboarding",
+        collection_options: { fields: "eventually_due" },
+      });
+    } catch (linkErr) {
+      if (!isStaleAccountError(linkErr)) throw linkErr;
+      await clearStaleAccount(supabase, userId);
+      accountId = await createExpressAccount({
+        supabase,
+        userId,
+        handle,
+        storeUrl,
+        email,
+        displayName,
+        names,
+        country,
+        businessType,
+        phone: typeof profile?.phone === "string" ? profile.phone : undefined,
+        category: typeof profile?.category === "string" ? profile.category : null,
+      });
+      link = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: refreshUrl,
+        return_url: returnUrl,
+        type: "account_onboarding",
+        collection_options: { fields: "eventually_due" },
+      });
+    }
 
     return json({ ok: true, url: link.url, account_id: accountId });
   } catch (e) {
@@ -141,6 +125,122 @@ Deno.serve(async (req) => {
     return json({ error: "server_error", message: String(e) }, 500);
   }
 });
+
+function isStaleAccountError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return (
+    msg.includes("not connected to your platform") ||
+    msg.includes("no such account") ||
+    msg.includes("resource_missing") ||
+    (msg.includes("account") && msg.includes("does not exist"))
+  );
+}
+
+async function clearStaleAccount(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  await supabase
+    .from("profiles")
+    .update({
+      stripe_account_id: null,
+      stripe_connect_id: null,
+      stripe_payouts_enabled: false,
+      stripe_requirements_due: null,
+    })
+    .eq("id", userId);
+}
+
+async function usableAccountId(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  stored: string | null,
+): Promise<string | null> {
+  if (!stored) return null;
+  try {
+    await stripe.accounts.retrieve(stored);
+    return stored;
+  } catch (e) {
+    if (isStaleAccountError(e)) {
+      await clearStaleAccount(supabase, userId);
+      return null;
+    }
+    throw e;
+  }
+}
+
+async function createExpressAccount(input: {
+  supabase: ReturnType<typeof createClient>;
+  userId: string;
+  handle: string;
+  storeUrl: string;
+  email: string | undefined;
+  displayName: string;
+  names: { first: string; last: string };
+  country: string;
+  businessType: "individual" | "company";
+  phone?: string;
+  category?: string | null;
+}): Promise<string> {
+  const account = await stripe.accounts.create({
+    type: "express",
+    country: input.country,
+    email: input.email,
+    business_type: input.businessType,
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    business_profile: {
+      url: input.storeUrl,
+      product_description: buildDescription({
+        category: input.category ?? null,
+        display_name: input.displayName,
+      }),
+      support_email: input.email,
+      support_url: input.storeUrl,
+      mcc: "5399",
+    },
+    ...(input.businessType === "individual"
+      ? {
+          individual: {
+            first_name: input.names.first || undefined,
+            last_name: input.names.last || undefined,
+            email: input.email,
+            phone: input.phone,
+          },
+        }
+      : {
+          company: { name: input.displayName || undefined },
+        }),
+    metadata: { kidi_user_id: input.userId, kidi_handle: input.handle },
+  });
+
+  if (input.businessType === "company") {
+    await stripe.accounts.createPerson(account.id, {
+      first_name: input.names.first || undefined,
+      last_name: input.names.last || undefined,
+      email: input.email,
+      phone: input.phone,
+      relationship: {
+        representative: true,
+        owner: true,
+        title: "Propriétaire",
+      },
+    });
+  }
+
+  await input.supabase
+    .from("profiles")
+    .update({
+      stripe_account_id: account.id,
+      stripe_connect_id: account.id,
+      stripe_business_type: input.businessType,
+    })
+    .eq("id", input.userId);
+
+  return account.id;
+}
 
 async function loadProfile(
   supabase: ReturnType<typeof createClient>,

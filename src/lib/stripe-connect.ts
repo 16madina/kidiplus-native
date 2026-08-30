@@ -4,6 +4,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
 import { paymentsEnvHeaders } from "./stripe-web";
 import { isConnectReturnUrl } from "./payout-setup-logic";
 import {
+  isStaleConnectAccountError,
   mapConnectOnboardError,
   parseStripeBusinessType,
   stripeAccountLinkUrls,
@@ -121,10 +122,14 @@ export async function fetchConnectStatus(): Promise<ConnectState> {
     ? await postConnect("/api/connect/status")
     : edge;
   if (json.ok === false || json.error) {
+    const message = typeof json.message === "string" ? json.message : undefined;
+    if (isStaleConnectAccountError(message)) {
+      return { ...empty, ok: true, status: "none" };
+    }
     return {
       ...empty,
       error: String(json.error ?? "unknown"),
-      message: typeof json.message === "string" ? json.message : undefined,
+      message,
     };
   }
   const chargesEnabled = Boolean(json.chargesEnabled ?? json.charges_enabled);

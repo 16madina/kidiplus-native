@@ -32,7 +32,11 @@ import {
   subscribeConnectReturn,
   type ConnectStatus,
 } from "../lib/stripe-connect";
-import { connectUiPhase, type StripeBusinessType } from "../lib/connect-onboard-logic";
+import {
+  connectUiPhase,
+  mapConnectOnboardError,
+  type StripeBusinessType,
+} from "../lib/connect-onboard-logic";
 import { GOLD } from "../theme";
 
 type EditKey = "paypal" | "wave" | "orange" | "bank";
@@ -68,7 +72,11 @@ export function SellerPaymentsScreen() {
     setConnected(connect.connected);
     setPayoutsEnabled(connect.payoutsEnabled);
     setConnectCountry(connect.country);
-    setError(connect.ok ? null : connect.message || connect.error || null);
+    setError(
+      connect.ok
+        ? null
+        : mapConnectOnboardError(connect.error, connect.message).text,
+    );
     setSetup(stored);
     setLoading(false);
   }, [user?.id]);
@@ -177,6 +185,7 @@ export function SellerPaymentsScreen() {
                 <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
                   {t("sellerPayments.chooseLocked")}
                 </Text>
+                {error ? <Text style={styles.inlineErr}>{error}</Text> : null}
               </>
             ) : (
               <>
@@ -204,6 +213,9 @@ export function SellerPaymentsScreen() {
               </>
             ) : (
               <>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.paypalHint")}
+                </Text>
                 <FormField
                   required
                   label={t("payout.paypalEmail")}
@@ -392,6 +404,7 @@ const styles = StyleSheet.create({
   methodHint: { fontSize: 12, lineHeight: 17 },
   chooseTitle: { fontSize: 16, fontWeight: "800", lineHeight: 22 },
   readyLine: { fontSize: 15, fontWeight: "700", color: "#1B7A3A", lineHeight: 21 },
+  inlineErr: { color: "#9B1C1C", fontSize: 13, fontWeight: "600", lineHeight: 18 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   pillText: { fontSize: 11, fontWeight: "800" },
   outlineBtn: {

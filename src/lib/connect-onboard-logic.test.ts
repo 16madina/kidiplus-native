@@ -6,6 +6,7 @@ import {
   connectUiPhase,
   kidiStoreUrl,
   stripeAccountLinkUrls,
+  isStaleConnectAccountError,
   mapConnectOnboardError,
   parseStripeBusinessType,
   splitDisplayName,
@@ -47,6 +48,19 @@ function run() {
   assert.equal(mapConnectOnboardError("handle_missing").kind, "handle_missing");
   assert.match(mapConnectOnboardError("handle_missing").text, /boutique/);
   assert.equal(mapConnectOnboardError("server_error").kind, "server");
+  assert.equal(
+    isStaleConnectAccountError(
+      "You requested an account link for an account that is not connected to your platform or does not exist.",
+    ),
+    true,
+  );
+  assert.match(
+    mapConnectOnboardError(
+      "server_error",
+      "Error: You requested an account link for an account that is not connected to your platform or does not exist.",
+    ).text,
+    /nouveau/,
+  );
 
   console.log("connect-onboard-logic: all checks passed");
 }

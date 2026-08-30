@@ -32,6 +32,16 @@ export function buildConnectProductDescription(input: {
     : `${nom} vend des produits en direct sur la marketplace KiDi+ (live shopping).`;
 }
 
+export function isStaleConnectAccountError(message?: string | null): boolean {
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("not connected to your platform") ||
+    m.includes("no such account") ||
+    m.includes("resource_missing") ||
+    (m.includes("account") && m.includes("does not exist"))
+  );
+}
+
 export function mapConnectOnboardError(
   code: string | null | undefined,
   message?: string | null,
@@ -42,9 +52,17 @@ export function mapConnectOnboardError(
       text: "Choisis le nom de ta boutique avant de connecter ton compte de paiement.",
     };
   }
-  if (message?.trim()) return { kind: "server", text: message.trim() };
+  if (isStaleConnectAccountError(message) || code === "stale_account") {
+    return {
+      kind: "server",
+      text: "L'ancien compte Stripe n'est plus valide. Réessaie : on va en créer un nouveau.",
+    };
+  }
   if (code === "server_error" || code === "http_error" || code === "network_error") {
     return { kind: "server", text: "Impossible de préparer Stripe. Réessaie." };
+  }
+  if (message?.trim() && !/^error:/i.test(message.trim())) {
+    return { kind: "server", text: message.trim() };
   }
   return { kind: "generic", text: "Impossible d'ouvrir l'onboarding Stripe. Réessaie." };
 }

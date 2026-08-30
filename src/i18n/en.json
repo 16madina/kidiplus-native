@@ -1426,6 +1426,7 @@
     "manage": "Manage payout details",
     "dashboardFail": "Could not open the Stripe dashboard. Try again.",
     "paypalTitle": "PayPal",
+    "paypalHint": "This is where KiDi+ sends your earnings. No PayPal login — it’s a destination, not a checkout.",
     "paypalReady": "✅ PayPal: {{email}}",
     "waveTitle": "Wave",
     "waveReady": "✅ Wave: {{phone}}",
