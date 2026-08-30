@@ -89,6 +89,8 @@ export function payoutErrorI18nKey(code: string | null | undefined): string {
       return "payout.errors.connectCurrency";
     case "insufficient_funds":
       return "payout.errors.insufficient";
+    case "platform_funds":
+      return "payout.errors.platformFunds";
     case "invalid_email":
       return "payout.errors.invalidEmail";
     default:

@@ -1413,6 +1413,7 @@
       "invalidEmail": "Adresse e-mail invalide",
       "connectNotReady": "Ton compte bancaire Stripe n'est pas encore prêt pour un virement. Rouvre « Mes méthodes de paiement » pour synchroniser, ou utilise PayPal.",
       "connectTestMode": "Ce compte Stripe est en mode test. Les virements réels ne partent pas. Utilise PayPal ou un virement IBAN.",
+      "platformFunds": "Tes 90 % sont bien dans Mes gains, mais l'argent réel n'est plus sur le Stripe KiDi+ : le versement automatique de la société l'a déjà envoyé à la banque entreprise. Seul le 10 % KiDi+ peut partir à cette banque. Les 90 % vendeurs doivent rester sur Stripe jusqu'au retrait. Tes gains ont été remis dans ton solde.",
       "connectCurrency": "Stripe Connect n'est pas disponible pour cette devise. Utilise PayPal ou un virement.",
       "generic": "Impossible de traiter la demande."
     }

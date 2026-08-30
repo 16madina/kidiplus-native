@@ -114,13 +114,23 @@ Deno.serve(async (req) => {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("connect-payout transfer", msg);
       await supabase.from("payouts").update({ stripe_error: msg.slice(0, 400) }).eq("id", payoutId);
+      const platformEmpty = /insufficient funds/i.test(msg);
       await refundPayout(
         supabase,
         payoutId,
         userId,
-        `Virement Stripe impossible (${msg.slice(0, 160)}). Gains recrédités.`,
+        platformEmpty
+          ? "Les 90 % vendeurs ne sont plus sur le Stripe KiDi+ (versement automatique entreprise). Gains recrédités."
+          : `Virement Stripe impossible (${msg.slice(0, 160)}). Gains recrédités.`,
       );
-      return json({ error: "transfer_failed", refunded: true, message: msg }, 502);
+      return json(
+        {
+          error: platformEmpty ? "platform_funds" : "transfer_failed",
+          refunded: true,
+          message: msg,
+        },
+        502,
+      );
     }
   } catch (e) {
     if (isStripeConfigError(e)) {

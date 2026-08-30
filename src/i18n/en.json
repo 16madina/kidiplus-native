@@ -1412,6 +1412,7 @@
       "invalidEmail": "Invalid email address",
       "connectNotReady": "Your Stripe bank account is not ready for a transfer yet. Reopen “My payout methods” to sync, or use PayPal.",
       "connectTestMode": "This Stripe account is in test mode. Live bank transfers cannot go out. Use PayPal or an IBAN transfer.",
+      "platformFunds": "Your 90% is in earnings, but the cash is no longer on the KiDi+ Stripe account: the company's automatic payout already sent it to the business bank. Only KiDi+'s 10% should leave to that bank. Seller funds must stay on Stripe until withdrawal. Your earnings were put back on your balance.",
       "connectCurrency": "Stripe Connect is not available for this currency. Use PayPal or a bank transfer.",
       "generic": "Could not process the request."
     }

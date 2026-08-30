@@ -60,6 +60,7 @@ function run() {
   assert.equal(isStripePayoutReady("active", null), true);
   assert.equal(payoutErrorI18nKey("connect_not_ready"), "payout.errors.connectNotReady");
   assert.equal(payoutErrorI18nKey("connect_test_mode"), "payout.errors.connectTestMode");
+  assert.equal(payoutErrorI18nKey("platform_funds"), "payout.errors.platformFunds");
   assert.equal(payoutErrorI18nKey("nope"), "payout.errors.generic");
 
   const empty = emptyPayoutSetup();
