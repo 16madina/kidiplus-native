@@ -298,17 +298,17 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     if scale < 0.999 {
       ci = ci.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
     }
-    let composed = compose(ci)
+    let composed = compose(ci, includePoster: true, applyMirror: mirror)
     present(composed)
   }
 
+  /// Camera Kit already applied the Snap filter. We only replace the background.
+  /// Poster stays a viewer overlay — never baked into the published track.
   func composePublished(_ sample: CMSampleBuffer) -> CMSampleBuffer? {
     guard composeIntoPublish else { return nil }
+    guard backgroundMode != "none" else { return nil }
     guard let pb = CMSampleBufferGetImageBuffer(sample) else { return nil }
     var ci = CIImage(cvPixelBuffer: pb)
-    let wantFx =
-      (backgroundMode != "none" && !disabled) || (posterImage != nil && posterMode != "off")
-    if !wantFx { return nil }
     trackFps()
     if disabled { return nil }
     let maxW = ladder[min(ladderIndex, ladder.count - 1)]
@@ -316,7 +316,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     if scale < 0.999 {
       ci = ci.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
     }
-    let composed = compose(ci)
+    let composed = compose(ci, includePoster: false, applyMirror: false)
     return Self.sampleBuffer(from: composed, prototype: sample, context: ciContext)
   }
 
@@ -387,7 +387,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     return outgoing
   }
 
-  private func compose(_ camera: CIImage) -> CIImage {
+  private func compose(_ camera: CIImage, includePoster: Bool, applyMirror: Bool) -> CIImage {
     let extent = camera.extent
     let wantBg = backgroundMode != "none" && !disabled
     var out: CIImage
@@ -408,11 +408,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     } else {
       out = camera
     }
-    if mirror {
+    if applyMirror {
       out = out.transformed(by: CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -extent.width, y: 0))
         .cropped(to: extent)
     }
-    if posterMode != "off", let poster = posterImage {
+    if includePoster, posterMode != "off", let poster = posterImage {
       out = drawPoster(poster, over: out, extent: extent)
     }
     return out.cropped(to: extent)

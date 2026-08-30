@@ -24,7 +24,7 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Site classification: effects first, then Snap, else raw camera. */
+/** Site classification: green screen, Snap, or raw. Both can be on at once. */
 export function hostPipelineMode(opts: {
   hasEffects: boolean;
   snapLens: boolean;
@@ -33,6 +33,11 @@ export function hostPipelineMode(opts: {
   if (opts.hasEffects) return "effects";
   if (opts.snapLens && opts.cameraKit) return "snap";
   return "raw";
+}
+
+/** Green screen / blur is baked into the published track. Poster is not. */
+export function publishedGreenScreenOn(backgroundMode: string | null | undefined): boolean {
+  return backgroundMode === "blur" || backgroundMode === "image";
 }
 
 /**
@@ -98,7 +103,7 @@ export async function runFilteredPublish(
       await deps.setPublish({ enabled: false }).catch(() => undefined);
       return { path: fallbackPath(deps.os) };
     }
-    if (!args.hasEffects && args.lens?.isSnapLens && args.lens.lensId !== "none") {
+    if (args.lens?.isSnapLens && args.lens.lensId !== "none") {
       await deps.applyLens(args.lens).catch(() => undefined);
     }
     return { path: "kit_publish" };

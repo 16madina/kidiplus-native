@@ -3,6 +3,7 @@ import {
   canAttemptKitPublish,
   hostPipelineMode,
   kitPublishConfirmed,
+  publishedGreenScreenOn,
   runFilteredPublish,
   type KitPublishDeps,
 } from "./host-pipeline-logic.ts";
@@ -127,13 +128,12 @@ async function main() {
   assert.ok(withLens.calls.includes("lens:x"));
   assert.ok(withLens.calls.includes("publish:wss://live.example:tok"));
 
-  const effectsWin = fakeDeps();
-  await runFilteredPublish({ ...args, hasEffects: true }, effectsWin);
-  assert.equal(effectsWin.calls.includes("lens:x"), false, "effects exclude Snap lens");
-  assert.equal(
-    hostPipelineMode({ hasEffects: true, snapLens: true, cameraKit: true }),
-    "effects",
-  );
+  const stacked = fakeDeps();
+  await runFilteredPublish({ ...args, hasEffects: true }, stacked);
+  assert.ok(stacked.calls.includes("lens:x"), "Snap stays on with green screen");
+  assert.equal(publishedGreenScreenOn("blur"), true);
+  assert.equal(publishedGreenScreenOn("image"), true);
+  assert.equal(publishedGreenScreenOn("none"), false);
 
   console.log("host-pipeline: all checks passed");
 }

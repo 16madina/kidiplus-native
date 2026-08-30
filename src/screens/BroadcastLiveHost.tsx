@@ -543,7 +543,7 @@ function HostKitStage({
           <HostLiveFxSync
             liveId={liveId}
             userId={identity}
-            bakedOverlays={liveEffects.hasEffects}
+            bakedBackground={liveEffects.backgroundMode !== "none"}
           />
         </>
       }
