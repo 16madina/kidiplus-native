@@ -694,15 +694,22 @@ private extension KidiCameraKitSession {
     }
 
     func requestCameraAccess(completion: @escaping (Bool) -> Void) {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            completion(true)
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
+        let finish: (Bool) -> Void = { granted in
+            if Thread.isMainThread {
+                completion(granted)
+            } else {
                 DispatchQueue.main.async { completion(granted) }
             }
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            finish(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                finish(granted)
+            }
         default:
-            completion(false)
+            finish(false)
         }
     }
 }
