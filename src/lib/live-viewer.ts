@@ -12,7 +12,13 @@ import {
 } from "./live-host";
 import { sendGift as sendGiftRpc, type GiftKey } from "./gifts";
 import { nextBidAmount, normalizeCurrency, type Currency } from "./money";
-import { EMPTY_LIVE_FX, LIVE_FX_EVENT, sanitizeLiveFx, type LiveFxPayload } from "./live-fx";
+import {
+  EMPTY_LIVE_FX,
+  LIVE_FX_EVENT,
+  LIVE_FX_REQUEST_EVENT,
+  sanitizeLiveFx,
+  type LiveFxPayload,
+} from "./live-fx";
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -358,6 +364,13 @@ export function useViewerLiveRoom(
           type: "broadcast",
           event: "join",
           payload: { name: displayNameRef.current || "Viewer", at: Date.now() },
+        });
+        // Broadcasts are ephemeral. Ask the host for its current image/filter
+        // state so viewers joining after activation do not start without FX.
+        void channel.send({
+          type: "broadcast",
+          event: LIVE_FX_REQUEST_EVENT,
+          payload: { identity: opts.identity, at: Date.now() },
         });
       });
 
