@@ -476,7 +476,7 @@
       "none": "None",
       "refresh": "Refresh",
       "nativePending": "Snap AR filters: run npm run rebuild:ios then try again.",
-      "liveHint": "Your filter and on-screen image are visible to viewers."
+      "liveHint": "The photo you pin on the live goes to viewers. Face filters (Snap) are not in the outgoing video yet."
     },
     "setup": {
       "titlePlaceholder": "Live title…",

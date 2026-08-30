@@ -133,3 +133,13 @@ export async function setBridgePublishEnabled(opts: {
   const mod = await ensureInitialized();
   await mod.setPublishEnabled(opts.enabled, opts.roomUrl ?? null, opts.token ?? null);
 }
+
+export async function flipBridgeCamera(): Promise<{ flipped: boolean; facing: string } | null> {
+  if (!KidiCameraKit) return null;
+  try {
+    const mod = await ensureInitialized();
+    return await mod.flipCamera();
+  } catch {
+    return null;
+  }
+}

@@ -220,7 +220,7 @@ function GoLiveSetup() {
       ) : useEffectsPreview ? (
         <LiveEffectsPreview facing={facing} />
       ) : useSnapPreview ? (
-        <SnapCameraPreview facing={facing} />
+        <SnapCameraPreview facing={facing} persistPreviewOnUnmount={busy} />
       ) : wantEffectsCamera || !snapAllowed ? (
         <View style={[FILL, { backgroundColor: "#05060a" }]} />
       ) : (

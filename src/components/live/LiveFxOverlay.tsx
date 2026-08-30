@@ -59,7 +59,7 @@ export function LiveFxOverlay({
 }
 
 const styles = StyleSheet.create({
-  layer: { ...FILL, zIndex: 3, elevation: 3 },
+  layer: { ...FILL, zIndex: 8, elevation: 8 },
   androidBlur: { backgroundColor: "rgba(12,14,24,0.42)" },
   posterWrap: {
     position: "absolute",

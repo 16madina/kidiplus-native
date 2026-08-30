@@ -23,10 +23,9 @@ Pod::Spec.new do |s|
   # (Swift import remains `SCSDKCameraKit`).
   s.dependency 'SCCameraKit'
 
-  # LiveKit Swift (`import LiveKit`) is intentionally NOT a dependency:
-  # Expo already publishes via `@livekit/react-native`. Linking client-sdk-swift
-  # via CocoaPods/SPM here caused `no such module 'LiveKit'` on prebuild.
-  # Preview + lenses work; filtered LiveKit publish stays on the JS path.
+  # Same as kidiplus.com iOS: Camera Kit frames → LiveKit BufferCapturer.
+  # Requires the LiveKit podspecs source (see plugins/withLiveKitIos.js).
+  s.dependency 'LiveKitClient', '~> 2.2'
 
   s.source_files = "**/*.{h,m,swift}"
   s.pod_target_xcconfig = {

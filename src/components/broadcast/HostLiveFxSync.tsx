@@ -97,23 +97,19 @@ export function HostLiveFxSync({ userId }: { userId: string }) {
 
     const send = (next: LiveFxPayload) => {
       lastSentRef.current = next;
+      const bytes = encodeLiveFx(next);
       void room.localParticipant
-        .publishData(encodeLiveFx(next), { reliable: true, topic: LIVE_FX_TOPIC })
+        .publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC })
         .catch(() => undefined);
+      // Some native clients drop `topic`; send a second copy without it.
+      void room.localParticipant.publishData(bytes, { reliable: true }).catch(() => undefined);
     };
 
     if (!liveFxEquals(payload, lastSentRef.current)) {
       send(payload);
     }
 
-    const beat = setInterval(() => {
-      void room.localParticipant
-        .publishData(encodeLiveFx(lastSentRef.current), {
-          reliable: true,
-          topic: LIVE_FX_TOPIC,
-        })
-        .catch(() => undefined);
-    }, LIVE_FX_HEARTBEAT_MS);
+    const beat = setInterval(() => send(lastSentRef.current), LIVE_FX_HEARTBEAT_MS);
 
     const onJoin = () => send(lastSentRef.current);
     room.on(RoomEvent.ParticipantConnected, onJoin);

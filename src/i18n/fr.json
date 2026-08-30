@@ -476,7 +476,7 @@
       "none": "Aucun",
       "refresh": "Actualiser",
       "nativePending": "Filtres Snap AR : lance npm run rebuild:ios puis réessaie.",
-      "liveHint": "Le filtre et l’image sont visibles pour tes spectateurs."
+      "liveHint": "L’image que tu poses sur le live part aux viewers. Le filtre visage (Snap) n’est pas encore dans la vidéo envoyée."
     },
     "setup": {
       "titlePlaceholder": "Titre du live…",
