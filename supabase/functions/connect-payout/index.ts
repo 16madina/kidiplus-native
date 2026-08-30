@@ -109,6 +109,7 @@ Deno.serve(async (req) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("connect-payout transfer", msg);
+      await supabase.from("payouts").update({ stripe_error: msg.slice(0, 400) }).eq("id", payoutId);
       await refundPayout(
         supabase,
         payoutId,

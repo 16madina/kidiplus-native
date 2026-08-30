@@ -284,11 +284,10 @@ export async function dispatchConnectPayout(payoutId: string): Promise<{
   refunded?: boolean;
   error?: string;
 }> {
-  const edge = await postEdgeFunction("connect-payout", { payoutId });
-  const json =
-    edge.error === "not_deployed" || edge.error === "network_error" || edge.error === "http_error"
-      ? await postConnect("/api/connect/payout", { payoutId })
-      : edge;
+  // Never fall back to kidiplus.com /api/connect/payout: that route uses a
+  // different Stripe platform key, so Transfer fails with "No such destination"
+  // and leaves the payout row locked (no refund).
+  const json = await postEdgeFunction("connect-payout", { payoutId });
   if (json.ok && !json.refunded) return { ok: true };
   if (!json.ok && json.refunded !== true) {
     const refund = await postEdgeFunction("connect-payout", { payoutId, refund: true });
