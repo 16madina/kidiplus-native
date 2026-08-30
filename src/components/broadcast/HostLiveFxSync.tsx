@@ -130,10 +130,17 @@ export function HostLiveFxSync({
       transportRef.current?.send(next);
       if (!liveKit) return;
       const bytes = encodeLiveFx(next);
-      void Promise.resolve(
-        liveKit.publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC }),
-      ).catch(() => undefined);
-      void Promise.resolve(liveKit.publishData(bytes, { reliable: true })).catch(() => undefined);
+      // LiveKit can briefly have no engine while its React Native room performs
+      // a full reconnect. Defer the call into the promise chain so both a
+      // synchronous throw and an asynchronous rejection are contained. Calling
+      // publishData while evaluating Promise.resolve(...) does not catch the
+      // former and opens the React Native red screen during live startup.
+      void Promise.resolve()
+        .then(() => liveKit.publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC }))
+        .catch(() => undefined);
+      void Promise.resolve()
+        .then(() => liveKit.publishData(bytes, { reliable: true }))
+        .catch(() => undefined);
     };
 
     if (!liveFxEquals(payload, lastSentRef.current)) {
