@@ -29,6 +29,7 @@ import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { AdminPrelaunchSimPanel } from "../components/admin/AdminPrelaunchSimPanel";
 import { AdminPushPanel } from "../components/admin/AdminPushPanel";
+import { AdminTreasuryCard } from "../components/admin/AdminTreasuryCard";
 import { PaymentsModeBadge } from "../components/admin/PaymentsModeBadge";
 import { PayoutRiskBadge } from "../components/admin/PayoutRiskBadge";
 import { useAuth } from "../context/auth";
@@ -240,6 +241,7 @@ function OverviewTab({ onGo }: { onGo: (t: Tab) => void }) {
 
   return (
     <View style={{ gap: 12 }}>
+      <AdminTreasuryCard />
       <View>
         <SectionTitle text={t("admin.toDo.title")} />
         <View style={styles.grid}>
