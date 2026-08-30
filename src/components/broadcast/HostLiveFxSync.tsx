@@ -36,10 +36,13 @@ export function HostLiveFxSync({
   liveId,
   userId,
   liveKit,
+  bakedOverlays = false,
 }: {
   liveId: string;
   userId: string;
   liveKit?: LiveKitPublisher | null;
+  /** Green screen / poster already in the published pixels — do not also overlay. */
+  bakedOverlays?: boolean;
 }) {
   const effects = useLiveEffects();
   const { activeLens } = useFilter();
@@ -112,18 +115,27 @@ export function HostLiveFxSync({
   }, [effects.backgroundUrl, effects.backgroundMode, userId]);
 
   useEffect(() => {
-    const payload = sanitizeLiveFx({
-      posterUrl: posterRemote,
-      posterMode: effects.posterMode,
-      posterX: effects.posterTransform.x,
-      posterY: effects.posterTransform.y,
-      posterScale: effects.posterTransform.scale,
-      backgroundMode: effects.backgroundMode,
-      backgroundUrl: bgRemote,
-      lensId: activeLens.lensId,
-      lensName: activeLens.name,
-      tint: liveTintForLens(activeLens),
-    });
+    const payload = sanitizeLiveFx(
+      bakedOverlays
+        ? {
+            ...EMPTY_LIVE_FX,
+            lensId: activeLens.lensId,
+            lensName: activeLens.name,
+            tint: "transparent",
+          }
+        : {
+            posterUrl: posterRemote,
+            posterMode: effects.posterMode,
+            posterX: effects.posterTransform.x,
+            posterY: effects.posterTransform.y,
+            posterScale: effects.posterTransform.scale,
+            backgroundMode: effects.backgroundMode,
+            backgroundUrl: bgRemote,
+            lensId: activeLens.lensId,
+            lensName: activeLens.name,
+            tint: liveTintForLens(activeLens),
+          },
+    );
 
     const send = (next: LiveFxPayload) => {
       lastSentRef.current = next;
@@ -165,6 +177,7 @@ export function HostLiveFxSync({
     activeLens.name,
     activeLens.tint,
     activeLens.isSnapLens,
+    bakedOverlays,
   ]);
 
   return null;

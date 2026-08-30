@@ -6,6 +6,9 @@ import LiveKit
 #elseif canImport(LiveKitClient)
 import LiveKitClient
 #endif
+#if canImport(KidiLiveEffects)
+import KidiLiveEffects
+#endif
 import SCSDKCameraKit
 import UIKit
 
@@ -331,8 +334,14 @@ final class KidiCameraKitSession: NSObject {
         output.onSampleBuffer = { [weak self] sample in
             guard let self else { return }
             self.frameCount += 1
+            var outgoing = sample
+            #if canImport(KidiLiveEffects)
+            if let composed = KidiPublishedCompose.process(sample) {
+                outgoing = composed
+            }
+            #endif
             #if canImport(LiveKit) || canImport(LiveKitClient)
-            self.bufferCapturer?.capture(sample)
+            self.bufferCapturer?.capture(outgoing)
             #endif
         }
         cameraKit.add(output: output)

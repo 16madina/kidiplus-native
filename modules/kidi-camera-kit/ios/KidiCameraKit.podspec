@@ -18,6 +18,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.dependency 'KidiLiveEffects'
 
   # Snap Camera Kit — CocoaPods trunk pod name is `SCCameraKit`
   # (Swift import remains `SCSDKCameraKit`).

@@ -18,6 +18,8 @@ export type LiveEffectsNativeConfig = {
 export type KidiLiveEffectsNativeModule = {
   warmup(): Promise<{ supported: boolean }>;
   start(config: LiveEffectsNativeConfig): Promise<{ started: boolean }>;
+  attachPublished?(config: LiveEffectsNativeConfig): Promise<{ attached: boolean }>;
+  detachPublished?(): Promise<{ detached: boolean }>;
   setConfig(config: LiveEffectsNativeConfig): Promise<{ updated: boolean }>;
   stop(): Promise<{ stopped: boolean }>;
 };

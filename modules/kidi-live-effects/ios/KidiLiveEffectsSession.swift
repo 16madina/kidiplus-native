@@ -20,6 +20,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var previewHost: UIView?
   private let preview: UIImageView
   private var running = false
+  /// When true, compose incoming Camera Kit frames for LiveKit. Never open
+  /// a second AVCaptureSession — that steals the camera and blacks out viewers.
+  private var composeIntoPublish = false
+
+  var isPublishComposeEnabled: Bool { composeIntoPublish }
 
   private var backgroundMode = "none"
   private var backgroundImage: CIImage?
@@ -116,6 +121,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     slowFrames = 0
     fastFrames = 0
     lastTs = 0
+    composeIntoPublish = false
     queue.async {
       self.configureSession()
       if !self.session.isRunning {
@@ -126,10 +132,35 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     }
   }
 
+  /// Compose on Camera Kit frames already heading to LiveKit. Stops any
+  /// local capture session so iOS does not hand the camera to a 2nd owner.
+  func attachPublished(config: [String: Any], completion: @escaping (Bool) -> Void) {
+    applyConfig(config)
+    didEmitFirstFrame = false
+    disabled = false
+    ladderIndex = 0
+    slowFrames = 0
+    fastFrames = 0
+    lastTs = 0
+    composeIntoPublish = true
+    running = true
+    queue.async {
+      if self.session.isRunning {
+        self.session.stopRunning()
+      }
+      DispatchQueue.main.async { completion(true) }
+    }
+  }
+
+  func detachPublished(completion: @escaping () -> Void) {
+    composeIntoPublish = false
+    DispatchQueue.main.async { completion() }
+  }
+
   func setConfig(_ config: [String: Any], completion: @escaping () -> Void) {
     let previousFacing = facing
     applyConfig(config)
-    if running, previousFacing != facing {
+    if running, !composeIntoPublish, previousFacing != facing {
       queue.async { self.configureSession() }
     }
     completion()
@@ -138,6 +169,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   func stop(completion: @escaping () -> Void) {
     queue.async {
       self.running = false
+      self.composeIntoPublish = false
       self.disabled = false
       self.ladderIndex = 0
       self.slowFrames = 0
@@ -268,6 +300,91 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     }
     let composed = compose(ci)
     present(composed)
+  }
+
+  func composePublished(_ sample: CMSampleBuffer) -> CMSampleBuffer? {
+    guard composeIntoPublish else { return nil }
+    guard let pb = CMSampleBufferGetImageBuffer(sample) else { return nil }
+    var ci = CIImage(cvPixelBuffer: pb)
+    let wantFx =
+      (backgroundMode != "none" && !disabled) || (posterImage != nil && posterMode != "off")
+    if !wantFx { return nil }
+    trackFps()
+    if disabled { return nil }
+    let maxW = ladder[min(ladderIndex, ladder.count - 1)]
+    let scale = min(1, maxW / ci.extent.width)
+    if scale < 0.999 {
+      ci = ci.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+    let composed = compose(ci)
+    return Self.sampleBuffer(from: composed, prototype: sample, context: ciContext)
+  }
+
+  private static func sampleBuffer(
+    from image: CIImage,
+    prototype: CMSampleBuffer,
+    context: CIContext
+  ) -> CMSampleBuffer? {
+    let rect = image.extent.integral
+    let width = Int(rect.width)
+    let height = Int(rect.height)
+    guard width > 2, height > 2 else { return nil }
+    var pixelBuffer: CVPixelBuffer?
+    let attrs: [String: Any] = [
+      kCVPixelBufferCGImageCompatibilityKey as String: true,
+      kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+      kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any],
+    ]
+    let status = CVPixelBufferCreate(
+      kCFAllocatorDefault,
+      width,
+      height,
+      kCVPixelFormatType_32BGRA,
+      attrs as CFDictionary,
+      &pixelBuffer
+    )
+    guard status == kCVReturnSuccess, let pixelBuffer else { return nil }
+    context.render(image, to: pixelBuffer, bounds: rect, colorSpace: CGColorSpaceCreateDeviceRGB())
+
+    var format: CMVideoFormatDescription?
+    let fmtStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+      allocator: kCFAllocatorDefault,
+      imageBuffer: pixelBuffer,
+      formatDescriptionOut: &format
+    )
+    guard fmtStatus == noErr, let format else { return nil }
+
+    var timing = CMSampleTimingInfo()
+    var timingCount: CMItemCount = 1
+    CMSampleBufferGetSampleTimingInfoArray(
+      prototype,
+      entryCount: 1,
+      arrayToFill: &timing,
+      entriesNeededOut: &timingCount
+    )
+    if timing.duration == .invalid {
+      timing.duration = CMSampleBufferGetDuration(prototype)
+    }
+    if timing.presentationTimeStamp == .invalid {
+      timing.presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(prototype)
+    }
+    if timing.decodeTimeStamp == .invalid {
+      timing.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(prototype)
+    }
+
+    var outgoing: CMSampleBuffer?
+    let createStatus = CMSampleBufferCreateForImageBuffer(
+      allocator: kCFAllocatorDefault,
+      imageBuffer: pixelBuffer,
+      dataReady: true,
+      makeDataReadyCallback: nil,
+      refcon: nil,
+      formatDescription: format,
+      sampleTiming: &timing,
+      sampleBufferOut: &outgoing
+    )
+    guard createStatus == noErr else { return nil }
+    return outgoing
   }
 
   private func compose(_ camera: CIImage) -> CIImage {

@@ -17,6 +17,7 @@ import { Press } from "../components/Press";
 import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
+import { HostPublishedPipeline } from "../components/broadcast/HostPublishedPipeline";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { useNav } from "../context/navigation";
@@ -37,6 +38,7 @@ import {
 } from "../lib/filters/camera-kit-bridge";
 import { useFilter } from "../lib/filters/filter-context";
 import { stopFilteredPublish, tryStartFilteredPublish } from "../lib/filters/host-pipeline";
+import { useLiveEffects } from "../lib/filters/live-effects-context";
 import { stopNativeLiveEffects } from "../lib/filters/live-effects-native-bridge";
 import {
   delayMs,
@@ -80,9 +82,12 @@ export function BroadcastLiveHost({
 }) {
   const { closeOverlay } = useNav();
   const { activeLens } = useFilter();
+  const { hasEffects } = useLiveEffects();
   const endingRef = useRef(false);
   const lensRef = useRef(activeLens);
+  const effectsRef = useRef(hasEffects);
   lensRef.current = activeLens;
+  effectsRef.current = hasEffects;
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
   const [kitPublishing, setKitPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +114,7 @@ export function BroadcastLiveHost({
           token: s.token,
           facing: facing === "back" ? "environment" : "user",
           lens: lensRef.current,
+          hasEffects: effectsRef.current,
         });
         if (cancelled) {
           await stopFilteredPublish();
@@ -426,6 +432,7 @@ function HostKitStage({
       registerHostPickerPause(null);
     };
   }, []);
+  const liveEffects = useLiveEffects();
 
   const actuallyFinish = async () => {
     if (busy || endingRef.current) return;
@@ -530,7 +537,16 @@ function HostKitStage({
       onFlip={() => void flip()}
       onEnd={finish}
       onBattleAccepted={extras.onBattleAccepted}
-      fxSync={<HostLiveFxSync liveId={liveId} userId={identity} />}
+      fxSync={
+        <>
+          <HostPublishedPipeline facing={facing} />
+          <HostLiveFxSync
+            liveId={liveId}
+            userId={identity}
+            bakedOverlays={liveEffects.hasEffects}
+          />
+        </>
+      }
     />
   );
 }

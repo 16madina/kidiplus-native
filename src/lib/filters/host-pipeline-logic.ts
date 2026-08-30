@@ -74,6 +74,7 @@ export async function runFilteredPublish(
     token: string;
     facing: "user" | "environment";
     lens: KitLens | null;
+    hasEffects?: boolean;
   },
   deps: KitPublishDeps,
 ): Promise<{ path: HostPublishPath }> {
@@ -97,7 +98,7 @@ export async function runFilteredPublish(
       await deps.setPublish({ enabled: false }).catch(() => undefined);
       return { path: fallbackPath(deps.os) };
     }
-    if (args.lens?.isSnapLens && args.lens.lensId !== "none") {
+    if (!args.hasEffects && args.lens?.isSnapLens && args.lens.lensId !== "none") {
       await deps.applyLens(args.lens).catch(() => undefined);
     }
     return { path: "kit_publish" };

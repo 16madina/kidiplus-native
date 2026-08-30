@@ -66,6 +66,18 @@ public class KidiLiveEffectsModule: Module {
       }
     }
 
+    AsyncFunction("attachPublished") { (config: LiveEffectsNativeConfig, promise: Promise) in
+      self.session.attachPublished(config: config.asDictionary()) { attached in
+        promise.resolve(["attached": attached])
+      }
+    }
+
+    AsyncFunction("detachPublished") { (promise: Promise) in
+      self.session.detachPublished {
+        promise.resolve(["detached": true])
+      }
+    }
+
     AsyncFunction("setConfig") { (config: LiveEffectsNativeConfig, promise: Promise) in
       self.session.setConfig(config.asDictionary()) {
         promise.resolve(["updated": true])

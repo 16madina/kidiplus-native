@@ -45,6 +45,7 @@ export async function tryStartFilteredPublish(args: {
   token: string;
   facing: "user" | "environment";
   lens: KitLens | null;
+  hasEffects?: boolean;
 }): Promise<{ path: "kit_publish" | "web_overlay" | "kit_failed" }> {
   return runFilteredPublish(args, defaultDeps());
 }

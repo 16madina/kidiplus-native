@@ -127,6 +127,14 @@ async function main() {
   assert.ok(withLens.calls.includes("lens:x"));
   assert.ok(withLens.calls.includes("publish:wss://live.example:tok"));
 
+  const effectsWin = fakeDeps();
+  await runFilteredPublish({ ...args, hasEffects: true }, effectsWin);
+  assert.equal(effectsWin.calls.includes("lens:x"), false, "effects exclude Snap lens");
+  assert.equal(
+    hostPipelineMode({ hasEffects: true, snapLens: true, cameraKit: true }),
+    "effects",
+  );
+
   console.log("host-pipeline: all checks passed");
 }
 

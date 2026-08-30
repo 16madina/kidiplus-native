@@ -43,6 +43,20 @@ export async function startNativeLiveEffects(cfg: NativeEffectsConfig): Promise<
   await KidiLiveEffects.start(cfg);
 }
 
+/** Compose on the Camera Kit frames already published. Does not open a camera. */
+export async function attachPublishedLiveEffects(cfg: NativeEffectsConfig): Promise<void> {
+  if (!KidiLiveEffects?.attachPublished) return;
+  await KidiLiveEffects.attachPublished(cfg);
+}
+
+export async function detachPublishedLiveEffects(): Promise<void> {
+  if (!KidiLiveEffects?.detachPublished) {
+    await stopNativeLiveEffects();
+    return;
+  }
+  await KidiLiveEffects.detachPublished();
+}
+
 export async function syncNativeLiveEffects(cfg: NativeEffectsConfig): Promise<void> {
   if (!KidiLiveEffects) return;
   try {
