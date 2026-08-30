@@ -7,7 +7,9 @@ export const KIDI_STRIPE_PUBLISHABLE_KEY =
 
 export function normalizePublishableKey(value?: string | null): string {
   const trimmed = (value ?? "").trim();
-  if (trimmed.startsWith("pk_")) return trimmed;
+  // Sandbox from the server is fine. Live keys from kidiplus.com have been
+  // stale/revoked (Stripe: "Invalid API Key provided: pk_live_…DBMx").
+  if (trimmed.startsWith("pk_test_")) return trimmed;
   return KIDI_STRIPE_PUBLISHABLE_KEY;
 }
 

@@ -11,6 +11,7 @@ import { useAppTheme } from "../context/theme";
 import {
   emptyPayoutSetup,
   formatConnectCountry,
+  isStripePayoutReady,
   isValidBankHolder,
   isValidIban,
   isValidPaypalEmail,
@@ -32,26 +33,39 @@ import {
   subscribeConnectReturn,
   type ConnectStatus,
 } from "../lib/stripe-connect";
+import {
+  connectUiPhase,
+  mapConnectOnboardError,
+  pickLegalPersonName,
+  type StripeBusinessType,
+} from "../lib/connect-onboard-logic";
 import { GOLD } from "../theme";
 
-type EditKey = "paypal" | "wave" | "orange" | "bank";
+type EditKey = "paypal" | "wave" | "orange" | "bank" | "legal";
 
 export function SellerPaymentsScreen() {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState<EditKey | null>(null);
   const [editing, setEditing] = useState<EditKey | null>(null);
   const [status, setStatus] = useState<ConnectStatus>("none");
+  const [connected, setConnected] = useState(false);
+  const [payoutsEnabled, setPayoutsEnabled] = useState(false);
   const [connectCountry, setConnectCountry] = useState("");
+  const [livemode, setLivemode] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const legalName = pickLegalPersonName({ firstName, lastName });
 
   const currency = user?.walletCurrency ?? "EUR";
   const available = payoutSetupMethodsForCurrency(currency);
-  const stripeReady = status === "active";
+  const phase = connectUiPhase({ payoutsEnabled, connected, status, livemode });
+  const stripeReady = isStripePayoutReady(status, livemode, payoutsEnabled);
   const locale = i18n.language?.startsWith("en") ? "en" : "fr";
   const countryLabel = formatConnectCountry(connectCountry || user?.country, locale);
 
@@ -61,8 +75,15 @@ export function SellerPaymentsScreen() {
       user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
     ]);
     setStatus(connect.status);
+    setConnected(connect.connected);
+    setPayoutsEnabled(connect.payoutsEnabled);
     setConnectCountry(connect.country);
-    setError(connect.ok ? null : connect.message || connect.error || null);
+    setLivemode(connect.livemode);
+    setError(
+      connect.ok
+        ? null
+        : mapConnectOnboardError(connect.error, connect.message).text,
+    );
     setSetup(stored);
     setLoading(false);
   }, [user?.id]);
@@ -77,16 +98,51 @@ export function SellerPaymentsScreen() {
     });
   }, [refresh]);
 
-  const onboard = async () => {
-    setBusy(true);
+  const persistLegalName = async (): Promise<boolean> => {
+    if (!user?.id) return false;
+    const next = pickLegalPersonName({ firstName, lastName });
+    if (!next) {
+      setError(t("sellerPayments.legalNameHint"));
+      return false;
+    }
+    if (user.firstName === next.first && user.lastName === next.last) return true;
+    setSaving("legal");
     setError(null);
-    const res = await startConnectOnboarding(user?.country);
-    setBusy(false);
-    if (res.url) {
-      await openConnectUrl(res.url);
+    try {
+      await updateProfile({ first_name: next.first, last_name: next.last });
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("sellerPayments.saveFail"));
+      return false;
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const onboard = async (businessType?: StripeBusinessType) => {
+    if (!user?.handle?.trim()) {
+      setError(t("sellerPayments.handleMissing"));
       return;
     }
-    setError(res.error ?? null);
+    if (!legalName) {
+      setError(t("sellerPayments.legalNameHint"));
+      return;
+    }
+    const saved = await persistLegalName();
+    if (!saved) return;
+    setBusy(true);
+    setError(null);
+    const res = await startConnectOnboarding(user?.country, businessType, currency);
+    setBusy(false);
+    if (res.url) {
+      try {
+        await openConnectUrl(res.url);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("sellerPayments.retryHint"));
+      }
+      return;
+    }
+    setError(res.error ?? t("sellerPayments.retryHint"));
   };
 
   const openDashboard = async () => {
@@ -136,6 +192,7 @@ export function SellerPaymentsScreen() {
             title={t("sellerPayments.stripeTitle")}
             ready={stripeReady}
             dimmed={!stripeReady}
+            badge={phase === "test" ? t("sellerPayments.testBadge") : undefined}
           >
             {stripeReady ? (
               <>
@@ -149,23 +206,68 @@ export function SellerPaymentsScreen() {
                   disabled={busy}
                 />
               </>
+            ) : phase === "test" ? (
+              <>
+                <Text style={[styles.methodHint, { color: colors.foreground }]}>
+                  {t("sellerPayments.stripeTestMode")}
+                  {countryLabel ? ` · ${countryLabel}` : ""}
+                </Text>
+                <OutlineButton
+                  label={busy ? t("common.loading") : t("sellerPayments.manage")}
+                  onPress={() => void openDashboard()}
+                  disabled={busy}
+                />
+              </>
+            ) : phase === "choose" ? (
+              <>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.stripeLiveSwitch")}
+                </Text>
+                <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
+                  {t("sellerPayments.legalNameTitle")}
+                </Text>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.legalNameHint")}
+                </Text>
+                <FormField
+                  required
+                  label={t("auth.signUp.firstName")}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  maxLength={40}
+                />
+                <FormField
+                  required
+                  label={t("auth.signUp.lastName")}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  maxLength={40}
+                />
+                <Text style={[styles.chooseTitle, { color: colors.foreground }]}>
+                  {t("sellerPayments.chooseTitle")}
+                </Text>
+                <GoldButton
+                  label={busy ? t("common.loading") : t("sellerPayments.chooseIndividual")}
+                  onPress={() => void onboard("individual")}
+                  disabled={busy || !legalName || saving === "legal"}
+                />
+                <OutlineButton
+                  label={t("sellerPayments.chooseCompany")}
+                  onPress={() => void onboard("company")}
+                  disabled={busy || !legalName || saving === "legal"}
+                />
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.chooseLocked")}
+                </Text>
+                {error ? <Text style={styles.inlineErr}>{error}</Text> : null}
+              </>
             ) : (
               <>
                 <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
-                  {status === "pending"
-                    ? t("sellerPayments.statusPending")
-                    : status === "restricted"
-                      ? t("sellerPayments.statusRestricted")
-                      : t("sellerPayments.stripeHint")}
+                  {t("sellerPayments.needsInfo")}
                 </Text>
                 <GoldButton
-                  label={
-                    busy
-                      ? t("common.loading")
-                      : status === "none"
-                        ? t("sellerPayments.configureBank")
-                        : t("sellerPayments.resumeStripe")
-                  }
+                  label={busy ? t("common.loading") : t("sellerPayments.resumeStripe")}
                   onPress={() => void onboard()}
                   disabled={busy}
                 />
@@ -185,6 +287,9 @@ export function SellerPaymentsScreen() {
               </>
             ) : (
               <>
+                <Text style={[styles.methodHint, { color: colors.mutedForeground }]}>
+                  {t("sellerPayments.paypalHint")}
+                </Text>
                 <FormField
                   required
                   label={t("payout.paypalEmail")}
@@ -315,23 +420,26 @@ function MethodCard({
   title,
   ready,
   dimmed,
+  badge,
   children,
 }: {
   title: string;
   ready: boolean;
   dimmed?: boolean;
+  badge?: string;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const faded = dimmed ?? !ready;
+  const pillReady = ready && !badge;
   return (
     <SurfaceCard style={faded ? { opacity: 0.72 } : undefined}>
       <View style={styles.methodHead}>
         <Text style={[styles.methodTitle, { color: colors.foreground }]}>{title}</Text>
-        <View style={[styles.pill, { backgroundColor: ready ? "rgba(52,211,153,0.16)" : "rgba(148,163,184,0.18)" }]}>
-          <Text style={[styles.pillText, { color: ready ? "#1B7A3A" : "#64748B" }]}>
-            {ready ? t("sellerPayments.configured") : t("sellerPayments.notConfigured")}
+        <View style={[styles.pill, { backgroundColor: pillReady ? "rgba(52,211,153,0.16)" : "rgba(148,163,184,0.18)" }]}>
+          <Text style={[styles.pillText, { color: pillReady ? "#1B7A3A" : "#64748B" }]}>
+            {badge ?? (ready ? t("sellerPayments.configured") : t("sellerPayments.notConfigured"))}
           </Text>
         </View>
       </View>
@@ -371,7 +479,9 @@ const styles = StyleSheet.create({
   methodHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 },
   methodTitle: { fontSize: 15, fontWeight: "800", flex: 1 },
   methodHint: { fontSize: 12, lineHeight: 17 },
+  chooseTitle: { fontSize: 16, fontWeight: "800", lineHeight: 22 },
   readyLine: { fontSize: 15, fontWeight: "700", color: "#1B7A3A", lineHeight: 21 },
+  inlineErr: { color: "#9B1C1C", fontSize: 13, fontWeight: "600", lineHeight: 18 },
   pill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   pillText: { fontSize: 11, fontWeight: "800" },
   outlineBtn: {

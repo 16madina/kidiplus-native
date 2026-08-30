@@ -22,6 +22,7 @@ export {
   formatConnectCountry,
   isConnectReturnUrl,
   isStripePayoutReady,
+  payoutErrorI18nKey,
   isValidBankHolder,
   isValidIban,
   isValidPaypalEmail,
@@ -116,7 +117,7 @@ export async function loadWithdrawReadiness(
   canWithdraw: boolean;
 }> {
   const [setup, connect] = await Promise.all([loadPayoutSetup(userId), fetchConnectStatus()]);
-  const stripeReady = isStripePayoutReady(connect.status);
+  const stripeReady = isStripePayoutReady(connect.status, connect.livemode, connect.payoutsEnabled);
   const methods = payoutMethodsForCurrency(currency);
   return {
     setup,

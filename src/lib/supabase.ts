@@ -35,12 +35,14 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 /** Columns allowed for authenticated clients — do not select `email`. */
 export const PROFILE_SAFE_SELECT =
-  "id, display_name, handle, avatar_url, bio, is_seller, country, phone, email_verified_at, created_at, language, currency, is_admin, terms_accepted_at, terms_version, age_confirmed_at, moderation_status, followers_count, following_count, rating_avg, rating_count, banner_url, is_verified, welcome_email_sent, is_referred, is_frozen, frozen_at";
+  "id, display_name, handle, first_name, last_name, avatar_url, bio, is_seller, country, phone, email_verified_at, created_at, language, currency, is_admin, terms_accepted_at, terms_version, age_confirmed_at, moderation_status, followers_count, following_count, rating_avg, rating_count, banner_url, is_verified, welcome_email_sent, is_referred, is_frozen, frozen_at";
 
 export type ProfileRow = {
   id: string;
   display_name: string | null;
   handle: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   avatar_url: string | null;
   banner_url: string | null;
   bio: string | null;

@@ -69,8 +69,39 @@ export function isValidBankHolder(holder: string): boolean {
   return holder.trim().length >= 2;
 }
 
-export function isStripePayoutReady(status: string | null | undefined): boolean {
-  return status === "active";
+export function isStripePayoutReady(
+  status: string | null | undefined,
+  livemode: boolean | null | undefined = undefined,
+  payoutsEnabled?: boolean,
+): boolean {
+  if (livemode === false) return false;
+  return status === "active" || payoutsEnabled === true;
+}
+
+/** RPC / Edge error codes → i18n key under `payout.errors`. */
+export function payoutErrorI18nKey(code: string | null | undefined): string {
+  switch ((code ?? "").trim()) {
+    case "connect_not_ready":
+      return "payout.errors.connectNotReady";
+    case "connect_test_mode":
+      return "payout.errors.connectTestMode";
+    case "connect_currency_unsupported":
+      return "payout.errors.connectCurrency";
+    case "insufficient_funds":
+      return "payout.errors.insufficient";
+    case "platform_funds":
+      return "payout.errors.platformFunds";
+    case "payout_daily_limit":
+      return "risk.errors.payoutDailyLimit";
+    case "payout_weekly_limit":
+      return "risk.errors.payoutWeeklyLimit";
+    case "risk_restricted":
+      return "risk.errors.restricted";
+    case "invalid_email":
+      return "payout.errors.invalidEmail";
+    default:
+      return "payout.errors.generic";
+  }
 }
 
 export function payoutMethodReady(

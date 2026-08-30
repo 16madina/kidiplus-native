@@ -31,6 +31,7 @@ import {
   emptyPayoutSetup,
   firstReadyPayoutMethod,
   isStripePayoutReady,
+  payoutErrorI18nKey,
   isValidBankHolder,
   isValidIban,
   isValidPayoutPhone,
@@ -39,6 +40,7 @@ import {
   savePayoutSetup,
   type PayoutSetup,
 } from "../../lib/payout-setup";
+import { payoutDailyCap, payoutWeeklyCap, riskTierFromProfile } from "../../lib/risk-limits";
 import { NAVY } from "../../theme";
 
 export function WithdrawSheet({
@@ -72,10 +74,14 @@ export function WithdrawSheet({
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<PayoutSetup>(emptyPayoutSetup());
   const [stripeReady, setStripeReady] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const methods = payoutMethodsForCurrency(currency);
   const min = payoutMinimumFor(currency);
   const ready = payoutMethodReady(method, setup, stripeReady);
+  const riskTier = riskTierFromProfile({ isVerified: user?.isVerified });
+  const dayCap = payoutDailyCap(riskTier, currency);
+  const weekCap = payoutWeeklyCap(riskTier, currency);
 
   const applyFields = (next: PayoutSetup, nextMethod: PayoutMethod) => {
     if (nextMethod === "wave") {
@@ -98,17 +104,19 @@ export function WithdrawSheet({
     setAmount(String(available || ""));
     setError(null);
     void (async () => {
+      setChecking(true);
       const [stored, connect] = await Promise.all([
         user?.id ? loadPayoutSetup(user.id) : Promise.resolve(emptyPayoutSetup()),
         fetchConnectStatus(),
       ]);
       if (cancelled) return;
-      const stripe = isStripePayoutReady(connect.status);
+      const stripe = isStripePayoutReady(connect.status, connect.livemode, connect.payoutsEnabled);
       setSetup(stored);
       setStripeReady(stripe);
       const first = firstReadyPayoutMethod(methods, stored, stripe) ?? defaultPayoutMethod(currency);
       setMethod(first);
       applyFields(stored, first);
+      setChecking(false);
     })();
     return () => {
       cancelled = true;
@@ -198,8 +206,16 @@ export function WithdrawSheet({
       setBusy(false);
       if (res.min != null) {
         setError(t("payout.errors.belowMin", { min: formatMoney(res.min, currency, i18n.language) }));
+      } else if (res.error === "payout_daily_limit" || res.error === "payout_weekly_limit") {
+        const errCur = res.currency ?? currency;
+        setError(
+          t(payoutErrorI18nKey(res.error), {
+            used: formatMoney(res.used ?? 0, errCur, i18n.language),
+            cap: formatMoney(res.cap ?? (res.error === "payout_weekly_limit" ? weekCap : dayCap), errCur, i18n.language),
+          }),
+        );
       } else {
-        setError(res.error || t("payout.errors.generic"));
+        setError(t(payoutErrorI18nKey(res.error)));
       }
       return;
     }
@@ -210,7 +226,7 @@ export function WithdrawSheet({
       const sent = await dispatchConnectPayout(res.payoutId);
       setBusy(false);
       if (!sent.ok) {
-        onDone(t("payout.connectQueued"));
+        onDone(sent.refunded ? t("payout.connectRefunded") : t("payout.connectQueued"));
         return;
       }
       onDone(t("payout.connectSent"));
@@ -235,6 +251,14 @@ export function WithdrawSheet({
             <Text style={{ color: colors.mutedForeground, fontSize: 13, marginBottom: 10 }}>
               {t("payout.available")} : {formatMoney(available, currency, i18n.language)}
             </Text>
+            {dayCap > 0 ? (
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 6 }}>
+                {t("risk.payoutLimitsHint", {
+                  day: formatMoney(dayCap, currency, i18n.language),
+                  week: formatMoney(weekCap, currency, i18n.language),
+                })}
+              </Text>
+            ) : null}
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 12 }}>
               <View>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>{t("payout.method.label")}</Text>
@@ -270,7 +294,11 @@ export function WithdrawSheet({
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
-              {!ready ? (
+              {checking && connect ? (
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, lineHeight: 18 }}>
+                  {t("sellerPayments.checking")}
+                </Text>
+              ) : !ready ? (
                 <View style={[styles.needBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
                   <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>
                     {t("payout.methodNotReady")}
@@ -323,14 +351,14 @@ export function WithdrawSheet({
               ) : null}
               <GoldButton
                 label={
-                  busy
+                  busy || (checking && connect)
                     ? t("common.loading")
                     : ready
                       ? t("payout.submit")
                       : t("payout.configureMethod")
                 }
-                onPress={() => void (ready ? submit() : goConfigure())}
-                disabled={busy}
+                onPress={() => void (ready ? submit() : checking && connect ? undefined : goConfigure())}
+                disabled={busy || (checking && connect)}
               />
             </ScrollView>
           </View>

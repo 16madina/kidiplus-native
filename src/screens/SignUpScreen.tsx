@@ -19,6 +19,9 @@ export function SignUpScreen() {
   const { t, i18n } = useTranslation();
   const { setView, signUp } = useAuth();
   const { colors } = useAppTheme();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [emailConfirm, setEmailConfirm] = useState("");
@@ -50,6 +53,9 @@ export function SignUpScreen() {
   if (legal) return <LegalScreen page={legal} onClose={() => setLegal(null)} />;
 
   const validate = () => {
+    if (firstName.trim().length < 2) return t("auth.validation.firstNameRequired");
+    if (lastName.trim().length < 2) return t("auth.validation.lastNameRequired");
+    if (!/^[a-z0-9_.]{2,30}$/.test(handle.trim())) return t("auth.validation.handleInvalid");
     if (!displayName.trim() || displayName.trim().length < 2) return t("auth.validation.nameRequired");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return t("auth.validation.emailInvalid");
     if (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase()) return t("auth.validation.emailMismatch");
@@ -74,6 +80,9 @@ export function SignUpScreen() {
         email: email.trim(),
         password,
         displayName: displayName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        handle: handle.trim().toLowerCase(),
         country,
         phone: phone.trim(),
         promoCode: promoCode.trim() || undefined,
@@ -93,6 +102,16 @@ export function SignUpScreen() {
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.title")}</Text>
       <Text style={{ fontSize: 14, color: colors.mutedForeground, marginBottom: 4 }}>{t("auth.signUp.subtitle")}</Text>
       <SocialLoginButtons />
+      <AuthInput label={t("auth.signUp.firstName")} value={firstName} onChangeText={setFirstName} placeholder={t("auth.signUp.firstNamePlaceholder")} maxLength={40} />
+      <AuthInput label={t("auth.signUp.lastName")} value={lastName} onChangeText={setLastName} placeholder={t("auth.signUp.lastNamePlaceholder")} maxLength={40} />
+      <AuthInput
+        label={t("auth.signUp.handle")}
+        value={handle}
+        onChangeText={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))}
+        placeholder={t("auth.signUp.handlePlaceholder")}
+        autoCapitalize="none"
+        maxLength={30}
+      />
       <AuthInput label={t("auth.signUp.displayName")} value={displayName} onChangeText={setDisplayName} placeholder={t("auth.signUp.displayNamePlaceholder")} maxLength={40} />
       <AuthInput label={t("auth.signUp.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder={t("auth.signIn.emailPlaceholder")} />
       <AuthInput label={t("auth.signUp.emailConfirm")} autoCapitalize="none" keyboardType="email-address" value={emailConfirm} onChangeText={setEmailConfirm} placeholder={t("auth.signIn.emailPlaceholder")} />

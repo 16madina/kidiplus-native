@@ -16,6 +16,7 @@ import {
   maskPaypalEmail,
   maskPayoutPhone,
   parsePayoutSetup,
+  payoutErrorI18nKey,
   payoutMethodReady,
   payoutSetupHasAny,
   payoutSetupToProfilePatch,
@@ -51,6 +52,18 @@ function run() {
   assert.equal(isStripePayoutReady("active"), true);
   assert.equal(isStripePayoutReady("pending"), false);
   assert.equal(isStripePayoutReady("none"), false);
+  assert.equal(isStripePayoutReady("active", false), false);
+  assert.equal(isStripePayoutReady("active", true), true);
+  assert.equal(isStripePayoutReady("pending", true, true), true);
+  assert.equal(isStripePayoutReady("pending", null, true), true);
+  assert.equal(isStripePayoutReady("pending", false, true), false);
+  assert.equal(isStripePayoutReady("active", null), true);
+  assert.equal(payoutErrorI18nKey("connect_not_ready"), "payout.errors.connectNotReady");
+  assert.equal(payoutErrorI18nKey("connect_test_mode"), "payout.errors.connectTestMode");
+  assert.equal(payoutErrorI18nKey("platform_funds"), "payout.errors.platformFunds");
+  assert.equal(payoutErrorI18nKey("payout_daily_limit"), "risk.errors.payoutDailyLimit");
+  assert.equal(payoutErrorI18nKey("payout_weekly_limit"), "risk.errors.payoutWeeklyLimit");
+  assert.equal(payoutErrorI18nKey("nope"), "payout.errors.generic");
 
   const empty = emptyPayoutSetup();
   assert.equal(payoutMethodReady("stripe_connect", empty, true), true);
