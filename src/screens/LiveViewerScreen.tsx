@@ -472,6 +472,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             identity={identity}
             displayName={displayName}
             liveEnded={ended}
+            overlayFx={room.fx}
             battleActive={battleActive}
             hostFighter={
               hostBattleLive

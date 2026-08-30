@@ -16,6 +16,8 @@ function clampPosterTransform(t: PosterTransform): PosterTransform {
 }
 
 export const LIVE_FX_TOPIC = "kidi-live-fx";
+/** Same live room channel as chat / enchères — the website can listen later. */
+export const LIVE_FX_EVENT = "live:fx";
 export const LIVE_FX_VERSION = 1;
 export const LIVE_FX_HEARTBEAT_MS = 4_000;
 

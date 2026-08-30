@@ -19,7 +19,13 @@ import {
 } from "../../lib/live-audio-session";
 import { fetchLiveKitSession } from "../../lib/livekit";
 import { VIEWER_PUBLISH_MIC } from "../../lib/live-viewer-media";
-import { EMPTY_LIVE_FX, LIVE_FX_TOPIC, decodeLiveFx, type LiveFxPayload } from "../../lib/live-fx";
+import {
+  EMPTY_LIVE_FX,
+  LIVE_FX_TOPIC,
+  decodeLiveFx,
+  liveFxHasVisual,
+  type LiveFxPayload,
+} from "../../lib/live-fx";
 import { LiveFxOverlay } from "./LiveFxOverlay";
 import { GOLD } from "../../theme";
 
@@ -35,6 +41,7 @@ export function LiveKitRemoteVideo({
   hostFighter = null,
   guestFighter = null,
   liveEnded = false,
+  overlayFx,
 }: {
   roomName: string;
   identity: string;
@@ -43,6 +50,7 @@ export function LiveKitRemoteVideo({
   hostFighter?: BattleSplitFighter | null;
   guestFighter?: BattleSplitFighter | null;
   liveEnded?: boolean;
+  overlayFx?: LiveFxPayload;
 }) {
   const { t } = useTranslation();
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
@@ -158,6 +166,7 @@ export function LiveKitRemoteVideo({
           hostFighter={hostFighter}
           guestFighter={guestFighter}
           reconnecting={phase === "reconnecting"}
+          overlayFx={overlayFx}
         />
       </LiveKitRoom>
     </View>
@@ -169,11 +178,13 @@ function RemoteCamera({
   hostFighter,
   guestFighter,
   reconnecting,
+  overlayFx,
 }: {
   battleActive: boolean;
   hostFighter?: BattleSplitFighter | null;
   guestFighter?: BattleSplitFighter | null;
   reconnecting: boolean;
+  overlayFx?: LiveFxPayload;
 }) {
   const { t } = useTranslation();
   const room = useRoomContext();
@@ -242,7 +253,7 @@ function RemoteCamera({
               : undefined
           }
         />
-        <LiveFxOverlay fx={fx} />
+        <LiveFxOverlay fx={liveFxHasVisual(overlayFx ?? EMPTY_LIVE_FX) ? (overlayFx ?? fx) : fx} />
       </View>
     ) : (
       waiting

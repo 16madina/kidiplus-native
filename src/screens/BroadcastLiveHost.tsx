@@ -520,6 +520,27 @@ function HostKitStage({
       onFlip={() => void flip()}
       onEnd={finish}
       onBattleAccepted={extras.onBattleAccepted}
+      fxSync={<HostLiveFxSync liveId={liveId} userId={identity} />}
+    />
+  );
+}
+
+function HostLiveFxSyncInRoom({ liveId, userId }: { liveId: string; userId: string }) {
+  const room = useRoomContext();
+  return (
+    <HostLiveFxSync
+      liveId={liveId}
+      userId={userId}
+      liveKit={{
+        publishData: (data, options) =>
+          room.localParticipant.publishData(data as Uint8Array<ArrayBuffer>, options),
+        on: (event, listener) => {
+          room.on(event as "participantConnected", listener);
+        },
+        off: (event, listener) => {
+          room.off(event as "participantConnected", listener);
+        },
+      }}
     />
   );
 }
@@ -760,7 +781,7 @@ function HostLiveKitStage({
       micOn={isMicrophoneEnabled}
       camOn={isCameraEnabled}
       busy={busy}
-      fxSync={<HostLiveFxSync userId={identity} />}
+      fxSync={<HostLiveFxSyncInRoom liveId={liveId} userId={identity} />}
       onToggleMic={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
       onToggleCam={toggleCam}
       onFlip={() => void flip()}

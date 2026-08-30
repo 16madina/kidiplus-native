@@ -692,7 +692,7 @@ function RailBtn({
 }
 
 const styles = StyleSheet.create({
-  root: { ...FILL, zIndex: 8 },
+  root: { ...FILL, zIndex: 20 },
   top: {
     position: "absolute",
     left: 8,

@@ -12,6 +12,7 @@ import {
 } from "./live-host";
 import { sendGift as sendGiftRpc, type GiftKey } from "./gifts";
 import { nextBidAmount, normalizeCurrency, type Currency } from "./money";
+import { EMPTY_LIVE_FX, LIVE_FX_EVENT, sanitizeLiveFx, type LiveFxPayload } from "./live-fx";
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,6 +43,7 @@ export type ViewerRoomState = {
   viewers: number;
   lastReveal: AuctionEndReveal | null;
   lastGift: { id?: string; giftKey: GiftKey; fromName: string; at: number } | null;
+  fx: LiveFxPayload;
   heartPulse: number;
   loading: boolean;
   error: string | null;
@@ -78,6 +80,7 @@ export function useViewerLiveRoom(
   const [chat, setChat] = useState<HostChatMsg[]>([]);
   const [viewers, setViewers] = useState(0);
   const [lastReveal, setLastReveal] = useState<AuctionEndReveal | null>(null);
+  const [fx, setFx] = useState<LiveFxPayload>(EMPTY_LIVE_FX);
   const [lastGift, setLastGift] = useState<ViewerRoomState["lastGift"]>(null);
   const [heartPulse, setHeartPulse] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -88,6 +91,9 @@ export function useViewerLiveRoom(
   const displayNameRef = useRef(opts.displayName);
   displayNameRef.current = opts.displayName;
   const seenGiftIdsRef = useRef<Set<string>>(new Set());
+  const seenActiveAuctionRef = useRef<Set<string>>(new Set());
+  const lastBidRef = useRef<LastBidEvt | null>(null);
+  lastBidRef.current = lastBid;
 
   const featured = useMemo(
     () => pickFeatured(products, auction?.productId ?? null, featuredId),
@@ -137,11 +143,43 @@ export function useViewerLiveRoom(
       setProducts(rows);
       const running = rows.find((r) => auctionFromRow(r));
       if (running) {
+        seenActiveAuctionRef.current.add(running.id);
         const start = auctionFromRow(running);
         if (start) {
           setAuction(start);
           setFeaturedId(running.id);
         }
+      }
+      for (const row of rows) {
+        if (row.mode !== "auction") continue;
+        if (row.status !== "sold" && row.status !== "unsold") continue;
+        if (!seenActiveAuctionRef.current.has(row.id)) continue;
+        seenActiveAuctionRef.current.delete(row.id);
+        const winnerId = row.sold_to_identity;
+        let winnerName: string | null = null;
+        if (row.status === "sold" && winnerId) {
+          const bid = lastBidRef.current;
+          winnerName =
+            bid && bid.bidderId === winnerId ? bid.bidderName : null;
+          if (!winnerName) {
+            const { data } = await supabase
+              .from("profiles")
+              .select("display_name")
+              .eq("id", winnerId)
+              .maybeSingle();
+            winnerName =
+              (data as { display_name?: string | null } | null)?.display_name?.trim() ||
+              "Gagnant";
+          }
+        }
+        setLastReveal({
+          endId: `db-${row.id}-${row.status}-${row.auction_round ?? 1}`,
+          productId: row.id,
+          productName: row.name ?? null,
+          winnerId: row.status === "sold" ? winnerId : null,
+          winnerName: row.status === "sold" ? winnerName : null,
+        });
+        setAuction((cur) => (cur && cur.productId === row.id ? null : cur));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Produits indisponibles");
@@ -258,6 +296,9 @@ export function useViewerLiveRoom(
           cur && cur.productId === p.productId ? { ...cur, deadlineMs: Number(p.deadlineMs) } : cur,
         );
         setSuddenDeathTick((n) => n + 1);
+      })
+      .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
+        setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
       })
       .on("broadcast", { event: "auction:end" }, ({ payload }) => {
         const p = payload as {
@@ -435,7 +476,9 @@ export function useViewerLiveRoom(
 
   useEffect(() => {
     seenGiftIdsRef.current = new Set();
+    seenActiveAuctionRef.current = new Set();
     setLastGift(null);
+    setFx(EMPTY_LIVE_FX);
   }, [liveId]);
 
   const sendChat = useCallback(async (text: string) => {
@@ -566,6 +609,7 @@ export function useViewerLiveRoom(
     chat,
     viewers,
     lastReveal,
+    fx,
     lastGift,
     heartPulse,
     loading,

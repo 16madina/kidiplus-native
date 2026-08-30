@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useRoomContext } from "@livekit/react-native";
-import { RoomEvent } from "livekit-client";
 import { useFilter } from "../../lib/filters/filter-context";
 import { useLiveEffects } from "../../lib/filters/live-effects-context";
+import { sendLiveFxBroadcast } from "../../lib/live-fx-broadcast";
 import {
   EMPTY_LIVE_FX,
   LIVE_FX_HEARTBEAT_MS,
@@ -17,12 +16,28 @@ import {
 } from "../../lib/live-fx";
 import { uploadLiveOverlayImage } from "../../lib/lives";
 
+type LiveKitPublisher = {
+  publishData: (
+    data: Uint8Array,
+    options?: { reliable?: boolean; topic?: string },
+  ) => Promise<void> | void;
+  on?: (event: string, listener: () => void) => void;
+  off?: (event: string, listener: () => void) => void;
+};
+
 /**
- * Uploads local poster/background images, then publishes the FX payload on
- * LiveKit data so viewers reconstruct the same overlay.
+ * Uploads local poster/background images, then publishes the FX payload so
+ * viewers reconstruct the same overlay (Supabase + LiveKit when available).
  */
-export function HostLiveFxSync({ userId }: { userId: string }) {
-  const room = useRoomContext();
+export function HostLiveFxSync({
+  liveId,
+  userId,
+  liveKit,
+}: {
+  liveId: string;
+  userId: string;
+  liveKit?: LiveKitPublisher | null;
+}) {
   const effects = useLiveEffects();
   const { activeLens } = useFilter();
   const [posterRemote, setPosterRemote] = useState<string | null>(null);
@@ -97,12 +112,13 @@ export function HostLiveFxSync({ userId }: { userId: string }) {
 
     const send = (next: LiveFxPayload) => {
       lastSentRef.current = next;
+      sendLiveFxBroadcast(liveId, next);
+      if (!liveKit) return;
       const bytes = encodeLiveFx(next);
-      void room.localParticipant
-        .publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC })
-        .catch(() => undefined);
-      // Some native clients drop `topic`; send a second copy without it.
-      void room.localParticipant.publishData(bytes, { reliable: true }).catch(() => undefined);
+      void Promise.resolve(
+        liveKit.publishData(bytes, { reliable: true, topic: LIVE_FX_TOPIC }),
+      ).catch(() => undefined);
+      void Promise.resolve(liveKit.publishData(bytes, { reliable: true })).catch(() => undefined);
     };
 
     if (!liveFxEquals(payload, lastSentRef.current)) {
@@ -110,16 +126,16 @@ export function HostLiveFxSync({ userId }: { userId: string }) {
     }
 
     const beat = setInterval(() => send(lastSentRef.current), LIVE_FX_HEARTBEAT_MS);
-
     const onJoin = () => send(lastSentRef.current);
-    room.on(RoomEvent.ParticipantConnected, onJoin);
+    liveKit?.on?.("participantConnected", onJoin);
 
     return () => {
       clearInterval(beat);
-      room.off(RoomEvent.ParticipantConnected, onJoin);
+      liveKit?.off?.("participantConnected", onJoin);
     };
   }, [
-    room,
+    liveId,
+    liveKit,
     posterRemote,
     bgRemote,
     effects.posterMode,

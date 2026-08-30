@@ -3,6 +3,7 @@ import type { ViewerRoomState, ViewerActions } from "./live-viewer";
 import type { LiveProductRow } from "./live-host";
 import type { GiftKey } from "./gifts";
 import { nextBidAmount, maxBidAmount, roundForCurrency, type Currency } from "./money";
+import { EMPTY_LIVE_FX } from "./live-fx";
 
 const DEMO_NAMES = [
   "Mariama", "Yves", "Awa", "Kevin", "Fatou", "Lucas",
@@ -284,6 +285,7 @@ export function useDemoViewerSim(currency: Currency): ViewerRoomState & ViewerAc
     chat,
     viewers,
     lastReveal,
+    fx: EMPTY_LIVE_FX,
     lastGift,
     heartPulse,
     loading: false,

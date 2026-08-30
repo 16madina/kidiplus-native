@@ -140,7 +140,8 @@ export function WinnerReveal({
 const styles = StyleSheet.create({
   overlay: {
     ...FILL,
-    zIndex: 58,
+    zIndex: 400,
+    elevation: 400,
     backgroundColor: "rgba(0,0,0,0.78)",
     alignItems: "center",
     justifyContent: "center",
