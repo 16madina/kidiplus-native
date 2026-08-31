@@ -96,6 +96,25 @@ export function isReplayPlayable(meta: LiveReplayMeta | null | undefined): boole
   return true;
 }
 
+export { replayDaysLeft } from "./live-replay-meta";
+
+export async function deleteLiveReplay(liveId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API}/delete`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ liveId }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+    if (!res.ok) {
+      return { ok: false, error: body.message || body.error || `delete failed (${res.status})` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 function looksPrivateReplayUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase();
