@@ -75,7 +75,7 @@ import {
 import { battleDockMetrics, battleFighters, battleRemainingMs } from "../../lib/battle-timing";
 import { pickBattleFeatured } from "../../lib/battle-featured";
 import { useBattlePeerProducts } from "../../lib/use-battle-peer-products";
-import { isDefiPlusIntroActive } from "../../lib/defi-plus";
+import { isDefiPlusIntroActive, resolveDefiPlusIntroStart } from "../../lib/defi-plus";
 import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
@@ -153,13 +153,16 @@ export function HostStudioHud({
   const [peerOpen, setPeerOpen] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const [dismissedResultId, setDismissedResultId] = useState<string | null>(null);
+  const [introFallbackAt, setIntroFallbackAt] = useState<number | null>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
   const battleActive = isBattleLiveActive(battle);
   const resultOpen = isBattleFinished(battle) && !!battle && battle.session.id !== dismissedResultId;
   const fighters = battle && battleActive ? battleFighters(battle, liveId) : null;
   const dock = battleDockMetrics(insets.top, Dimensions.get("window").height);
   const remainingMs = battle && battleActive ? battleRemainingMs(battle.session, nowMs) : 0;
-  const introStartsAt = battle?.session.started_at ? Date.parse(battle.session.started_at) : null;
+  const introStartsAt = battleActive
+    ? resolveDefiPlusIntroStart(battle?.session.started_at, introFallbackAt)
+    : null;
   const introOn = battleActive && isDefiPlusIntroActive(introStartsAt, nowMs);
   const peerProducts = useBattlePeerProducts(battleActive ? fighters?.right.liveId ?? null : null);
   const peerFeatured = pickBattleFeatured(peerProducts);
@@ -192,6 +195,14 @@ export function HostStudioHud({
     if (!battleActive) return;
     const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
+  }, [battleActive, battle?.session.id]);
+
+  useEffect(() => {
+    if (!battleActive) {
+      setIntroFallbackAt(null);
+      return;
+    }
+    setIntroFallbackAt((prev) => prev ?? Date.now());
   }, [battleActive, battle?.session.id]);
 
   const leaveBattle = () => {

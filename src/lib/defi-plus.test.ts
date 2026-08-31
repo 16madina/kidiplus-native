@@ -4,6 +4,7 @@ import {
   defiPlusElapsedMs,
   defiPlusRemaining,
   isDefiPlusIntroActive,
+  resolveDefiPlusIntroStart,
 } from "./defi-plus.ts";
 
 function run() {
@@ -14,6 +15,9 @@ function run() {
   assert.equal(defiPlusElapsedMs(1_000, 4_000), 3_000);
   assert.equal(isDefiPlusIntroActive(Date.now() - 1_000), true);
   assert.equal(isDefiPlusIntroActive(Date.now() - 16_000), false);
+  assert.equal(resolveDefiPlusIntroStart("2026-08-31T00:00:00.000Z", 99), Date.parse("2026-08-31T00:00:00.000Z"));
+  assert.equal(resolveDefiPlusIntroStart(null, 42), 42);
+  assert.equal(resolveDefiPlusIntroStart(undefined, null), null);
   console.log("defi-plus: all checks passed");
 }
 

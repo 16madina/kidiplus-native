@@ -46,3 +46,15 @@ export function isDefiPlusIntroActive(startsAt: number | null | undefined, now =
   if (startsAt == null || !Number.isFinite(startsAt)) return false;
   return defiPlusElapsedMs(startsAt, now) < DEFI_PLUS_DURATION_MS;
 }
+
+/** Server `started_at` if valid, otherwise the local fallback (set once when the duel starts). */
+export function resolveDefiPlusIntroStart(
+  serverStartedAt: string | null | undefined,
+  fallbackNow: number | null,
+): number | null {
+  if (serverStartedAt) {
+    const parsed = Date.parse(serverStartedAt);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallbackNow;
+}
