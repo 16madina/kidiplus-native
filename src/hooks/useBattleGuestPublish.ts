@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
+import { AndroidAudioTypePresets, AudioSession } from "@livekit/react-native";
 import {
   Room,
   RoomEvent,
   Track,
+  createLocalAudioTrack,
   type LocalAudioTrack,
   type LocalVideoTrack,
 } from "livekit-client";
+import {
+  describeMediaTrack,
+  pickBattleGuestPublishPath,
+} from "../lib/battle-guest-publish";
 import { battleGuestIdentity } from "../lib/battles";
+import {
+  canUseNativeBattleGuestPublish,
+  setBridgeBattleGuestPublishEnabled,
+} from "../lib/filters/camera-kit-bridge";
+import { KidiCameraKit } from "../../modules/kidi-camera-kit/src";
 import { fetchLiveKitSession } from "../lib/livekit";
-
-const BATTLE_GUEST_VIDEO = {
-  width: 960,
-  height: 540,
-  frameRate: 24,
-  maxBitrate: 700_000,
-} as const;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -40,66 +45,58 @@ async function unpublishSource(room: Room, source: Track.Source) {
   }
 }
 
-async function publishVideoClone(room: Room, media: MediaStreamTrack) {
-  await unpublishSource(room, Track.Source.Camera);
-  const clone =
-    typeof media.clone === "function" ? media.clone() : media;
-  try {
-    await clone.applyConstraints?.({
-      width: { max: BATTLE_GUEST_VIDEO.width },
-      height: { max: BATTLE_GUEST_VIDEO.height },
-      frameRate: { max: BATTLE_GUEST_VIDEO.frameRate },
-    });
-  } catch {
-    /* some native stacks reject extra constraints on clones */
-  }
-  await room.localParticipant.publishTrack(clone, {
-    name: "battle-guest",
-    source: Track.Source.Camera,
-    simulcast: true,
-    videoEncoding: {
-      maxBitrate: BATTLE_GUEST_VIDEO.maxBitrate,
-      maxFramerate: BATTLE_GUEST_VIDEO.frameRate,
+/**
+ * iOS: the 2nd LiveKit connection (native or JS) has no audio unless the
+ * native session is active. Host already started it; refresh it here and
+ * never stop it from this hook — the host screen owns teardown.
+ */
+async function ensureBattleAudioSession(): Promise<void> {
+  await AudioSession.configureAudio({
+    android: {
+      preferredOutputList: ["speaker", "bluetooth", "headset", "earpiece"],
+      audioTypeOptions: AndroidAudioTypePresets.communication,
     },
+    ios: { defaultOutput: "speaker" },
   });
-  return clone;
+  if (Platform.OS === "ios") {
+    await AudioSession.setAppleAudioConfiguration({
+      audioCategory: "playAndRecord",
+      audioCategoryOptions: ["allowBluetooth", "defaultToSpeaker", "mixWithOthers"],
+      audioMode: "videoChat",
+    });
+  }
+  await AudioSession.startAudioSession();
 }
 
-async function publishAudioClone(room: Room, media: MediaStreamTrack) {
-  await unpublishSource(room, Track.Source.Microphone);
-  const clone =
-    typeof media.clone === "function" ? media.clone() : media;
-  clone.enabled = media.enabled;
-  await room.localParticipant.publishTrack(clone, {
-    name: "battle-guest-audio",
-    source: Track.Source.Microphone,
-  });
-  return clone;
+async function stopNativeBattleGuest(): Promise<void> {
+  try {
+    await setBridgeBattleGuestPublishEnabled({ enabled: false });
+  } catch {
+    /* old binary / already stopped */
+  }
 }
 
 /**
- * During a battle, publish a reduced clone of the host camera + mic into the
- * opponent's LiveKit room so they (and their audience) see and hear the split
- * without leaving their own live.
+ * During a battle, publish camera + mic into the opponent's LiveKit room.
+ * Native: Camera Kit frames → 2nd BufferCapturer (never MediaStreamTrack.clone).
+ * Fallback: dedicated mic only — cloning the published camera track is dead on RN.
  */
 export function useBattleGuestPublish(opts: {
   enabled: boolean;
   userId: string | null;
   displayName: string;
   remoteRoomName: string | null;
-  getSourceTrack: () => LocalVideoTrack | null;
+  nativeKitPublishing?: boolean;
+  getSourceTrack?: () => LocalVideoTrack | null;
   getSourceAudioTrack?: () => LocalAudioTrack | null;
 }) {
   const [remoteStatus, setRemoteStatus] = useState<
     "idle" | "connecting" | "live" | "reconnecting" | "error"
   >("idle");
   const roomRef = useRef<Room | null>(null);
-  const videoCloneRef = useRef<MediaStreamTrack | null>(null);
-  const audioCloneRef = useRef<MediaStreamTrack | null>(null);
+  const audioTrackRef = useRef<LocalAudioTrack | null>(null);
   const getSourceRef = useRef(opts.getSourceTrack);
   getSourceRef.current = opts.getSourceTrack;
-  const getAudioRef = useRef(opts.getSourceAudioTrack);
-  getAudioRef.current = opts.getSourceAudioTrack;
 
   useEffect(() => {
     if (!opts.enabled || !opts.userId || !opts.remoteRoomName) {
@@ -109,75 +106,76 @@ export function useBattleGuestPublish(opts: {
     let cancelled = false;
     const roomName = opts.remoteRoomName;
     const identity = battleGuestIdentity(opts.userId);
-    let lastVideoId: string | null = null;
-    let lastAudioId: string | null = null;
-    let forceRepublish = false;
+    const path = pickBattleGuestPublishPath({
+      nativeMethod: canUseNativeBattleGuestPublish(),
+      kitPublishing: opts.nativeKitPublishing,
+    });
 
-    const stopClone = (ref: { current: MediaStreamTrack | null }) => {
-      const track = ref.current;
-      ref.current = null;
-      if (!track) return;
-      try {
-        track.stop();
-      } catch {
-        /* ignore */
-      }
-    };
-
-    async function waitForVideo(): Promise<MediaStreamTrack | null> {
-      for (let i = 0; i < 40 && !cancelled; i++) {
-        const media = getSourceRef.current()?.mediaStreamTrack;
-        if (media && media.readyState === "live") return media;
-        await sleep(250);
-      }
-      const media = getSourceRef.current()?.mediaStreamTrack;
-      return media?.readyState === "live" ? media : null;
-    }
-
-    async function syncTracks(room: Room) {
-      const video = getSourceRef.current()?.mediaStreamTrack ?? null;
-      const audio = getAudioRef.current?.()?.mediaStreamTrack ?? null;
-
-      if (video && video.readyState === "live") {
-        if (forceRepublish || video.id !== lastVideoId || !videoCloneRef.current) {
-          stopClone(videoCloneRef);
-          videoCloneRef.current = await publishVideoClone(room, video);
-          lastVideoId = video.id;
-        } else {
-          videoCloneRef.current.enabled = video.enabled;
-        }
-      }
-
-      if (audio && audio.readyState === "live") {
-        if (forceRepublish || audio.id !== lastAudioId || !audioCloneRef.current) {
-          stopClone(audioCloneRef);
-          audioCloneRef.current = await publishAudioClone(room, audio);
-          lastAudioId = audio.id;
-        } else {
-          audioCloneRef.current.enabled = audio.enabled;
-        }
-      } else if (audioCloneRef.current) {
-        await unpublishSource(room, Track.Source.Microphone);
-        stopClone(audioCloneRef);
-        lastAudioId = null;
-      }
-
-      forceRepublish = false;
-    }
-
-    async function run() {
+    async function runNative() {
       setRemoteStatus("connecting");
       while (!cancelled) {
         try {
-          const video = await waitForVideo();
+          await ensureBattleAudioSession();
           if (cancelled) return;
-          if (!video) {
-            console.warn("[battle] guest publish: camera not ready");
+          const { token, url } = await fetchLiveKitSession(
+            roomName,
+            identity,
+            opts.displayName,
+            "host",
+          );
+          if (cancelled) return;
+          const result = await setBridgeBattleGuestPublishEnabled({
+            enabled: true,
+            roomUrl: url,
+            token,
+          });
+          const status = await KidiCameraKit?.getStatus().catch(() => null);
+          console.log("[battle] native guest publish", {
+            enabled: result.enabled,
+            room: roomName,
+            identity,
+            kit: status,
+          });
+          if (cancelled) {
+            await stopNativeBattleGuest();
+            return;
+          }
+          if (!result.enabled) {
             setRemoteStatus("error");
             await sleep(2000);
             continue;
           }
+          setRemoteStatus("live");
+          while (!cancelled) {
+            await sleep(2000);
+            const next = await KidiCameraKit?.getStatus().catch(() => null);
+            if (cancelled) return;
+            if (next && next.battleGuestPublishing === false) {
+              console.warn("[battle] native guest publish dropped", next);
+              setRemoteStatus("error");
+              break;
+            }
+            setRemoteStatus("live");
+          }
+          await stopNativeBattleGuest();
+        } catch (e) {
+          console.warn("[battle] native guest publish failed", e);
+          if (!cancelled) setRemoteStatus("error");
+          await stopNativeBattleGuest();
+          await sleep(2000);
+        }
+      }
+    }
 
+    async function runJsAudioOnly() {
+      setRemoteStatus("connecting");
+      const source = getSourceRef.current?.()?.mediaStreamTrack ?? null;
+      console.warn("[battle] skipping video clone", describeMediaTrack(source));
+
+      while (!cancelled) {
+        try {
+          await ensureBattleAudioSession();
+          if (cancelled) return;
           const { token, url } = await fetchLiveKitSession(
             roomName,
             identity,
@@ -190,6 +188,7 @@ export function useBattleGuestPublish(opts: {
             dynacast: true,
           });
           await room.connect(url, token, { autoSubscribe: false });
+          console.log("[battle] js guest room", room.state);
           if (cancelled) {
             await disconnectRoom(room);
             return;
@@ -199,9 +198,6 @@ export function useBattleGuestPublish(opts: {
             if (!cancelled) setRemoteStatus("reconnecting");
           });
           room.on(RoomEvent.Reconnected, () => {
-            forceRepublish = true;
-            lastVideoId = null;
-            lastAudioId = null;
             if (!cancelled) setRemoteStatus("live");
           });
           room.on(RoomEvent.Disconnected, () => {
@@ -209,53 +205,67 @@ export function useBattleGuestPublish(opts: {
             if (!cancelled) setRemoteStatus("error");
           });
 
-          await syncTracks(room);
+          await unpublishSource(room, Track.Source.Microphone);
+          const mic = await createLocalAudioTrack();
+          audioTrackRef.current = mic;
+          await room.localParticipant.publishTrack(mic, {
+            name: "battle-guest-audio",
+            source: Track.Source.Microphone,
+          });
+          console.log("[battle] js guest mic published (no camera clone)");
           if (cancelled) return;
           setRemoteStatus("live");
 
           while (!cancelled && roomRef.current === room) {
-            try {
-              await syncTracks(room);
-              if (room.state === "connected" && !cancelled) {
-                setRemoteStatus("live");
-              }
-            } catch (e) {
-              console.warn("[battle] guest republish failed", e);
-            }
-            await sleep(1000);
+            if (room.state === "connected" && !cancelled) setRemoteStatus("live");
+            await sleep(2000);
           }
-          stopClone(videoCloneRef);
-          stopClone(audioCloneRef);
-          lastVideoId = null;
-          lastAudioId = null;
           if (roomRef.current === room) roomRef.current = null;
+          try {
+            audioTrackRef.current?.stop();
+          } catch {
+            /* ignore */
+          }
+          audioTrackRef.current = null;
           void disconnectRoom(room);
           if (cancelled) return;
         } catch (e) {
-          console.warn("[battle] guest publish failed", e);
+          console.warn("[battle] js guest publish failed", e);
           if (!cancelled) setRemoteStatus("error");
           const room = roomRef.current;
           roomRef.current = null;
-          stopClone(videoCloneRef);
-          stopClone(audioCloneRef);
-          lastVideoId = null;
-          lastAudioId = null;
+          try {
+            audioTrackRef.current?.stop();
+          } catch {
+            /* ignore */
+          }
+          audioTrackRef.current = null;
           void disconnectRoom(room);
           await sleep(2000);
         }
       }
     }
 
-    void run();
+    if (path === "native_kit") {
+      void runNative();
+    } else {
+      void runJsAudioOnly();
+    }
+
     return () => {
       cancelled = true;
-      stopClone(videoCloneRef);
-      stopClone(audioCloneRef);
       const room = roomRef.current;
       roomRef.current = null;
+      try {
+        audioTrackRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
+      audioTrackRef.current = null;
       void disconnectRoom(room);
+      if (path === "native_kit") void stopNativeBattleGuest();
     };
-  }, [opts.enabled, opts.userId, opts.displayName, opts.remoteRoomName]);
+  }, [opts.enabled, opts.userId, opts.displayName, opts.remoteRoomName, opts.nativeKitPublishing]);
 
   return remoteStatus;
 }

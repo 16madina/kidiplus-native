@@ -50,11 +50,15 @@ final class KidiCameraKitSession: NSObject {
     private var frameOutput: KidiCameraKitFrameOutput?
     private var frameCount: Int64 = 0
     private var publishEnabled = false
+    private var battleGuestEnabled = false
     private var idleStopWork: DispatchWorkItem?
     #if canImport(LiveKit) || canImport(LiveKitClient)
     private var liveKitRoom: Room?
     private var liveKitVideoTrack: LocalVideoTrack?
     private var bufferCapturer: BufferCapturer?
+    private var battleRoom: Room?
+    private var battleVideoTrack: LocalVideoTrack?
+    private var battleBufferCapturer: BufferCapturer?
     #endif
 
     /// RN `KidiCameraKitPreviewView` host. When set, PreviewView is attached
@@ -111,6 +115,7 @@ final class KidiCameraKitSession: NSObject {
             "sessionStarted": sessionStarted,
             "captureRunning": captureSession?.isRunning ?? false,
             "publishing": publishEnabled,
+            "battleGuestPublishing": battleGuestEnabled,
             "frameCount": frameCount,
             "liveKitSwift": KidiLiveKit.linked,
             "plistToken": !plistToken.isEmpty,
@@ -328,6 +333,40 @@ final class KidiCameraKitSession: NSObject {
         #endif
     }
 
+    func setBattleGuestPublishEnabled(
+        enabled: Bool,
+        roomUrl: String?,
+        token: String?,
+        completion: @escaping (Result<Bool, Error>) -> Void
+    ) {
+        if !enabled {
+            Task { @MainActor in
+                await self.stopBattleGuestPublishing()
+                completion(.success(false))
+            }
+            return
+        }
+        let url = roomUrl ?? ""
+        let tok = token ?? ""
+        guard !url.isEmpty, !tok.isEmpty else {
+            completion(.failure(KidiCameraKitError.message("Missing battle roomUrl or token")))
+            return
+        }
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        Task { @MainActor in
+            do {
+                try await self.startBattleGuestPublishing(url: url, token: tok)
+                completion(.success(true))
+            } catch {
+                await self.stopBattleGuestPublishing()
+                completion(.failure(error))
+            }
+        }
+        #else
+        completion(.failure(KidiCameraKitError.message("LiveKit Swift not linked — rebuild iOS")))
+        #endif
+    }
+
     private func attachFrameOutputIfNeeded() {
         guard let cameraKit, frameOutput == nil else { return }
         let output = KidiCameraKitFrameOutput()
@@ -342,6 +381,7 @@ final class KidiCameraKitSession: NSObject {
             #endif
             #if canImport(LiveKit) || canImport(LiveKitClient)
             self.bufferCapturer?.capture(outgoing)
+            self.battleBufferCapturer?.capture(outgoing)
             #endif
         }
         cameraKit.add(output: output)
@@ -426,6 +466,81 @@ final class KidiCameraKitSession: NSObject {
     }
 
     @MainActor
+    private func startBattleGuestPublishing(url: String, token: String) async throws {
+        idleStopWork?.cancel()
+        idleStopWork = nil
+        battleGuestEnabled = true
+        attachFrameOutputIfNeeded()
+
+        guard isInitialized, cameraKit != nil else {
+            throw KidiCameraKitError.message("Camera Kit session missing")
+        }
+
+        await stopBattleGuestPublishing(keepingEnabled: true)
+
+        let room = Room()
+        battleRoom = room
+        try await withTimeout(seconds: 12) {
+            try await room.connect(
+                url: url,
+                token: token,
+                connectOptions: ConnectOptions(autoSubscribe: false)
+            )
+        }
+        print("[KidiCameraKit] battle guest room state=\(String(describing: room.connectionState))")
+
+        let videoTrack = LocalVideoTrack.createBufferTrack(
+            name: "camera",
+            source: .camera,
+            options: BufferCaptureOptions(
+                dimensions: Dimensions(width: 960, height: 540),
+                fps: 24
+            )
+        )
+        battleVideoTrack = videoTrack
+        battleBufferCapturer = videoTrack.capturer as? BufferCapturer
+
+        do {
+            try await room.localParticipant.publish(
+                videoTrack: videoTrack,
+                options: VideoPublishOptions(
+                    encoding: VideoEncoding(maxBitrate: 700_000, maxFps: 24),
+                    simulcast: false
+                )
+            )
+            print("[KidiCameraKit] battle guest video published frames=\(frameCount)")
+        } catch {
+            print("[KidiCameraKit] battle guest video publish failed: \(error.localizedDescription)")
+            throw error
+        }
+
+        do {
+            _ = try await room.localParticipant.setMicrophone(enabled: true)
+            print("[KidiCameraKit] battle guest microphone published")
+        } catch {
+            print("[KidiCameraKit] battle guest microphone failed: \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
+    private func stopBattleGuestPublishing(keepingEnabled: Bool = false) async {
+        if !keepingEnabled {
+            battleGuestEnabled = false
+        }
+        battleBufferCapturer = nil
+        if let publication = battleRoom?.localParticipant.trackPublications.values
+            .compactMap({ $0 as? LocalTrackPublication })
+            .first(where: { $0.source == .camera })
+        {
+            try? await battleRoom?.localParticipant.unpublish(publication: publication)
+        }
+        battleVideoTrack = nil
+        await battleRoom?.disconnect()
+        battleRoom = nil
+        print("[KidiCameraKit] battle guest publish stopped")
+    }
+
+    @MainActor
     private func stopPublishing() async {
         publishEnabled = false
         bufferCapturer = nil
@@ -438,7 +553,7 @@ final class KidiCameraKitSession: NSObject {
         liveKitVideoTrack = nil
         await liveKitRoom?.disconnect()
         liveKitRoom = nil
-        if previewView?.superview == nil {
+        if previewView?.superview == nil, !battleGuestEnabled {
             sessionInput?.stopRunning()
         }
         print("[KidiCameraKit] LiveKit publish stopped")
@@ -465,6 +580,13 @@ final class KidiCameraKitSession: NSObject {
     @MainActor
     private func stopPublishing() async {
         publishEnabled = false
+    }
+
+    @MainActor
+    private func stopBattleGuestPublishing(keepingEnabled: Bool = false) async {
+        if !keepingEnabled {
+            battleGuestEnabled = false
+        }
     }
     #endif
 }
@@ -691,9 +813,9 @@ private extension KidiCameraKitSession {
         // Delay stopping capture so setup → live does not kill the session
         // (CameraKitPreview unmounts and calls stopPreview first).
         idleStopWork?.cancel()
-        guard !publishEnabled else { return }
+        guard !publishEnabled, !battleGuestEnabled else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, !self.publishEnabled else { return }
+            guard let self, !self.publishEnabled, !self.battleGuestEnabled else { return }
             self.sessionInput?.stopRunning()
             print("[KidiCameraKit] idle camera stopped")
         }
