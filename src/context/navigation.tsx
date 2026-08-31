@@ -44,7 +44,7 @@ export type Overlay =
   | { kind: "activity"; tab?: "notifs" | "messages"; threadId?: string }
   | { kind: "dm-chat"; target: DmChatTarget }
   | { kind: "legal"; page: "terms" | "privacy" | "community" | "safety" }
-  | { kind: "shop"; sellerId?: string; sellerName?: string }
+  | { kind: "shop"; sellerId?: string; sellerName?: string; tab?: "boutique" | "lives" | "vitrine" | "avis"; focusLiveId?: string }
   | { kind: "wallet" }
   | { kind: "orders"; orderId?: string }
   | { kind: "earnings" }

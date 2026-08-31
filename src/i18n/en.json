@@ -102,7 +102,18 @@
     "optionsHintEditShop": "Add colors / sizes in My shop to reuse them here.",
     "updated": "Item updated",
     "imageOnly": "Image only",
-    "imageTooBig": "Image too large (max 5 MB)"
+    "imageTooBig": "Image too large (max 5 MB)",
+    "bannerUpdated": "Banner updated",
+    "bannerAdd": "Add a banner",
+    "bannerEdit": "Banner",
+    "customize": "Customize",
+    "addShort": "Add",
+    "goLive": "Go live",
+    "featured": "Featured products",
+    "seeAll": "See all",
+    "allCategories": "All categories",
+    "noReplays": "No replays yet. They stay available for 7 days after the live.",
+    "livesDone": "Lives done"
   },
   "reviews": {
     "leave": "Leave a review",
@@ -121,7 +132,10 @@
     "vitrineEmpty": "No posts in your showcase yet.",
     "vitrineEmptyPublic": "No posts yet.",
     "vitrineHint": "Tap the trash icon to remove a video.",
-    "availableInLives": "Available during lives"
+    "availableInLives": "Available during lives",
+    "livesOwnerOnly": "Replays are private — only you can open them from your shop.",
+    "swipeToDeleteReplay": "Tap the trash icon to delete a replay.",
+    "needHandle": "Incomplete profile — add a @handle"
   },
   "moderator": {
     "title": "Moderators",
@@ -585,7 +599,19 @@
     "replay": {
       "watch": "Watch replay",
       "preparing": "Replay coming soon…",
-      "openFailed": "Couldn't open this replay — try again in a moment."
+      "openFailed": "Couldn't open this replay — try again in a moment.",
+      "download": "Download",
+      "downloadShared": "Recording ready to share",
+      "downloadStarted": "Download started",
+      "downloadOpened": "Open the video then save it on your phone",
+      "downloadFailed": "Couldn't download — try again",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this replay for good? You won't be able to watch it again.",
+      "deleteFailed": "Couldn't delete — try again",
+      "deleted": "Replay deleted",
+      "unavailable": "Replay unavailable",
+      "playerTitle": "Live replay",
+      "badgeDays": "Replay · expires in {{days}}d"
     },
     "rtmp": {
       "toggleTitle": "Multi-platform (Restream / OBS)",
@@ -1239,7 +1265,8 @@
       "rating": "Rating",
       "vitrine": "Vitrine",
       "products": "Products",
-      "lives": "Lives"
+      "lives": "Lives",
+      "livesDone": "Lives done"
     },
     "liveNow": "Live",
     "pushFollow": "Turn on notifications so you never miss a live from {{name}} 🔔",

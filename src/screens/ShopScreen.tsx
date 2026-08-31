@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -9,7 +10,24 @@ import {
   Text,
   View,
 } from "react-native";
-import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Star, Tag, Users, Video } from "lucide-react-native";
+import {
+  Archive,
+  ChevronRight,
+  Clapperboard,
+  Download,
+  ImagePlus,
+  MessageCircle,
+  Pencil,
+  Play,
+  Plus,
+  Radio,
+  ShoppingBag,
+  SlidersHorizontal,
+  Tag,
+  Trash2,
+  Users,
+  Video,
+} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
@@ -33,8 +51,14 @@ import {
   updateShopProduct,
   uploadShopProductImage,
 } from "../lib/shop";
-import { countSellerLives, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
-import { countVitrinePostsByUser, fetchVitrinePostsByUser, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
+import { countSellerLives, fetchLiveById, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
+import {
+  countVitrinePostsByUser,
+  deleteVitrinePost,
+  fetchVitrinePostsByUser,
+  looksLikeVideo,
+  type VitrineFeedPost,
+} from "../lib/vitrine";
 import { fetchSellerPublic, uploadBanner, type SellerPublic } from "../lib/seller";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { ReferredBadge } from "../components/ReferredBadge";
@@ -46,7 +70,15 @@ import { isHttpUrl } from "../lib/storage";
 import { type ShopItem } from "../mock/account";
 import { ProductOptionsFields } from "../components/shop/ProductOptionsFields";
 import type { ProductCondition } from "../lib/live-product-options";
-import { playableReplayUrl } from "../lib/live-replay";
+import {
+  deleteLiveReplay,
+  playableReplayUrl,
+  replayDaysLeft,
+} from "../lib/live-replay";
+import { downloadLiveReplay } from "../lib/live-replay-download";
+
+type ShopTab = "boutique" | "lives" | "vitrine" | "avis";
+type ReplayOpen = { url: string; title: string; liveId: string };
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -83,14 +115,20 @@ function emptyForm(): FormState {
 export function ShopScreen({
   sellerId,
   sellerName,
+  initialTab,
+  focusLiveId,
 }: {
   sellerId?: string;
   sellerName?: string;
+  initialTab?: ShopTab;
+  focusLiveId?: string;
 } = {}) {
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
   const { user, becomeSeller, guestMode, openAuth } = useAuth();
-  const { openOverlay } = useNav();
+  const { openOverlay, openLive, closeOverlay, setTab, setPendingVitrinePostId } = useNav();
+  const scrollRef = useRef<ScrollView>(null);
+  const focusedReplay = useRef<string | null>(null);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,7 +137,7 @@ export function ShopScreen({
   const own = !sellerId || sellerId === user?.id;
   const followTargetId = !own && sellerId ? sellerId : null;
   const follow = useFollow(followTargetId);
-  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine" | "avis">("boutique");
+  const [shopTab, setShopTab] = useState<ShopTab>(initialTab ?? "boutique");
   const [seller, setSeller] = useState<SellerPublic | null>(null);
   const [reviews, setReviews] = useState<SellerReview[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
@@ -107,7 +145,8 @@ export function ShopScreen({
   const [vitrinePosts, setVitrinePosts] = useState<VitrineFeedPost[]>([]);
   const [livesCount, setLivesCount] = useState(0);
   const [vitrineCount, setVitrineCount] = useState(0);
-  const [replayUrl, setReplayUrl] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState<ReplayOpen | null>(null);
+  const [gridY, setGridY] = useState(0);
 
   const reload = async () => {
     const id = own ? user?.id : sellerId;
@@ -139,6 +178,19 @@ export function ShopScreen({
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, sellerId, own]);
+
+  useEffect(() => {
+    if (initialTab) setShopTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (!own || shopTab !== "lives") return;
+    const iv = setInterval(() => {
+      void reload();
+    }, 8000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [own, shopTab, user?.id, sellerId]);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -295,7 +347,6 @@ export function ShopScreen({
   };
 
   const featured = useMemo(() => items.filter((p) => p.active).slice(0, 8), [items]);
-  const replays = useMemo(() => lives.filter(isReplayPlayable), [lives]);
   const orderedLives = useMemo(() => {
     const rank = (s: string) => (s === "live" ? 0 : s === "scheduled" ? 1 : 2);
     return [...lives].sort((a, b) => rank(a.status) - rank(b.status));
@@ -306,6 +357,109 @@ export function ShopScreen({
   const banner = seller?.bannerUrl || (own ? user?.bannerUrl : null);
   const bio = seller?.bio || user?.bio;
   const followers = seller?.followers ?? user?.followers ?? 0;
+  const shopTitle = `${displayName} Boutique`;
+
+  const goTab = (next: ShopTab) => {
+    if (next === "lives" && !own) {
+      flash(t("sellerProfile.livesOwnerOnly"));
+      return;
+    }
+    setShopTab(next);
+  };
+
+  const scrollToCatalog = () => {
+    setShopTab("boutique");
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, gridY - 12), animated: true });
+    });
+  };
+
+  const openReplayEntry = async (row: SellerLiveEntry) => {
+    if (row.status === "live") {
+      const stream = await fetchLiveById(row.id);
+      if (stream) {
+        closeOverlay();
+        openLive(stream);
+      }
+      return;
+    }
+    if (!isReplayPlayable(row)) return;
+    const url = await playableReplayUrl(row.id, {
+      replay_status: (row.replay_status as "ready") ?? "ready",
+      replay_url: row.replay_url,
+      replay_expires_at: row.replay_expires_at,
+    });
+    if (!url) {
+      flash(t("broadcast.replay.openFailed"));
+      return;
+    }
+    setReplayOpen({ url, title: row.title, liveId: row.id });
+  };
+
+  useEffect(() => {
+    if (!focusLiveId) return;
+    const row = lives.find((l) => l.id === focusLiveId);
+    if (!row) return;
+    setShopTab("lives");
+    if (!isReplayPlayable(row) || focusedReplay.current === focusLiveId) return;
+    focusedReplay.current = focusLiveId;
+    void openReplayEntry(row);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusLiveId, lives]);
+
+  const confirmDeleteReplay = (liveId: string) => {
+    Alert.alert(t("broadcast.replay.delete"), t("broadcast.replay.deleteConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("broadcast.replay.delete"),
+        style: "destructive",
+        onPress: () => {
+          void deleteLiveReplay(liveId).then((res) => {
+            if (!res.ok) {
+              flash(t("broadcast.replay.deleteFailed"));
+              return;
+            }
+            flash(t("broadcast.replay.deleted"));
+            if (replayOpen?.liveId === liveId) setReplayOpen(null);
+            setLives((prev) =>
+              prev.map((r) =>
+                r.id === liveId
+                  ? { ...r, replay_url: null, replay_status: "expired", replay_expires_at: null }
+                  : r,
+              ),
+            );
+          });
+        },
+      },
+    ]);
+  };
+
+  const confirmDeleteVitrine = (postId: string) => {
+    Alert.alert(t("vitrine.delete"), t("vitrine.deleteOwnHint"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("vitrine.deleteConfirm"),
+        style: "destructive",
+        onPress: () => {
+          void deleteVitrinePost(postId).then((ok) => {
+            if (!ok) {
+              flash(t("vitrine.deleteFail"));
+              return;
+            }
+            flash(t("vitrine.deleted"));
+            setVitrinePosts((prev) => prev.filter((p) => p.id !== postId));
+            setVitrineCount((n) => Math.max(0, n - 1));
+          });
+        },
+      },
+    ]);
+  };
+
+  const openVitrinePost = (postId: string) => {
+    setPendingVitrinePostId(postId);
+    closeOverlay();
+    setTab("vitrine");
+  };
 
   if (form && own) {
     return (
@@ -387,8 +541,8 @@ export function ShopScreen({
 
   return (
     <View style={[styles.root, { backgroundColor: "#F6ECD9" }]}>
-      <OverlayHeader title={own ? t("shop.title") : `${displayName} Boutique`} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
+      <OverlayHeader title={own ? t("shop.title") : shopTitle} />
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 48 }}>
         <View style={styles.hero}>
           {isHttpUrl(banner) ? (
             <Image source={{ uri: banner }} style={FILL} contentFit="cover" />
@@ -405,7 +559,9 @@ export function ShopScreen({
           {own ? (
             <Press onPress={() => void pickBanner()} style={styles.bannerChip}>
               <ImagePlus size={13} color="#fff" />
-              <Text style={styles.bannerChipTxt}>{banner ? "Bannière" : "Ajouter une bannière"}</Text>
+              <Text style={styles.bannerChipTxt}>
+                {banner ? t("shop.bannerEdit") : t("shop.bannerAdd")}
+              </Text>
             </Press>
           ) : null}
           <View style={styles.heroInner}>
@@ -417,9 +573,18 @@ export function ShopScreen({
                   <Text style={{ color: NAVY, fontWeight: "900", fontSize: 26 }}>{initials(displayName).slice(0, 1)}</Text>
                 </View>
               )}
+              {own ? (
+                <Press
+                  onPress={() => openOverlay({ kind: "edit-profile" })}
+                  style={styles.avEdit}
+                  accessibilityLabel={t("profile.editProfile")}
+                >
+                  <Pencil size={13} color={NAVY} />
+                </Press>
+              ) : null}
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Text style={styles.heroTitle}>{displayName}</Text>
+              <Text style={styles.heroTitle}>{shopTitle}</Text>
               {seller?.isVerified ? <VerifiedBadge /> : null}
               <ReferredBadge referred={seller?.isReferred || (!!own && user?.isReferred)} size={16} />
             </View>
@@ -431,17 +596,24 @@ export function ShopScreen({
         </View>
 
         <View style={styles.stats}>
-          <Stat icon={<Users size={16} color="#C8A24B" />} n={followers} label={t("profile.stats.followers")} />
           <Stat
             icon={<ShoppingBag size={16} color="#C8A24B" />}
-            n={seller?.salesDelivered ?? 0}
-            label={t("profile.stats.sales")}
+            n={items.length}
+            label={t("seller.stats.products")}
+            onPress={() => goTab("boutique")}
+          />
+          <Stat icon={<Users size={16} color="#C8A24B" />} n={followers} label={t("seller.stats.followers")} />
+          <Stat
+            icon={<Video size={16} color="#C8A24B" />}
+            n={livesCount}
+            label={own ? t("shop.livesDone") : t("seller.stats.lives")}
+            onPress={() => goTab("lives")}
           />
           <Stat
-            icon={<Star size={16} color="#C8A24B" />}
-            n={seller?.ratingAvg ? seller.ratingAvg.toFixed(1) : "—"}
-            label={t("search.tabs.reviews", { defaultValue: "Avis" })}
-            onPress={() => setShopTab("avis")}
+            icon={<Clapperboard size={16} color="#C8A24B" />}
+            n={vitrineCount}
+            label={t("seller.stats.vitrine")}
+            onPress={() => goTab("vitrine")}
           />
         </View>
 
@@ -449,11 +621,15 @@ export function ShopScreen({
           <View style={styles.actions}>
             <Press onPress={openNew} style={styles.addBtn}>
               <Plus size={16} color="#fff" />
-              <Text style={styles.addBtnTxt}>Ajouter</Text>
+              <Text style={styles.addBtnTxt}>{t("shop.addShort")}</Text>
             </Press>
             <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "now" })} style={styles.liveBtn}>
               <Radio size={15} color="#fff" />
-              <Text style={styles.addBtnTxt}>Lancer un live</Text>
+              <Text style={styles.addBtnTxt}>{t("shop.goLive")}</Text>
+            </Press>
+            <Press onPress={() => openOverlay({ kind: "edit-profile" })} style={styles.customizeBtn}>
+              <SlidersHorizontal size={15} color={NAVY} />
+              <Text style={styles.customizeTxt}>{t("shop.customize")}</Text>
             </Press>
           </View>
         ) : (
@@ -502,23 +678,25 @@ export function ShopScreen({
           </View>
         )}
 
-        <View style={styles.tabStrip}>
-          {(
-            [
-              ["boutique", t("sellerProfile.shop", { defaultValue: "Boutique" })],
-              ["lives", t("sellerProfile.lives", { defaultValue: "Lives" })],
-              ["avis", "Avis"],
-              ["vitrine", t("vitrine.title", { defaultValue: "Vitrine" })],
-            ] as const
-          )
-            .filter(([k]) => own || k === "boutique" || k === "lives" || k === "avis")
-            .map(([k, label]) => (
-              <Press key={k} onPress={() => setShopTab(k)} style={styles.tabBtn}>
-                <Text style={[styles.tabTxt, shopTab === k && styles.tabTxtOn]}>{label}</Text>
+        {!own ? (
+          <View style={styles.tabStrip}>
+            {(
+              [
+                ["boutique", t("seller.tabs.boutique")],
+                ["vitrine", t("seller.tabs.vitrine")],
+                ["lives", t("seller.tabs.lives")],
+                ["avis", t("seller.tabs.avis")],
+              ] as const
+            ).map(([k, label]) => (
+              <Press key={k} onPress={() => goTab(k)} style={styles.tabBtn}>
+                <Text style={[styles.tabTxt, shopTab === k && styles.tabTxtOn, k === "lives" && styles.tabTxtLocked]}>
+                  {label}
+                </Text>
                 {shopTab === k ? <View style={styles.tabUnderline} /> : null}
               </Press>
             ))}
-        </View>
+          </View>
+        ) : null}
 
         {loading ? <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} /> : null}
 
@@ -526,19 +704,50 @@ export function ShopScreen({
           <View style={{ paddingHorizontal: 16, gap: 12 }}>
             {featured.length > 0 ? (
               <View>
-                <Text style={styles.sectionTitle}>Produits en vedette</Text>
+                <View style={styles.sectionHead}>
+                  <Text style={styles.sectionTitle}>{t("shop.featured")}</Text>
+                  <Press onPress={scrollToCatalog} style={styles.seeAll}>
+                    <Text style={styles.seeAllTxt}>{t("shop.seeAll")}</Text>
+                    <ChevronRight size={14} color="#6B7289" />
+                  </Press>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
                   {featured.map((item) => (
-                    <Press key={`f-${item.id}`} onPress={() => own && openEdit(item)} style={styles.featCard}>
-                      {item.image ? <Image source={{ uri: item.image }} style={styles.featImg} contentFit="cover" /> : <View style={styles.featImg} />}
-                      <Text numberOfLines={1} style={styles.featName}>{item.name}</Text>
-                      <Text style={styles.featPrice}>{item.price}</Text>
-                    </Press>
+                    <View key={`f-${item.id}`} style={styles.featCard}>
+                      <Press onPress={() => own && openEdit(item)} style={{ alignItems: "stretch", minHeight: 0 }}>
+                        <View style={styles.featImgWrap}>
+                          {item.image ? (
+                            <Image source={{ uri: item.image }} style={styles.featImg} contentFit="cover" />
+                          ) : (
+                            <View style={styles.featImg} />
+                          )}
+                          <View style={[styles.statusBadge, { backgroundColor: item.active ? "#12873F" : "#4A4A52" }]}>
+                            <Text style={styles.statusTxt}>{item.active ? t("shop.active") : t("shop.archived")}</Text>
+                          </View>
+                        </View>
+                        <Text numberOfLines={1} style={styles.featName}>{item.name}</Text>
+                        <View style={styles.gridMeta}>
+                          <Text style={styles.featPrice}>{item.price}</Text>
+                          <Text style={styles.gridStock}>×{item.stock}</Text>
+                        </View>
+                      </Press>
+                      {own ? (
+                        <View style={styles.gridActions}>
+                          <Press onPress={() => openEdit(item)} style={styles.gridAct}>
+                            <Pencil size={12} color={NAVY} />
+                          </Press>
+                          <Press onPress={() => void toggleActive(item)} style={styles.gridAct}>
+                            {item.active ? <Archive size={12} color={NAVY} /> : <Tag size={12} color={NAVY} />}
+                          </Press>
+                        </View>
+                      ) : null}
+                    </View>
                   ))}
                 </ScrollView>
               </View>
             ) : null}
-            <Text style={styles.sectionTitle}>Toutes les catégories</Text>
+            <View onLayout={(e) => setGridY(e.nativeEvent.layout.y)}>
+            <Text style={styles.sectionTitle}>{t("shop.allCategories")}</Text>
             {items.length === 0 ? (
               <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
                 {own ? t("shop.empty") : t("shop.emptyPickerSeller")}
@@ -582,29 +791,88 @@ export function ShopScreen({
                 ))}
               </View>
             )}
+            </View>
           </View>
         ) : null}
 
-        {!loading && shopTab === "lives" ? (
+        {!loading && shopTab === "lives" && own ? (
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {orderedLives.length === 0 ? (
-              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>{t("admin.lives.empty", { defaultValue: "Aucun live." })}</Text>
+              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
+                {t("sellerProfile.livesEmpty")}
+              </Text>
             ) : (
-              orderedLives.map((l) => (
-                <Glass key={l.id} tone="light" intensity={32} radius={16} elevated={false}>
-                  <View style={styles.liveRow}>
-                    {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                      <Text style={{ color: "#6B7289", marginTop: 2, fontSize: 12 }}>
-                        {l.status === "live" ? "EN DIRECT" : l.status === "scheduled" ? "Programmé" : "Terminé"}
-                        {l.viewer_count ? ` · ${l.viewer_count} viewers` : ""}
-                      </Text>
+              <>
+                <Text style={styles.hint}>{t("sellerProfile.swipeToDeleteReplay")}</Text>
+                {orderedLives.map((l) => {
+                  const isLive = l.status === "live";
+                  const isScheduled = l.status === "scheduled";
+                  const hasReplay = !isLive && !isScheduled && isReplayPlayable(l);
+                  const daysLeft = hasReplay ? replayDaysLeft(l.replay_expires_at) : null;
+                  const replayPending =
+                    !isLive &&
+                    !isScheduled &&
+                    (l.replay_status === "recording" || l.replay_status === "processing");
+                  const replayFailed = !isLive && !isScheduled && l.replay_status === "failed";
+                  const clickable = isLive || hasReplay;
+                  const sub = isLive
+                    ? t("seller.liveNow")
+                    : isScheduled
+                      ? t("seller.activated")
+                      : hasReplay
+                        ? t("broadcast.replay.badgeDays", { days: daysLeft ?? 1 })
+                        : replayPending
+                          ? t("broadcast.replay.preparing")
+                          : replayFailed
+                            ? t("broadcast.replay.unavailable")
+                            : t("seller.ended");
+                  return (
+                    <View key={l.id} style={[styles.liveCard, !hasReplay && !isLive ? { opacity: 0.7 } : null]}>
+                      <Press
+                        disabled={!clickable}
+                        onPress={() => void openReplayEntry(l)}
+                        style={styles.liveCardHit}
+                      >
+                        {l.cover_url ? (
+                          <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" />
+                        ) : (
+                          <View style={styles.liveCover} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text numberOfLines={1} style={{ fontWeight: "800", color: NAVY }}>
+                            {l.title}
+                          </Text>
+                          <Text
+                            style={{
+                              color: hasReplay ? GOLD : "#6B7289",
+                              marginTop: 2,
+                              fontSize: 12,
+                              fontWeight: hasReplay ? "700" : "500",
+                            }}
+                          >
+                            {sub}
+                          </Text>
+                        </View>
+                        {isLive ? <Radio size={16} color="#E5393F" /> : null}
+                        {hasReplay ? (
+                          <View style={styles.playDisc}>
+                            <Play size={14} color="#fff" fill="#fff" />
+                          </View>
+                        ) : null}
+                      </Press>
+                      {hasReplay ? (
+                        <Press
+                          onPress={() => confirmDeleteReplay(l.id)}
+                          style={styles.trashBtn}
+                          accessibilityLabel={t("broadcast.replay.delete")}
+                        >
+                          <Trash2 size={14} color="#DC2626" />
+                        </Press>
+                      ) : null}
                     </View>
-                    {l.status === "live" ? <Radio size={16} color="#E5393F" /> : <Clapperboard size={16} color={GOLD} />}
-                  </View>
-                </Glass>
-              ))
+                  );
+                })}
+              </>
             )}
           </View>
         ) : null}
@@ -631,68 +899,66 @@ export function ShopScreen({
           </View>
         ) : null}
 
-        {!loading && shopTab === "replays" ? (
-          <View style={{ paddingHorizontal: 16, gap: 10 }}>
-            {replays.length === 0 ? (
-              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
-                {t("shop.noReplays", { defaultValue: "Aucun replay pour le moment." })}
-              </Text>
-            ) : (
-              replays.map((l) => (
-                <Press
-                  key={l.id}
-                  onPress={() => {
-                    void playableReplayUrl(l.id, {
-                      replay_status: (l.replay_status as "ready") ?? "ready",
-                      replay_url: l.replay_url,
-                      replay_expires_at: l.replay_expires_at,
-                    }).then((url) => {
-                      if (url) setReplayUrl(url);
-                    });
-                  }}
-                  style={{ alignItems: "stretch" }}
-                >
-                  <Glass tone="light" intensity={32} radius={16} elevated={false}>
-                    <View style={styles.liveRow}>
-                      {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                        <Text style={{ color: GOLD, marginTop: 2, fontWeight: "700", fontSize: 12 }}>Replay</Text>
-                      </View>
-                      <Video size={16} color={GOLD} />
-                    </View>
-                  </Glass>
-                </Press>
-              ))
-            )}
-          </View>
-        ) : null}
-
         {!loading && shopTab === "vitrine" ? (
-          <View style={styles.vitrineGrid}>
+          <View style={{ paddingHorizontal: 14 }}>
+            {own && vitrinePosts.length > 0 ? (
+              <Text style={[styles.hint, { marginBottom: 8 }]}>{t("sellerProfile.vitrineHint")}</Text>
+            ) : null}
+            <View style={styles.vitrineGrid}>
             {vitrinePosts.length === 0 ? (
               <Text style={{ color: "#6B7289", textAlign: "center", width: "100%", marginTop: 16 }}>
-                {t("vitrine.emptyForYou")}
+                {t(own ? "sellerProfile.vitrineEmpty" : "sellerProfile.vitrineEmptyPublic")}
               </Text>
             ) : (
               vitrinePosts.map((p) => {
                 const thumb = p.posterUrl || p.mediaUrls[0];
                 return (
                   <View key={p.id} style={styles.vitrineCell}>
-                    {thumb ? <Image source={{ uri: thumb }} style={styles.vitrineImg} contentFit="cover" /> : <View style={styles.vitrineImg} />}
-                    {looksLikeVideo(p.mediaUrls[0] || "", p.mediaType) ? (
-                      <View style={styles.vitrineBadge}>
-                        <Video size={12} color="#fff" />
-                      </View>
+                    <Press onPress={() => openVitrinePost(p.id)} style={styles.vitrineHit}>
+                      {thumb ? (
+                        <Image source={{ uri: thumb }} style={styles.vitrineImg} contentFit="cover" />
+                      ) : (
+                        <View style={styles.vitrineImg} />
+                      )}
+                      {looksLikeVideo(p.mediaUrls[0] || "", p.mediaType) ? (
+                        <View style={styles.vitrineBadge}>
+                          <Play size={12} color="#fff" fill="#fff" />
+                        </View>
+                      ) : null}
+                    </Press>
+                    {own ? (
+                      <Press
+                        onPress={() => confirmDeleteVitrine(p.id)}
+                        style={styles.vitrineTrash}
+                        accessibilityLabel={t("vitrine.delete")}
+                      >
+                        <Trash2 size={14} color="#fff" />
+                      </Press>
                     ) : null}
                   </View>
                 );
               })
             )}
+            </View>
           </View>
         ) : null}
       </ScrollView>
-      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+      <ReplayModal
+        replay={replayOpen}
+        onClose={() => setReplayOpen(null)}
+        onDownload={async () => {
+          if (!replayOpen) return;
+          try {
+            const mode = await downloadLiveReplay(replayOpen.url, replayOpen.title);
+            flash(
+              mode === "shared" ? t("broadcast.replay.downloadShared") : t("broadcast.replay.downloadOpened"),
+            );
+          } catch {
+            flash(t("broadcast.replay.downloadFailed"));
+          }
+        }}
+        onDelete={own && replayOpen ? () => confirmDeleteReplay(replayOpen.liveId) : undefined}
+      />
       <MockBanner text={toast} />
       {sellerId ? (
         <ReportSheet
@@ -727,21 +993,47 @@ function Stat({
   return (
     <Press onPress={onPress} style={styles.stat}>
       {icon}
-      <Text style={styles.statL}>{label}</Text>
+      <Text style={styles.statL} numberOfLines={2}>{label}</Text>
       <Text style={styles.statN}>{value}</Text>
     </Press>
   );
 }
 
-function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  if (!url) return null;
+function ReplayModal({
+  replay,
+  onClose,
+  onDownload,
+  onDelete,
+}: {
+  replay: ReplayOpen | null;
+  onClose: () => void;
+  onDownload: () => void;
+  onDelete?: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!replay) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <ReplayPlayer uri={url} />
-        <Press onPress={onClose} style={{ position: "absolute", top: 48, left: 16, minHeight: 40 }}>
-          <Text style={{ color: "#fff", fontWeight: "800" }}>Fermer</Text>
-        </Press>
+        <View style={styles.replayBar}>
+          <Text numberOfLines={1} style={styles.replayTitle}>
+            {replay.title || t("broadcast.replay.playerTitle")}
+          </Text>
+          <Press onPress={onDownload} style={styles.replayAction}>
+            <Download size={16} color="#fff" />
+            <Text style={styles.replayActionTxt}>{t("broadcast.replay.download")}</Text>
+          </Press>
+          {onDelete ? (
+            <Press onPress={onDelete} style={[styles.replayAction, { backgroundColor: "rgba(220,38,38,0.9)" }]}>
+              <Trash2 size={16} color="#fff" />
+              <Text style={styles.replayActionTxt}>{t("broadcast.replay.delete")}</Text>
+            </Press>
+          ) : null}
+          <Press onPress={onClose} style={styles.replayClose}>
+            <Text style={{ color: "#111", fontWeight: "800" }}>{t("common.close")}</Text>
+          </Press>
+        </View>
+        <ReplayPlayer uri={replay.url} />
       </View>
     </Modal>
   );
@@ -769,6 +1061,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
+    borderColor: "#E8D28A",
+    position: "relative",
+  },
+  avEdit: {
+    position: "absolute",
+    right: 4,
+    bottom: -2,
+    width: 32,
+    height: 32,
+    minHeight: 32,
+    minWidth: 32,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: 1,
     borderColor: "#E8D28A",
   },
   heroAv: { width: 118, height: 118, borderRadius: 59, backgroundColor: "#F6ECD9" },
@@ -802,7 +1108,7 @@ const styles = StyleSheet.create({
   },
   stat: { flex: 1, alignItems: "center", minHeight: 0, minWidth: 0, gap: 2 },
   statN: { fontWeight: "900", color: NAVY, fontSize: 15 },
-  statL: { fontSize: 10, color: "#6B7289", fontWeight: "700" },
+  statL: { fontSize: 9, color: "#6B7289", fontWeight: "700", textAlign: "center" },
   actions: { paddingHorizontal: 16, marginTop: 12, flexDirection: "row", gap: 8 },
   addBtn: {
     flex: 1,
@@ -820,7 +1126,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
   },
-  addBtnTxt: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  addBtnTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  customizeBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16,22,43,0.12)",
+  },
+  customizeTxt: { color: NAVY, fontWeight: "800", fontSize: 12 },
+  tabTxtLocked: { color: "#B0B4C0" },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  sectionTitle: { fontWeight: "800", color: NAVY, fontSize: 17, marginBottom: 8 },
+  seeAll: { minHeight: 32, flexDirection: "row", gap: 2, paddingHorizontal: 4 },
+  seeAllTxt: { color: "#6B7289", fontWeight: "700", fontSize: 12 },
+  hint: { color: "#6B7289", fontSize: 12, marginBottom: 4 },
+  featCard: { width: 160, minHeight: 0, minWidth: 0, alignItems: "stretch", backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(16,22,43,0.08)", paddingBottom: 8 },
+  featImgWrap: { width: 160, height: 160, backgroundColor: "#E8EAF1" },
+  featImg: { width: 160, height: 160, backgroundColor: "#E8EAF1" },
   tabStrip: {
     flexDirection: "row",
     marginTop: 16,
@@ -832,10 +1158,7 @@ const styles = StyleSheet.create({
   tabTxt: { fontWeight: "700", fontSize: 13, color: "#6B7289" },
   tabTxtOn: { color: NAVY },
   tabUnderline: { marginTop: 8, height: 2, width: "70%", backgroundColor: GOLD, borderRadius: 1 },
-  sectionTitle: { fontWeight: "800", color: NAVY, fontSize: 17, marginBottom: 8 },
-  featCard: { width: 148, minHeight: 0, minWidth: 0, alignItems: "stretch" },
-  featImg: { width: 148, height: 148, borderRadius: 16, backgroundColor: "#E8EAF1" },
-  featName: { marginTop: 6, fontWeight: "800", color: NAVY, fontSize: 12 },
+  featName: { marginTop: 6, paddingHorizontal: 8, fontWeight: "800", color: NAVY, fontSize: 12 },
   featPrice: { color: NAVY, fontWeight: "800", fontSize: 13 },
   prodGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   gridCard: {
@@ -869,10 +1192,67 @@ const styles = StyleSheet.create({
   coverThumb: { width: 88, height: 88, borderRadius: 14, backgroundColor: "#E8EAF1" },
   coverEmpty: { height: 180, alignItems: "center", justifyContent: "center" },
   coverEmptySmall: { width: 88, height: 88, alignItems: "center", justifyContent: "center" },
-  liveRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10 },
+  liveCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16,22,43,0.08)",
+    paddingRight: 6,
+  },
+  liveCardHit: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, padding: 10 },
   liveCover: { width: 56, height: 56, borderRadius: 12, backgroundColor: "#E8EAF1" },
-  vitrineGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 14, gap: 6 },
+  playDisc: {
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: NAVY,
+  },
+  trashBtn: { width: 36, height: 36, minWidth: 36, minHeight: 36, borderRadius: 18, backgroundColor: "rgba(220,38,38,0.12)" },
+  vitrineGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   vitrineCell: { width: "31.5%", aspectRatio: 0.75, borderRadius: 10, overflow: "hidden", backgroundColor: "#111" },
+  vitrineHit: { width: "100%", height: "100%", minHeight: 0, minWidth: 0, alignItems: "stretch" },
   vitrineImg: { width: "100%", height: "100%" },
-  vitrineBadge: { position: "absolute", right: 6, top: 6 },
+  vitrineBadge: { position: "absolute", left: 6, bottom: 6, width: 24, height: 24, minWidth: 24, minHeight: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.5)" },
+  vitrineTrash: {
+    position: "absolute",
+    right: 6,
+    top: 6,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  replayBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 54,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  replayTitle: { flex: 1, color: "#fff", fontWeight: "700", fontSize: 14 },
+  replayAction: {
+    minHeight: 40,
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    flexDirection: "row",
+    gap: 6,
+  },
+  replayActionTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  replayClose: {
+    minHeight: 40,
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+  },
 });

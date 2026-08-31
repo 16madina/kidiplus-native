@@ -181,7 +181,12 @@ export function AppShell() {
       </PushScreen>
       <PushScreen open={shop.open} onClose={closeOverlay} zIndex={70}>
         {shop.entry ? (
-          <ShopScreen sellerId={shop.entry.sellerId} sellerName={shop.entry.sellerName} />
+          <ShopScreen
+            sellerId={shop.entry.sellerId}
+            sellerName={shop.entry.sellerName}
+            initialTab={shop.entry.tab}
+            focusLiveId={shop.entry.focusLiveId}
+          />
         ) : null}
       </PushScreen>
       <PushScreen open={orders.open} onClose={closeOverlay} zIndex={70}>
