@@ -25,6 +25,7 @@ import { AffichePoster } from "../components/vitrine/AffichePoster";
 import { VitrineCommentsSheet, shareVitrinePost } from "../components/vitrine/VitrineCommentsSheet";
 import { StoriesRow } from "../components/vitrine/StoriesRow";
 import { StoryViewer } from "../components/vitrine/StoryViewer";
+import { VitrineMusicLayer } from "../components/vitrine/VitrineMusicLayer";
 import { VitrineLiveSlide } from "../components/vitrine/VitrineLiveSlides";
 import { ScheduledLivePoster } from "../components/ScheduledLivePoster";
 import { mergeUpcomingWithDemos } from "../mock/upcoming-demos";
@@ -752,14 +753,19 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
   const first = post.mediaUrls[0];
   if (!first) return <View style={[FILL, { backgroundColor: "#111" }]} />;
   const video = looksLikeVideo(first, post.mediaType);
-  if (video) {
-    if (!active) {
-      if (post.posterUrl) return <VitrineStill uri={post.posterUrl} />;
-      return <View style={[FILL, { backgroundColor: "#111" }]} />;
-    }
-    return <VitrineVideo uri={first} poster={post.posterUrl} active={active} clip={post.clip} />;
-  }
-  return <VitrineStill uri={first} />;
+  const body = video
+    ? !active
+      ? post.posterUrl
+        ? <VitrineStill uri={post.posterUrl} />
+        : <View style={[FILL, { backgroundColor: "#111" }]} />
+      : <VitrineVideo uri={first} poster={post.posterUrl} active={active} clip={post.clip} />
+    : <VitrineStill uri={first} />;
+  return (
+    <View style={FILL}>
+      {body}
+      <VitrineMusicLayer music={post.music} active={active} />
+    </View>
+  );
 }
 
 function VitrineStill({ uri }: { uri: string }) {

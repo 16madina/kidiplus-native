@@ -181,6 +181,7 @@
     "back": "Back",
     "next": "Next",
     "done": "Done",
+    "gotIt": "Got it",
     "continue": "Continue",
     "retry": "Retry",
     "loading": "Loading…",
@@ -207,6 +208,12 @@
     "settings": "Settings",
     "help": "Help",
     "error": "Something went wrong"
+  },
+  "discover": {
+    "bidGuide": {
+      "title": "How to bid",
+      "intro": "KiDi+ auctions are paid from the wallet. Here are the 6 steps, same as the website."
+    }
   },
   "units": {
     "viewers_one": "{{count}} viewer",
@@ -659,7 +666,11 @@
       "guideStep4": "Paste the RTMP server and stream key from TikTok, then go live.",
       "guideStep5": "TikTok viewers see the KiDi+ interface. TikTok comments do not come back into KiDi+.",
       "guideGotIt": "Got it",
-      "studioSoon": "The camera studio is coming soon. For now, connect YouTube / Facebook / TikTok on kidiplus.com (same account)."
+      "studioSoon": "The camera studio is coming soon. For now, connect YouTube / Facebook / TikTok on kidiplus.com (same account).",
+      "started": "TikTok stream started",
+      "stopped": "TikTok stream stopped",
+      "startFailed": "Could not stream to TikTok",
+      "goLive": "Stream to TikTok"
     },
     "social": {
       "disclaimerBody3": "Viewers on those platforms will see the video feed; clickable auctions stay on KiDi+.",

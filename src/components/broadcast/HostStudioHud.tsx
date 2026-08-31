@@ -59,7 +59,10 @@ import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { useLayout } from "../../lib/layout";
+import { replyOnSocialPlatforms, useSocialChatBridge } from "../../lib/social-chat-bridge";
+import { useHostRestream } from "../../lib/use-host-restream";
 import { GOLD, NAVY } from "../../theme";
+import { TiktokRtmpSheet } from "./TiktokRtmpSheet";
 
 const RAIL_BG = "rgba(10,12,20,0.55)";
 const RAIL_BORDER = "rgba(255,255,255,0.16)";
@@ -78,6 +81,7 @@ export function HostStudioHud({
   onEnd,
   onMinimize,
   onBattleAccepted,
+  rtmpMode = false,
 }: {
   liveId: string;
   identity: string;
@@ -93,6 +97,7 @@ export function HostStudioHud({
   onMinimize?: () => void;
   onBattleAccepted?: () => void | Promise<void>;
   cameraFacing?: "front" | "back";
+  rtmpMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -121,6 +126,15 @@ export function HostStudioHud({
   const [suddenDeathMode, setSuddenDeathMode] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const incoming = usePendingBattleInvite(user?.id ?? null);
+  const restream = useHostRestream(liveId, rtmpMode);
+  useSocialChatBridge({
+    liveId,
+    enabledYoutube: restream.ytOn,
+    enabledFacebook: restream.fbOn,
+    ingestExternalChat: session.ingestExternalChat,
+    auctionActive: !!session.auction,
+    productName: session.featured?.name ?? null,
+  });
 
   // Pre-launch crowd (admin → Simu) : fake viewers, comments and bids.
   useHostPrelaunchSim(session, session.currency || user?.walletCurrency || "EUR");
@@ -167,7 +181,26 @@ export function HostStudioHud({
     setReveal(session.lastEnd);
   }, [session.lastEnd?.endId]);
 
-  const soon = (msg: string) => setToast(msg);
+  const flashRestream = async (kind: "yt" | "fb" | "tt") => {
+    const code =
+      kind === "yt"
+        ? await restream.toggleYt()
+        : kind === "fb"
+          ? await restream.toggleFb()
+          : await restream.toggleTt();
+    if (!code) return;
+    const map: Record<string, string> = {
+      need_yt: t("broadcast.youtube.needConnect"),
+      need_fb: t("broadcast.facebook.needConnect"),
+      yt_on: t("broadcast.youtube.started"),
+      yt_off: t("broadcast.youtube.stopped"),
+      fb_on: t("broadcast.facebook.started"),
+      fb_off: t("broadcast.facebook.stopped"),
+      tt_on: t("broadcast.tiktok.started", "Diffusion TikTok démarrée"),
+      tt_off: t("broadcast.tiktok.stopped", "Diffusion TikTok arrêtée"),
+    };
+    setToast(map[code] ?? code);
+  };
 
   const runFeaturedAction = async (p: LiveProductRow) => {
     if (busyId) return;
@@ -294,16 +327,21 @@ export function HostStudioHud({
         </View>
         {!layout.compact ? (
           <View style={styles.socialRow}>
-            {(["YT", "FB", "TT"] as const).map((p) => (
+            {(
+              [
+                { id: "YT" as const, on: restream.ytOn, busy: restream.ytBusy },
+                { id: "FB" as const, on: restream.fbOn, busy: restream.fbBusy },
+                { id: "TT" as const, on: restream.ttOn, busy: restream.ttBusy },
+              ] as const
+            ).map((p) => (
               <Press
-                key={p}
-                onPress={() =>
-                  soon(t("live.restreamSoon", "Le restream {{platform}} se configure sur kidiplus.com", { platform: p }))
-                }
-                style={styles.socialPill}
+                key={p.id}
+                disabled={p.busy || rtmpMode}
+                onPress={() => void flashRestream(p.id === "YT" ? "yt" : p.id === "FB" ? "fb" : "tt")}
+                style={[styles.socialPill, p.on && { backgroundColor: GOLD }]}
               >
                 <Radio size={11} color={NAVY} />
-                <Text style={styles.socialTxt}>{p}</Text>
+                <Text style={styles.socialTxt}>{p.on ? `${p.id} ON` : p.id}</Text>
               </Press>
             ))}
           </View>
@@ -451,7 +489,9 @@ export function HostStudioHud({
                   <Text style={styles.chatSys}>{m.text}</Text>
                 ) : (
                   <Text style={styles.chatLine}>
-                    <Text style={styles.chatUser}>{m.user}</Text>
+                    {m.source === "youtube" ? <Text style={styles.chatSrcYt}>YT </Text> : null}
+                    {m.source === "facebook" ? <Text style={styles.chatSrcFb}>FB </Text> : null}
+                    <Text style={[styles.chatUser, m.color ? { color: m.color } : null]}>{m.user}</Text>
                     <Text style={styles.chatText}>  {m.text}</Text>
                   </Text>
                 )}
@@ -467,14 +507,22 @@ export function HostStudioHud({
               style={styles.input}
               returnKeyType="send"
               onSubmitEditing={() => {
-                session.sendChat(draft);
+                const text = draft;
+                session.sendChat(text);
+                if (text.trim() && (restream.ytOn || restream.fbOn)) {
+                  void replyOnSocialPlatforms({ liveId, text: text.trim() }).catch(() => undefined);
+                }
                 setDraft("");
                 Keyboard.dismiss();
               }}
             />
             <Press
               onPress={() => {
-                session.sendChat(draft);
+                const text = draft;
+                session.sendChat(text);
+                if (text.trim() && (restream.ytOn || restream.fbOn)) {
+                  void replyOnSocialPlatforms({ liveId, text: text.trim() }).catch(() => undefined);
+                }
                 setDraft("");
                 Keyboard.dismiss();
               }}
@@ -603,6 +651,17 @@ export function HostStudioHud({
           />
         </>
       ) : null}
+
+      <TiktokRtmpSheet
+        open={restream.ttSheet}
+        onClose={() => restream.setTtSheet(false)}
+        busy={restream.ttBusy}
+        onStart={(creds) => {
+          void restream.startTt(creds).then((code) => {
+            if (code) setToast(code === "tt_on" ? t("broadcast.tiktok.started", "Diffusion TikTok démarrée") : code);
+          });
+        }}
+      />
 
       <FiltersCarousel
         open={filtersOpen}
@@ -875,6 +934,8 @@ const styles = StyleSheet.create({
   chatSys: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" },
   chatLine: { color: "#fff", fontSize: 13 },
   chatUser: { color: GOLD, fontWeight: "800" },
+  chatSrcYt: { color: "#E24B4B", fontWeight: "900", fontSize: 10 },
+  chatSrcFb: { color: "#4B7BE5", fontWeight: "900", fontSize: 10 },
   chatText: { color: "#fff" },
   composer: { flexDirection: "row", alignItems: "center", gap: 8 },
   input: {

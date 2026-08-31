@@ -24,6 +24,10 @@ export type LiveDraftProduct = {
   stock: number;
   bidIncrement?: number | null;
   description?: string;
+  brand?: string | null;
+  condition?: import("./live-product-options").ProductCondition | null;
+  colors?: string[];
+  sizes?: string[];
 };
 
 export function newDraftId() {

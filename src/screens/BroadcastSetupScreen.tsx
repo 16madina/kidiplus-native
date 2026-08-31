@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -50,14 +49,27 @@ import { type LiveDraftProduct } from "../lib/broadcast-products";
 import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
 import { makeRoomName } from "../lib/livekit";
 import { createLiveInDb, uploadLiveCover, uploadLiveProductImage } from "../lib/lives";
+import { createLiveIngress, type RtmpCredentials } from "../lib/livekit-ingress";
+import {
+  connectFacebook,
+  disconnectFacebook,
+  facebookReady,
+  fetchFacebookPages,
+  fetchFacebookStatus,
+  selectFacebookPage,
+  type FacebookPageOption,
+  type FacebookStatus,
+} from "../lib/facebook-restream";
+import { connectYoutube, disconnectYoutube, fetchYoutubeStatus, type YoutubeStatus } from "../lib/youtube-restream";
 import { formatMoney } from "../lib/money";
 import { GOLD, GOLD_GO_LIVE, NAVY } from "../theme";
+import { FacebookPageSheet } from "../components/broadcast/FacebookPageSheet";
+import { RtmpCredentialsSheet } from "../components/broadcast/RtmpCredentialsSheet";
 import type { CameraType } from "expo-camera";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 const GOLD_SOFT = "rgba(232,185,59,0.38)";
 const PINK = "#FE2C55";
-const WEB = "https://kidiplus.com";
 
 export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
   if (mode === "schedule") return <ScheduleLiveScreen />;
@@ -112,6 +124,18 @@ function GoLiveSetup() {
   const [showFilters, setShowFilters] = useState(false);
   const [showTiktok, setShowTiktok] = useState(false);
   const [rtmp, setRtmp] = useState(false);
+  const [yt, setYt] = useState<YoutubeStatus | null>(null);
+  const [fb, setFb] = useState<FacebookStatus | null>(null);
+  const [fbPages, setFbPages] = useState<FacebookPageOption[]>([]);
+  const [fbPageOpen, setFbPageOpen] = useState(false);
+  const [socialBusy, setSocialBusy] = useState<"yt" | "fb" | null>(null);
+  const [rtmpCreds, setRtmpCreds] = useState<RtmpCredentials | null>(null);
+  const [rtmpSheet, setRtmpSheet] = useState(false);
+  const pendingLive = useRef<{
+    liveId: string;
+    roomName: string;
+    title: string;
+  } | null>(null);
   const [facing, setFacing] = useState<CameraType>("front");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -124,9 +148,63 @@ function GoLiveSetup() {
     }, 1800);
   }, [closeOverlay]);
 
-  const openWeb = () => {
-    void Linking.openURL(WEB);
-    flash(t("broadcast.tiktok.studioSoon"));
+  const refreshSocial = useCallback(async () => {
+    try {
+      const [y, f] = await Promise.all([fetchYoutubeStatus(), fetchFacebookStatus()]);
+      setYt(y);
+      setFb(f);
+    } catch {
+      /* not connected yet */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSocial();
+  }, [refreshSocial]);
+
+  const onConnectYt = async () => {
+    if (socialBusy) return;
+    setSocialBusy("yt");
+    try {
+      if (yt?.connected) {
+        await disconnectYoutube();
+        setYt({ connected: false });
+        flash(t("broadcast.youtube.disconnectedToast"));
+      } else {
+        await connectYoutube();
+        await refreshSocial();
+        flash(t("broadcast.youtube.connectedToast"));
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "cancelled") return;
+      flash(e instanceof Error ? e.message : t("broadcast.youtube.connectFailed"));
+    } finally {
+      setSocialBusy(null);
+    }
+  };
+
+  const onConnectFb = async () => {
+    if (socialBusy) return;
+    setSocialBusy("fb");
+    try {
+      if (fb?.connected && !fb.needsPageSelection) {
+        await disconnectFacebook();
+        setFb({ connected: false, needsPageSelection: false });
+        flash(t("broadcast.facebook.disconnectedToast"));
+      } else {
+        await connectFacebook();
+        await refreshSocial();
+        const pages = await fetchFacebookPages();
+        setFbPages(pages.pages);
+        if (pages.pages.length > 1) setFbPageOpen(true);
+        flash(t("broadcast.facebook.connectedToast"));
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === "cancelled") return;
+      flash(e instanceof Error ? e.message : t("broadcast.facebook.connectFailed"));
+    } finally {
+      setSocialBusy(null);
+    }
   };
 
   const pickCover = async () => {
@@ -142,6 +220,21 @@ function GoLiveSetup() {
 
   const removeProduct = (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const goLiveOverlay = async (liveId: string, roomName: string, liveTitle: string, useRtmp: boolean) => {
+    await new Promise((r) => setTimeout(r, 600));
+    if (!user?.id) return;
+    openOverlay({
+      kind: "broadcast-live",
+      liveId,
+      roomName,
+      title: liveTitle,
+      identity: user.id,
+      displayName: user.displayName?.trim() || "Vendeur",
+      facing,
+      rtmpMode: useRtmp,
+    });
   };
 
   const canLaunch = title.trim().length >= 3 && products.length > 0;
@@ -176,6 +269,10 @@ function GoLiveSetup() {
           stock: p.stock,
           shopProductId: p.shopProductId,
           timerSeconds: p.timerSec,
+          brand: p.brand,
+          condition: p.condition,
+          colors: p.colors,
+          sizes: p.sizes,
         });
       }
       const liveId = await createLiveInDb({
@@ -185,19 +282,27 @@ function GoLiveSetup() {
         coverPath,
         roomName,
         currency,
+        broadcastMode: rtmp ? "rtmp" : "camera",
         products: liveProducts,
       });
-      // Laisse expo-camera relâcher le capteur avant que LiveKit le prenne.
-      await new Promise((r) => setTimeout(r, 600));
-      openOverlay({
-        kind: "broadcast-live",
-        liveId,
-        roomName,
-        title: title.trim(),
-        identity: user.id,
-        displayName: user.displayName?.trim() || "Vendeur",
-        facing,
-      });
+      if (rtmp) {
+        try {
+          const creds = await createLiveIngress(liveId);
+          setRtmpCreds(creds);
+          pendingLive.current = { liveId, roomName, title: title.trim() };
+          setRtmpSheet(true);
+          setBusy(false);
+          return;
+        } catch (ingressErr) {
+          flash(
+            t("broadcast.rtmp.createFailed") +
+              (ingressErr instanceof Error ? ` — ${ingressErr.message}` : ""),
+          );
+          setBusy(false);
+          return;
+        }
+      }
+      await goLiveOverlay(liveId, roomName, title.trim(), rtmp);
     } catch (e) {
       flash(e instanceof Error ? e.message : "Impossible de lancer le live.");
     } finally {
@@ -318,15 +423,50 @@ function GoLiveSetup() {
 
             <SocialCard
               title={t("broadcast.youtube.connectTitle")}
-              hint={t("broadcast.youtube.connectHint")}
-              action={t("broadcast.youtube.connect")}
-              onPress={openWeb}
+              hint={
+                yt?.connected
+                  ? t("broadcast.youtube.connectedAs", { channel: yt.channelTitle || "YouTube" })
+                  : t("broadcast.youtube.connectHint")
+              }
+              action={
+                socialBusy === "yt"
+                  ? t("common.loading")
+                  : yt?.connected
+                    ? t("broadcast.youtube.disconnect")
+                    : t("broadcast.youtube.connect")
+              }
+              onPress={() => void onConnectYt()}
+              on={!!yt?.connected}
             />
             <SocialCard
               title={t("broadcast.facebook.connectTitle")}
-              hint={t("broadcast.facebook.connectHint")}
-              action={t("broadcast.facebook.connect")}
-              onPress={openWeb}
+              hint={
+                facebookReady(fb)
+                  ? t("broadcast.facebook.connectedAs", { page: fb?.pageName || "Facebook" })
+                  : fb?.needsPageSelection
+                    ? t("broadcast.facebook.needPage")
+                    : t("broadcast.facebook.connectHint")
+              }
+              action={
+                socialBusy === "fb"
+                  ? t("common.loading")
+                  : facebookReady(fb)
+                    ? t("broadcast.facebook.disconnect")
+                    : fb?.needsPageSelection
+                      ? t("broadcast.facebook.choosePage")
+                      : t("broadcast.facebook.connect")
+              }
+              onPress={() => {
+                if (fb?.needsPageSelection) {
+                  void fetchFacebookPages().then((p) => {
+                    setFbPages(p.pages);
+                    setFbPageOpen(true);
+                  });
+                  return;
+                }
+                void onConnectFb();
+              }}
+              on={facebookReady(fb)}
             />
             <View style={[styles.social, { borderColor: "rgba(254,44,85,0.45)" }]}>
               <View style={{ flex: 1, paddingRight: 8 }}>
@@ -433,6 +573,34 @@ function GoLiveSetup() {
         currency={currency}
       />
       <TiktokGuide open={showTiktok} onClose={() => setShowTiktok(false)} />
+      <FacebookPageSheet
+        open={fbPageOpen}
+        onClose={() => setFbPageOpen(false)}
+        pages={fbPages}
+        selectedPageId={fb?.pageId}
+        onPick={(pageId) => {
+          void selectFacebookPage(pageId)
+            .then(async (p) => {
+              flash(t("broadcast.facebook.pageSelected", { page: p.pageName }));
+              setFbPageOpen(false);
+              await refreshSocial();
+            })
+            .catch((e) => flash(e instanceof Error ? e.message : t("broadcast.facebook.connectFailed")));
+        }}
+      />
+      <RtmpCredentialsSheet
+        open={rtmpSheet}
+        onClose={() => {
+          setRtmpSheet(false);
+          const pending = pendingLive.current;
+          pendingLive.current = null;
+          if (pending) void goLiveOverlay(pending.liveId, pending.roomName, pending.title, true);
+        }}
+        creds={rtmpCreds}
+        onCopied={(kind) =>
+          flash(kind === "url" ? t("broadcast.rtmp.copiedUrl") : t("broadcast.rtmp.copiedKey"))
+        }
+      />
       <MockBanner text={toast} />
     </View>
   );
@@ -443,14 +611,16 @@ function SocialCard({
   hint,
   action,
   onPress,
+  on,
 }: {
   title: string;
   hint: string;
   action: string;
   onPress: () => void;
+  on?: boolean;
 }) {
   return (
-    <View style={styles.social}>
+    <View style={[styles.social, on && { borderColor: GOLD }]}>
       <View style={{ flex: 1, paddingRight: 8 }}>
         <Text style={styles.socialTitle}>{title}</Text>
         <Text style={styles.socialHint} numberOfLines={2}>

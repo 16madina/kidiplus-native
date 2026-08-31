@@ -32,6 +32,10 @@ export type ShopItem = {
   description?: string | null;
   imagePath?: string | null;
   imagePaths?: string[];
+  brand?: string | null;
+  condition?: import("../lib/live-product-options").ProductCondition | null;
+  colors?: string[];
+  sizes?: string[];
 };
 
 export const MOCK_SHOP_ITEMS: ShopItem[] = [

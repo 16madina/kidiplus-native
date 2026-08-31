@@ -181,6 +181,7 @@
     "back": "Retour",
     "next": "Suivant",
     "done": "Terminé",
+    "gotIt": "Compris",
     "continue": "Continuer",
     "retry": "Réessayer",
     "loading": "Chargement…",
@@ -207,6 +208,12 @@
     "settings": "Paramètres",
     "help": "Aide",
     "error": "Une erreur est survenue"
+  },
+  "discover": {
+    "bidGuide": {
+      "title": "Comment enchérir",
+      "intro": "Les enchères KiDi+ se paient avec le portefeuille. Voici les 6 étapes, comme sur le site."
+    }
   },
   "units": {
     "viewers_one": "{{count}} spectateur",
@@ -659,7 +666,11 @@
       "guideStep4": "Colle le Serveur RTMP et la Clé de stream récupérés sur TikTok, puis lance.",
       "guideStep5": "Les viewers TikTok voient l’interface KiDi+. Les commentaires TikTok ne reviennent pas dans KiDi+.",
       "guideGotIt": "Compris",
-      "studioSoon": "Le studio caméra arrive bientôt. En attendant, configure YouTube / Facebook / TikTok sur kidiplus.com (même compte)."
+      "studioSoon": "Le studio caméra arrive bientôt. En attendant, configure YouTube / Facebook / TikTok sur kidiplus.com (même compte).",
+      "started": "Diffusion TikTok démarrée",
+      "stopped": "Diffusion TikTok arrêtée",
+      "startFailed": "Impossible de diffuser sur TikTok",
+      "goLive": "Diffuser sur TikTok"
     },
     "social": {
       "disclaimerBody3": "Les viewers sur ces plateformes verront le flux vidéo ; les enchères cliquables restent sur KiDi+.",
