@@ -952,6 +952,7 @@
     "cameraOpening": "Opening camera…",
     "micDenied": "Allow the microphone to record video.",
     "storyHintCapture": "Tap for a photo · Hold for a video",
+    "storyVideoReady": "Video ready — publish your story.",
     "videoHintCapture": "Camera is on — tap to record",
     "photoHintCapture": "Camera is on — tap to take a photo",
     "edit": {

@@ -31,7 +31,9 @@ export async function pickedMediaFromUri(
   extra?: Pick<PickedImage, "durationSec" | "width" | "height">,
 ): Promise<PickedImage> {
   const contentType = mime || "image/jpeg";
-  const blob = await blobFromUri(uri, contentType);
+  const blob = contentType.startsWith("video/")
+    ? new Blob([new Uint8Array(0)], { type: contentType })
+    : await blobFromUri(uri, contentType);
   return {
     blob,
     preview: uri,
@@ -177,21 +179,25 @@ export function pickStoryMediaFromLibrary(): Promise<PickedImage | null> {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
       quality: 0.88,
-      videoMaxDuration: 60,
-      allowsEditing: false,
+      videoMaxDuration: 15,
+      allowsEditing: Platform.OS === "ios",
       exif: false,
     });
     if (result.canceled) return null;
     const asset = result.assets[0];
     if (!asset?.uri) return null;
     const contentType = asset.mimeType || (asset.type === "video" ? "video/mp4" : "image/jpeg");
-    const blob = await blobFromUri(asset.uri, contentType);
+    const isVideo = asset.type === "video" || contentType.startsWith("video/");
+    // Don't load a whole video into RAM here — that was crashing KiDi+ on iPhone.
+    const blob = isVideo
+      ? new Blob([new Uint8Array(0)], { type: contentType })
+      : await blobFromUri(asset.uri, contentType);
     return {
       blob,
       preview: asset.uri,
       contentType,
       ext: extFromName(asset.fileName, contentType),
-      durationSec: asset.type === "video" ? pickerDurationToSec(asset.duration) : null,
+      durationSec: isVideo ? pickerDurationToSec(asset.duration) : null,
       width: asset.width,
       height: asset.height,
     };

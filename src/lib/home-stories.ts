@@ -63,3 +63,14 @@ export function firstUnreadIndex(items: VitrineStory[]): number {
   const idx = items.findIndex((s) => s.unread);
   return idx >= 0 ? idx : 0;
 }
+
+/** Own stories first, then each seller’s items — used to swipe across the home bar. */
+export function flattenStoryFeed(own: VitrineStory[], cards: HomeStoryCard[]): VitrineStory[] {
+  return [...own, ...cards.flatMap((c) => c.items)];
+}
+
+export function indexInStoryFeed(feed: VitrineStory[], targetId: string | undefined): number {
+  if (!targetId) return 0;
+  const idx = feed.findIndex((s) => s.id === targetId);
+  return idx >= 0 ? idx : 0;
+}

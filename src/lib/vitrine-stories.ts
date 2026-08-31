@@ -24,6 +24,8 @@ export type VitrineStory = {
   expiresAt: string;
   unread: boolean;
   clip: VideoClip | null;
+  /** Home-bar filler — not a real seller, remove when users fill the row. */
+  fictitious?: boolean;
 };
 
 type SellerEmbed = {

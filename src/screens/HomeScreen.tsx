@@ -21,9 +21,10 @@ import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import { useBlockedIds } from "../lib/moderation";
-import { applySeenFlags, groupStoriesBySeller, splitOwnStories } from "../lib/home-stories";
+import { applySeenFlags, flattenStoryFeed, groupStoriesBySeller, indexInStoryFeed, splitOwnStories } from "../lib/home-stories";
 import { loadSeenStoryIds, markStoriesSeen } from "../lib/story-seen";
 import { fetchVitrineStories, filterBlockedStories, type VitrineStory } from "../lib/vitrine-stories";
+import { mergeStoriesWithDemos } from "../mock/story-demos";
 import {
   applyHomeCategory,
   sampleLivesForCategory,
@@ -103,7 +104,11 @@ export function HomeScreen() {
   }, [active, blockedIds]);
 
   const flaggedStories = useMemo(
-    () => applySeenFlags(filterBlockedStories(stories, blockedIds), seenIds),
+    () =>
+      applySeenFlags(
+        mergeStoriesWithDemos(filterBlockedStories(stories, blockedIds)),
+        seenIds,
+      ),
     [stories, blockedIds, seenIds],
   );
   const { own: ownStories, others: otherStories } = useMemo(
@@ -112,13 +117,18 @@ export function HomeScreen() {
   );
   const otherCards = useMemo(() => groupStoriesBySeller(otherStories), [otherStories]);
   const ownUnread = ownStories.some((s) => s.unread);
+  const storyFeed = useMemo(
+    () => flattenStoryFeed(ownStories, otherCards),
+    [ownStories, otherCards],
+  );
 
   const openStories = useCallback((items: VitrineStory[], index: number) => {
     if (items.length === 0) return;
-    setStoryList(items);
-    setStoryIndex(index);
+    const startId = items[index]?.id;
+    setStoryList(storyFeed.length > 0 ? storyFeed : items);
+    setStoryIndex(indexInStoryFeed(storyFeed.length > 0 ? storyFeed : items, startId));
     setStoryViewerOpen(true);
-  }, []);
+  }, [storyFeed]);
 
   const onStorySeen = useCallback((id: string) => {
     setSeenIds((prev) => {

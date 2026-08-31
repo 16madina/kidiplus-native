@@ -122,6 +122,12 @@ export function PublishCameraPane({
     setDraft(next);
     setClip(null);
     setClipDuration(next.durationSec ?? null);
+    // Story videos: skip the trim player — expo-video on a fresh gallery/camera
+    // file was crashing the app. Review shows a still frame / placeholder.
+    if (mode === "story" && isVideoDraft(next)) {
+      setStage("review");
+      return;
+    }
     setStage("edit");
   };
 
@@ -423,8 +429,12 @@ function ReviewPane({
   const video = isVideoDraft(draft);
   return (
     <View style={styles.pane}>
-      {video ? (
+      {video && mode !== "story" ? (
         <ReviewVideo uri={draft.preview} clip={clip} />
+      ) : video ? (
+        <View style={[FILL, styles.videoPlaceholder]}>
+          <Text style={styles.hint}>{t("publish.storyVideoReady", { defaultValue: "Vidéo prête — publie ta story." })}</Text>
+        </View>
       ) : (
         <Image source={{ uri: draft.preview }} style={FILL} contentFit="cover" />
       )}
@@ -487,6 +497,7 @@ function ReviewVideo({ uri, clip }: { uri: string; clip: VideoClip | null }) {
 
 const styles = StyleSheet.create({
   pane: { flex: 1, backgroundColor: "#05060a" },
+  videoPlaceholder: { alignItems: "center", justifyContent: "center", padding: 24 },
   center: { alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
   hint: { color: "rgba(255,255,255,0.75)", fontWeight: "700", textAlign: "center" },
   topChip: {

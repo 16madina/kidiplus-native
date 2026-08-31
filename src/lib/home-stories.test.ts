@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import {
   applySeenFlags,
   firstUnreadIndex,
+  flattenStoryFeed,
   groupStoriesBySeller,
+  indexInStoryFeed,
   splitOwnStories,
   storyCardBadge,
   storyCardTone,
 } from "./home-stories.ts";
+import { mergeStoriesWithDemos } from "../mock/story-demos.ts";
 import type { VitrineStory } from "./vitrine-stories.ts";
 
 function story(over: Partial<VitrineStory> = {}): VitrineStory {
@@ -55,6 +58,15 @@ function run() {
 
   assert.equal(firstUnreadIndex([a2, a1]), 1);
   assert.equal(firstUnreadIndex([a2, b1]), 0);
+
+  const feed = flattenStoryFeed([a1], grouped.filter((c) => c.userId !== "a"));
+  assert.equal(feed[0].id, "a1");
+  assert.equal(indexInStoryFeed(feed, "b1"), feed.findIndex((s) => s.id === "b1"));
+
+  const merged = mergeStoriesWithDemos([a1]);
+  assert.ok(merged.length > 8);
+  assert.ok(merged.some((s) => s.fictitious));
+  assert.ok(merged.some((s) => s.id === "a1"));
   console.log("home-stories: all checks passed");
 }
 

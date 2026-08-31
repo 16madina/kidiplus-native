@@ -3,11 +3,13 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Flag, X } from "lucide-react-native";
@@ -51,6 +53,10 @@ export function StoryViewer({
     }
   }, [index, stories.length, onClose]);
 
+  const goBack = useCallback(() => {
+    if (index > 0) setIndex((i) => i - 1);
+  }, [index]);
+
   useEffect(() => {
     setIndex(initialIndex);
   }, [initialIndex, visible]);
@@ -76,38 +82,51 @@ export function StoryViewer({
 
   if (!story) return null;
 
+  const fictitious = !!story.fictitious || story.userId.startsWith("fictitious:");
+
   const handlePress = (evt: { nativeEvent: { locationX: number } }) => {
     const x = evt.nativeEvent.locationX;
-    if (x < SCREEN_W / 3) {
-      if (index > 0) setIndex((i) => i - 1);
-    } else {
-      advance();
-    }
+    if (x < SCREEN_W / 3) goBack();
+    else advance();
   };
+
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-28, 28])
+    .failOffsetY([-24, 24])
+    .onEnd((e) => {
+      "worklet";
+      if (e.translationX < -48) runOnJS(advance)();
+      else if (e.translationX > 48) runOnJS(goBack)();
+    });
 
   return (
     <Modal visible={visible} animationType="fade" statusBarTranslucent transparent>
       <View style={styles.root}>
         <View style={styles.progressRow}>
-          {stories.map((_, i) => (
-            <View key={stories[i]?.id ?? i} style={styles.progressBg}>
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  {
-                    width:
-                      i < index
-                        ? "100%"
-                        : i === index && !video
-                          ? progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] })
-                          : i === index
-                            ? "50%"
-                            : "0%",
-                  },
-                ]}
-              />
-            </View>
-          ))}
+          {stories
+            .filter((s) => s.userId === story.userId)
+            .map((s, i, group) => {
+              const local = group.findIndex((g) => g.id === story.id);
+              return (
+                <View key={s.id} style={styles.progressBg}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width:
+                          i < local
+                            ? "100%"
+                            : i === local && !video
+                              ? progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] })
+                              : i === local
+                                ? "50%"
+                                : "0%",
+                      },
+                    ]}
+                  />
+                </View>
+              );
+            })}
         </View>
 
         <View style={styles.header}>
@@ -122,7 +141,7 @@ export function StoryViewer({
             <Text style={styles.name}>{story.displayName}</Text>
           </View>
           <View style={styles.headActions}>
-            {!mine ? (
+            {!mine && !fictitious ? (
               <Press onPress={() => setReportOpen(true)} style={styles.closeBtn}>
                 <Flag size={18} color="#fff" />
               </Press>
@@ -133,15 +152,15 @@ export function StoryViewer({
           </View>
         </View>
 
-        <TouchableWithoutFeedback onPress={handlePress}>
-          <View style={styles.media}>
+        <GestureDetector gesture={swipe}>
+          <Pressable onPress={handlePress} style={styles.media}>
             {video ? (
               <StoryVideo uri={story.mediaUrl} clip={story.clip} active={visible} onEnded={advance} />
             ) : (
               <Image source={{ uri: story.mediaUrl }} style={FILL} contentFit="cover" />
             )}
-          </View>
-        </TouchableWithoutFeedback>
+          </Pressable>
+        </GestureDetector>
         <ReportSheet
           open={reportOpen}
           onClose={() => setReportOpen(false)}
