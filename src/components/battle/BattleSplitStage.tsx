@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Animated, Dimensions, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { useLayout } from "../../lib/layout";
+import { battleDockMetrics } from "../../lib/battle-timing";
 import { GOLD } from "../../theme";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
@@ -59,16 +59,30 @@ function GuestPlaceholder({
 function SplitDivider() {
   const { t } = useTranslation();
   const words = t("battle.split.vs").split(/\s+/).filter(Boolean);
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.04, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
   return (
     <View style={styles.dividerWrap} pointerEvents="none">
-      <View style={styles.dividerLine} />
-      <View style={styles.vsBadge}>
+      <LinearGradient
+        colors={["transparent", "#3b82f6", "#93c5fd", "#3b82f6", "transparent"]}
+        style={styles.dividerLine}
+      />
+      <Animated.View style={[styles.vsBadge, { transform: [{ scale: pulse }] }]}>
         {words.map((word) => (
           <Text key={word} style={styles.vsWord}>
             {word}
           </Text>
         ))}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -89,12 +103,7 @@ export function BattleSplitStage({
   guestStatus?: string;
 }) {
   const insets = useSafeAreaInsets();
-  const layout = useLayout();
-  const dockTop = insets.top + layout.vs(100);
-  const dockHeight = Math.min(
-    Dimensions.get("window").height * (layout.compact ? 0.28 : 0.36),
-    layout.compact ? 220 : 300,
-  );
+  const { dockTop, dockHeight } = battleDockMetrics(insets.top, Dimensions.get("window").height);
 
   if (!active) {
     return <View style={FILL}>{hostVideo}</View>;
@@ -230,7 +239,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: "#3b82f6",
     shadowColor: "#3b82f6",
     shadowOpacity: 0.55,
     shadowRadius: 8,

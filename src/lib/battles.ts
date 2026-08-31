@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { resolveAvatarUrl } from "./storage";
 
+export const BATTLE_COUNTDOWN_SEC = 15;
+export const BATTLE_SUDDEN_DEATH_SEC = 60;
+
 export const BATTLE_DURATIONS_SEC = [600, 900, 1200, 1800] as const;
 export const BATTLE_DEFAULT_DURATION_SEC = 900;
 export const BATTLE_PROTO_DEMO_SEC = 90;

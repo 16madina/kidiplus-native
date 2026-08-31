@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -39,7 +40,14 @@ import { useFollow } from "../lib/follows";
 import { fetchDefaultAddress } from "../lib/addresses";
 import { canDeliver, fetchDeliverySettings } from "../lib/delivery";
 import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
+import { BattleScoreHud } from "../components/battle/BattleScoreHud";
+import { BattleFeaturedRow, BattlePeerProductSheet } from "../components/battle/BattleFeaturedRow";
+import { DefiPlusIntroOverlay } from "../components/battle/DefiPlusIntroOverlay";
 import { isBattleLiveActive, useBattleForLive } from "../lib/battles";
+import { battleDockMetrics, battleFighters, battleRemainingMs } from "../lib/battle-timing";
+import { pickBattleFeatured } from "../lib/battle-featured";
+import { useBattlePeerProducts } from "../lib/use-battle-peer-products";
+import { isDefiPlusIntroActive } from "../lib/defi-plus";
 import { guestLiveKitIdentity } from "../lib/livekit";
 import { useViewerLiveRoom } from "../lib/live-viewer";
 import { useDemoViewerSim } from "../lib/use-demo-viewer-sim";
@@ -108,6 +116,15 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     battle?.lives.find((l) => l.live_id !== liveId && l.seller_id !== s.sellerId) ??
     battle?.lives.find((l) => l.live_id !== hostBattleLive?.live_id) ??
     null;
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [peerOpen, setPeerOpen] = useState(false);
+  const fighters = battle && liveId && battleActive ? battleFighters(battle, liveId) : null;
+  const dock = battleDockMetrics(insets.top, Dimensions.get("window").height);
+  const remainingMs = battle && battleActive ? battleRemainingMs(battle.session, nowMs) : 0;
+  const introStartsAt = battle?.session.started_at ? Date.parse(battle.session.started_at) : null;
+  const introOn = battleActive && isDefiPlusIntroActive(introStartsAt, nowMs);
+  const peerProducts = useBattlePeerProducts(battleActive ? fighters?.right.liveId ?? null : null);
+  const peerFeatured = pickBattleFeatured(peerProducts);
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -204,6 +221,12 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     const id = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(id);
   }, [toast]);
+
+  useEffect(() => {
+    if (!battleActive) return;
+    const id = setInterval(() => setNowMs(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [battleActive, battle?.session.id]);
 
   useEffect(() => {
     if (!auctionLive) setCustomOpen(false);
@@ -549,6 +572,18 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
         pointerEvents="none"
       />
 
+      {battleActive && battle && fighters ? (
+        <View pointerEvents="none" style={[styles.battleHud, { top: dock.hudTop }]}>
+          <BattleScoreHud
+            session={battle.session}
+            remainingMs={remainingMs}
+            left={fighters.left}
+            right={fighters.right}
+          />
+        </View>
+      ) : null}
+
+      {!battleActive ? (
       <View
         pointerEvents="none"
         style={[styles.auctionStack, { top: insets.top + layout.vs(96) }]}
@@ -571,11 +606,37 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           lower={!(auctionLive && room.timeLeft > 0 && room.timeLeft <= 3)}
         />
       </View>
+      ) : null}
       <WinnerReveal reveal={room.lastReveal} onDone={room.clearReveal} />
+      {introOn ? (
+        <DefiPlusIntroOverlay
+          active
+          startsAt={introStartsAt}
+          leftName={fighters?.left.displayName}
+          rightName={fighters?.right.displayName}
+        />
+      ) : null}
       <GiftAnimationOverlay trigger={room.lastGift} />
       <FloatingHearts pulse={room.heartPulse ?? 0} />
 
+      {battleActive ? (
+        <View pointerEvents="box-none" style={[styles.battleCardsAbs, { top: dock.cardTop }]}>
+          <BattleFeaturedRow
+            own={featured}
+            peer={peerFeatured}
+            currency={currency}
+            ownSecondsLeft={auctionLive ? room.timeLeft : 0}
+            viewer
+            onBidOwn={auctionLive ? () => void onBid() : undefined}
+            onOpenPeer={() => setPeerOpen(true)}
+          />
+        </View>
+      ) : null}
+
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
+        {battleActive ? (
+          <View style={{ flex: 1 }} />
+        ) : (
         <Glass tone="dark" intensity={42} radius={999}>
           <View style={styles.seller}>
             <Image
@@ -600,6 +661,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             </View>
           </View>
         </Glass>
+        )}
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           {user ? (
             <Press
@@ -688,7 +750,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             </View>
           ) : null}
 
-          {auctionLive || revealForFeatured || (featured?.mode === "fixed" && featured.status === "active") ? (
+          {battleActive ? null : auctionLive || revealForFeatured || (featured?.mode === "fixed" && featured.status === "active") ? (
             <AuctionNowBar
               eyebrow={auctionLive || revealForFeatured ? t("live.currentBid") : t("live.buyNow")}
               name={featured!.name}
@@ -889,6 +951,12 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           void refreshUser();
         }}
       />
+      <BattlePeerProductSheet
+        open={peerOpen && !!peerFeatured}
+        onClose={() => setPeerOpen(false)}
+        product={peerFeatured}
+        currency={currency}
+      />
       <ReportSheet
         open={reportOpen || !!reportMsg}
         onClose={() => {
@@ -989,6 +1057,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 24,
+  },
+  battleHud: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 56,
+  },
+  battleCardsAbs: {
+    position: "absolute",
+    left: 4,
+    right: 4,
+    zIndex: 32,
+    height: 76,
   },
   giftFlash: {
     position: "absolute",

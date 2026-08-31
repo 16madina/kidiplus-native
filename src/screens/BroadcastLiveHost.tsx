@@ -304,6 +304,7 @@ function useHostLiveExtras(liveId: string) {
   }, [liveId]);
 
   return {
+    battle,
     battleActive,
     myLive,
     opponentLive,
@@ -323,6 +324,7 @@ function HostChrome({
   hostFighter,
   guestFighter,
   guestStatus,
+  battle,
   battleActive,
   viewerFallback,
   micOn,
@@ -344,6 +346,7 @@ function HostChrome({
   hostFighter: { displayName: string; avatarUrl: string | null };
   guestFighter: { displayName: string; avatarUrl: string | null } | null;
   guestStatus?: string;
+  battle?: HydratedBattle | null;
   battleActive: boolean;
   viewerFallback: number;
   micOn: boolean;
@@ -383,6 +386,7 @@ function HostChrome({
         onMinimize={closeOverlay}
         onBattleAccepted={onBattleAccepted}
         cameraFacing={facing}
+        battle={battle}
       />
       {busy ? (
         <View style={[FILL, styles.ending]} pointerEvents="auto">
@@ -517,6 +521,7 @@ function HostKitStage({
             }
           : null
       }
+      battle={extras.battle}
       battleActive={extras.battleActive}
       viewerFallback={0}
       micOn={micOn}
@@ -806,6 +811,7 @@ function HostLiveKitStage({
           : null
       }
       guestStatus={remoteBattleStatus}
+      battle={extras.battle}
       battleActive={extras.battleActive}
       viewerFallback={Math.max(0, people.length - 1)}
       micOn={isMicrophoneEnabled}
