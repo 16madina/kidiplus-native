@@ -27,11 +27,13 @@ export function StoryViewer({
   initialIndex,
   visible,
   onClose,
+  onSeen,
 }: {
   stories: VitrineStory[];
   initialIndex: number;
   visible: boolean;
   onClose: () => void;
+  onSeen?: (id: string) => void;
 }) {
   const { user } = useAuth();
   const [index, setIndex] = useState(initialIndex);
@@ -52,6 +54,11 @@ export function StoryViewer({
   useEffect(() => {
     setIndex(initialIndex);
   }, [initialIndex, visible]);
+
+  useEffect(() => {
+    if (!visible || !story?.id) return;
+    onSeen?.(story.id);
+  }, [visible, story?.id, onSeen]);
 
   useEffect(() => {
     if (!visible || !story || video) return;

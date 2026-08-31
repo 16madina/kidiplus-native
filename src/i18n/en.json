@@ -266,6 +266,10 @@
       "popular": "Popular",
       "new": "New"
     },
+    "stories": {
+      "new": "NEW",
+      "live": "LIVE"
+    },
     "livesNearYou": "Lives near you",
     "empty": "No lives in this category right now.",
     "header": {

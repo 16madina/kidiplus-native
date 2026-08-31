@@ -266,6 +266,10 @@
       "popular": "Populaires",
       "new": "Nouveautés"
     },
+    "stories": {
+      "new": "NOUVEAU",
+      "live": "LIVE"
+    },
     "livesNearYou": "Lives près de chez toi",
     "empty": "Aucun live dans cette catégorie pour le moment.",
     "header": {

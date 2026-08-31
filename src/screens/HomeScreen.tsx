@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell, Check, Moon, Store, Sun } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Logo } from "../components/Logo";
-import { CategoryTiles } from "../components/CategoryTiles";
 import { FilterPills } from "../components/FilterPills";
 import { LiveCard } from "../components/LiveCard";
 import { Press } from "../components/Press";
@@ -14,21 +13,29 @@ import { UpcomingLivesRow } from "../components/UpcomingLivesRow";
 import { EmailConfirmBanner } from "../components/EmailConfirmBanner";
 import { FrozenBanner } from "../components/FrozenBanner";
 import { HostOpenLiveBanner } from "../components/home/HostOpenLiveBanner";
+import { HomeStoriesRow } from "../components/home/HomeStoriesRow";
+import { StoryViewer } from "../components/vitrine/StoryViewer";
 import { TAB_SAFE_PADDING } from "../components/BottomTabBar";
 import { useAuth } from "../context/auth";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { useLivesFeed } from "../hooks/useLivesFeed";
 import { useBlockedIds } from "../lib/moderation";
+import { applySeenFlags, groupStoriesBySeller, splitOwnStories } from "../lib/home-stories";
+import { loadSeenStoryIds, markStoriesSeen } from "../lib/story-seen";
+import { fetchVitrineStories, filterBlockedStories, type VitrineStory } from "../lib/vitrine-stories";
 import {
   applyHomeCategory,
   sampleLivesForCategory,
   sortLivesNewestFirst,
-  type HomeCategory,
   type HomeFilter,
 } from "../mock/home-categories";
 import { mergeUpcomingWithDemos } from "../mock/upcoming-demos";
 import { GOLD, NAVY } from "../theme";
+
+const PublishHub = lazy(() =>
+  import("../components/vitrine/PublishHub").then((m) => ({ default: m.PublishHub })),
+);
 
 const demoPoster = require("../../assets/demo-live-poster.jpg");
 
@@ -46,10 +53,27 @@ export function HomeScreen() {
     if (tab === "home") void refresh();
   }, [tab, refresh]);
   const blockedIds = useBlockedIds();
-  const [category, setCategory] = useState<HomeCategory>("Pour toi");
   const [filter, setFilter] = useState<HomeFilter>("Recommandés");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [liveOnly, setLiveOnly] = useState(false);
+  const [stories, setStories] = useState<VitrineStory[]>([]);
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [hubOpen, setHubOpen] = useState(false);
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
+  const [storyList, setStoryList] = useState<VitrineStory[]>([]);
+  const [storyIndex, setStoryIndex] = useState(0);
+
+  const loadStories = useCallback(async () => {
+    setStories(await fetchVitrineStories());
+  }, []);
+
+  useEffect(() => {
+    void loadSeenStoryIds().then(setSeenIds);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "home") void loadStories();
+  }, [tab, loadStories]);
 
   const upcomingRow = useMemo(
     () =>
@@ -61,14 +85,58 @@ export function HomeScreen() {
 
   const filtered = useMemo(() => {
     const unblocked = active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId));
-    const scopedReal = applyHomeCategory(unblocked, category);
-    const samples = sampleLivesForCategory(category, scopedReal.length);
+    const scopedReal = applyHomeCategory(unblocked, "Pour toi");
+    const samples = sampleLivesForCategory("Pour toi", scopedReal.length);
     let list = sortLivesNewestFirst([...scopedReal, ...samples]);
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
     if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
     if (liveOnly) list = list.filter((s) => !s.scheduled);
     return list;
-  }, [active, category, filter, liveOnly, blockedIds]);
+  }, [active, filter, liveOnly, blockedIds]);
+
+  const liveBySeller = useMemo(() => {
+    const map = new Map<string, (typeof active)[number]>();
+    for (const s of active) {
+      if (s.sellerId && !s.scheduled && (!blockedIds.has(s.sellerId))) map.set(s.sellerId, s);
+    }
+    return map;
+  }, [active, blockedIds]);
+
+  const flaggedStories = useMemo(
+    () => applySeenFlags(filterBlockedStories(stories, blockedIds), seenIds),
+    [stories, blockedIds, seenIds],
+  );
+  const { own: ownStories, others: otherStories } = useMemo(
+    () => splitOwnStories(flaggedStories, user?.id),
+    [flaggedStories, user?.id],
+  );
+  const otherCards = useMemo(() => groupStoriesBySeller(otherStories), [otherStories]);
+  const ownUnread = ownStories.some((s) => s.unread);
+
+  const openStories = useCallback((items: VitrineStory[], index: number) => {
+    if (items.length === 0) return;
+    setStoryList(items);
+    setStoryIndex(index);
+    setStoryViewerOpen(true);
+  }, []);
+
+  const onStorySeen = useCallback((id: string) => {
+    setSeenIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      void markStoriesSeen([id]);
+      return next;
+    });
+  }, []);
+
+  const openPublishStory = useCallback(() => {
+    if (!user) {
+      openAuth();
+      return;
+    }
+    setHubOpen(true);
+  }, [user, openAuth]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -110,8 +178,24 @@ export function HomeScreen() {
         <EmailConfirmBanner />
         <FrozenBanner />
         <HostOpenLiveBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
-        <CategoryTiles active={category} onChange={setCategory} />
-        <View style={{ height: 12 }} />
+        <HomeStoriesRow
+          ownUserId={user?.id ?? null}
+          ownAvatarUrl={user?.avatarUrl ?? null}
+          ownDisplayName={user?.displayName || ""}
+          ownItems={ownStories}
+          ownUnread={ownUnread}
+          cards={otherCards}
+          liveBySeller={liveBySeller}
+          onAdd={openPublishStory}
+          onOpenStories={openStories}
+          onOpenLive={(stream) => {
+            const list = filtered.filter((s) => !s.scheduled);
+            const idx = list.findIndex((s) => s.id === stream.id);
+            if (idx >= 0) openList(list, idx);
+            else openList([stream], 0);
+          }}
+        />
+        <View style={{ height: 4 }} />
         <FilterPills active={filter} onChange={setFilter} onOpenFilters={() => setFilterSheetOpen(true)} />
 
         <UpcomingLivesRow items={upcomingRow} onOpen={openList} />
@@ -209,6 +293,28 @@ export function HomeScreen() {
           </Press>
         </Glass>
       </Modal>
+
+      {hubOpen ? (
+        <Suspense fallback={null}>
+          <PublishHub
+            open={hubOpen}
+            initialMode="story"
+            onClose={() => setHubOpen(false)}
+            onPublished={(mode) => {
+              setHubOpen(false);
+              if (mode === "story") void loadStories();
+            }}
+          />
+        </Suspense>
+      ) : null}
+
+      <StoryViewer
+        stories={storyList}
+        initialIndex={storyIndex}
+        visible={storyViewerOpen}
+        onClose={() => setStoryViewerOpen(false)}
+        onSeen={onStorySeen}
+      />
     </View>
   );
 }
