@@ -4,12 +4,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { Platform } from "react-native";
 import { pickImageFromLibrary } from "../pick-image";
 import { withHostPickerPause } from "../host-camera";
+import { isPublishableImageUrl } from "../live-fx";
+import { uploadLiveOverlayImageWithRetry } from "../lives";
+import { supabase } from "../supabase";
 import {
   clampPosterTransform,
   DEFAULT_POSTER_TRANSFORM,
@@ -31,6 +35,8 @@ export type LiveEffectsState = {
   backgroundMode: BackgroundMode;
   backgroundUnavailable: boolean;
   posterUrl: string | null;
+  /** Public https URL after upload — viewers can load this. Host may still show the local file. */
+  posterPublishedUrl: string | null;
   posterMode: PosterMode;
   posterTransform: PosterTransform;
   hasEffects: boolean;
@@ -51,10 +57,12 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("none");
   const [backgroundUnavailable, setBackgroundUnavailable] = useState(false);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [posterPublishedUrl, setPosterPublishedUrl] = useState<string | null>(null);
   const [posterMode, setPosterMode] = useState<PosterMode>("off");
   const [posterTransform, setPosterTransformRaw] = useState<PosterTransform>(
     DEFAULT_POSTER_TRANSFORM,
   );
+  const posterPickRef = useRef(0);
 
   const markBackgroundUnavailable = useCallback(() => {
     // Turn off the current background, but do not lock the UI forever.
@@ -107,9 +115,38 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   const setPosterFromPicker = useCallback(async () => {
     const picked = await withHostPickerPause(() => pickImageFromLibrary());
     if (!picked) return;
+    const pickId = ++posterPickRef.current;
     setPosterUrl(picked.preview);
     setPosterMode("cover");
     setPosterTransformRaw(DEFAULT_POSTER_TRANSFORM);
+    if (isPublishableImageUrl(picked.preview)) {
+      setPosterPublishedUrl(picked.preview);
+      return;
+    }
+    setPosterPublishedUrl(null);
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        const uid = data.user?.id;
+        if (!uid) {
+          console.warn("[LiveFx] poster upload skipped: no signed-in user");
+          return;
+        }
+        const remote = await uploadLiveOverlayImageWithRetry(uid, picked.preview, {
+          blob: picked.blob,
+          ext: picked.ext,
+          contentType: picked.contentType,
+        });
+        if (posterPickRef.current !== pickId) return;
+        if (!isPublishableImageUrl(remote)) {
+          console.warn("[LiveFx] poster upload returned a non-https URL");
+          return;
+        }
+        setPosterPublishedUrl(remote);
+      } catch (err) {
+        console.warn("[LiveFx] poster upload failed", err);
+      }
+    })();
   }, []);
 
   const setPosterTransform = useCallback((t: PosterTransform) => {
@@ -117,7 +154,9 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearPoster = useCallback(() => {
+    posterPickRef.current += 1;
     setPosterUrl(null);
+    setPosterPublishedUrl(null);
     setPosterMode("off");
     setPosterTransformRaw(DEFAULT_POSTER_TRANSFORM);
   }, []);
@@ -133,6 +172,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
       backgroundMode,
       backgroundUnavailable,
       posterUrl,
+      posterPublishedUrl,
       posterMode,
       posterTransform,
       hasEffects:
@@ -151,6 +191,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
       backgroundMode,
       backgroundUnavailable,
       posterUrl,
+      posterPublishedUrl,
       posterMode,
       posterTransform,
       setBackgroundFromPicker,
@@ -176,6 +217,7 @@ const EMPTY: LiveEffectsState = {
   backgroundMode: "none",
   backgroundUnavailable: false,
   posterUrl: null,
+  posterPublishedUrl: null,
   posterMode: "off",
   posterTransform: DEFAULT_POSTER_TRANSFORM,
   hasEffects: false,

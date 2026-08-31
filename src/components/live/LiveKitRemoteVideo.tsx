@@ -23,7 +23,7 @@ import {
   EMPTY_LIVE_FX,
   LIVE_FX_TOPIC,
   decodeLiveFx,
-  liveFxHasVisual,
+  pickLiveFxForOverlay,
   type LiveFxPayload,
 } from "../../lib/live-fx";
 import { LiveFxOverlay } from "./LiveFxOverlay";
@@ -259,7 +259,7 @@ function RemoteCamera({
               : undefined
           }
         />
-        <LiveFxOverlay fx={liveFxHasVisual(overlayFx ?? EMPTY_LIVE_FX) ? (overlayFx ?? fx) : fx} />
+        <LiveFxOverlay fx={pickLiveFxForOverlay(overlayFx, fx)} />
       </View>
     ) : (
       waiting

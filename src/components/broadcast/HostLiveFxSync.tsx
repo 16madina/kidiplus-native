@@ -14,10 +14,11 @@ import {
   isPublishableImageUrl,
   liveFxEquals,
   liveTintForLens,
+  overlayPosterForViewers,
   sanitizeLiveFx,
   type LiveFxPayload,
 } from "../../lib/live-fx";
-import { uploadLiveOverlayImage } from "../../lib/lives";
+import { uploadLiveOverlayImageWithRetry } from "../../lib/lives";
 
 type LiveKitPublisher = {
   publishData: (
@@ -65,8 +66,13 @@ export function HostLiveFxSync({
   useEffect(() => {
     let cancelled = false;
     const local = effects.posterUrl;
+    const already = effects.posterPublishedUrl;
     if (!local || effects.posterMode === "off") {
       setPosterRemote(null);
+      return;
+    }
+    if (isPublishableImageUrl(already)) {
+      setPosterRemote(already);
       return;
     }
     if (isPublishableImageUrl(local)) {
@@ -74,19 +80,35 @@ export function HostLiveFxSync({
       return;
     }
     if (!isLocalImageUri(local) || !userId) {
+      console.warn("[LiveFx] poster not uploadable", {
+        local: String(effects.posterUrl ?? "").slice(0, 48),
+        userId: !!userId,
+      });
       return;
     }
-    void uploadLiveOverlayImage(userId, local)
-      .then((remote) => {
-        if (!cancelled) setPosterRemote(remote);
-      })
-      .catch(() => {
-        if (!cancelled) setPosterRemote(null);
-      });
+    const startFallback = () => {
+      void uploadLiveOverlayImageWithRetry(userId, local)
+        .then((remote) => {
+          if (cancelled) return;
+          if (!isPublishableImageUrl(remote)) {
+            console.warn("[LiveFx] retry upload returned a non-https URL");
+            setPosterRemote(null);
+            return;
+          }
+          setPosterRemote(remote);
+        })
+        .catch((err) => {
+          console.warn("[LiveFx] viewer poster upload failed", err);
+          if (!cancelled) setPosterRemote(null);
+        });
+    };
+    // The picker already started an upload. Wait briefly before a 2nd try.
+    const wait = setTimeout(startFallback, 2_500);
     return () => {
       cancelled = true;
+      clearTimeout(wait);
     };
-  }, [effects.posterUrl, effects.posterMode, userId]);
+  }, [effects.posterUrl, effects.posterPublishedUrl, effects.posterMode, userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,11 +124,12 @@ export function HostLiveFxSync({
     if (!isLocalImageUri(local) || !userId) {
       return;
     }
-    void uploadLiveOverlayImage(userId, local)
+    void uploadLiveOverlayImageWithRetry(userId, local)
       .then((remote) => {
-        if (!cancelled) setBgRemote(remote);
+        if (!cancelled && isPublishableImageUrl(remote)) setBgRemote(remote);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn("[LiveFx] background upload failed", err);
         if (!cancelled) setBgRemote(null);
       });
     return () => {
@@ -115,9 +138,13 @@ export function HostLiveFxSync({
   }, [effects.backgroundUrl, effects.backgroundMode, userId]);
 
   useEffect(() => {
-    const payload = sanitizeLiveFx({
-      posterUrl: posterRemote,
+    const poster = overlayPosterForViewers({
       posterMode: effects.posterMode,
+      remoteUrl: posterRemote,
+    });
+    const payload = sanitizeLiveFx({
+      posterUrl: poster.posterUrl,
+      posterMode: poster.posterMode,
       posterX: effects.posterTransform.x,
       posterY: effects.posterTransform.y,
       posterScale: effects.posterTransform.scale,

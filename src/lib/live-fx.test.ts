@@ -8,10 +8,13 @@ import {
   liveFxEquals,
   liveFxHasVisual,
   liveTintForLens,
+  overlayPosterForViewers,
+  pickLiveFxForOverlay,
+  retryAsync,
   sanitizeLiveFx,
 } from "./live-fx.ts";
 
-function run() {
+async function run() {
   assert.equal(isLocalImageUri("file:///tmp/poster.jpg"), true);
   assert.equal(isLocalImageUri("https://cdn.example/p.jpg"), false);
   assert.equal(isPublishableImageUrl("https://cdn.example/p.jpg"), true);
@@ -68,7 +71,34 @@ function run() {
   assert.equal(decodeLiveFx(new TextEncoder().encode('{"v":2}')), null);
   assert.equal(decodeLiveFx(new TextEncoder().encode("{}")) != null, true);
 
+  const held = overlayPosterForViewers({ posterMode: "cover", remoteUrl: "file:///x.jpg" });
+  assert.equal(held.posterMode, "off");
+  assert.equal(held.posterUrl, null);
+  const ready = overlayPosterForViewers({
+    posterMode: "cover",
+    remoteUrl: "https://cdn.example/p.jpg",
+  });
+  assert.equal(ready.posterMode, "cover");
+  assert.equal(ready.posterUrl, "https://cdn.example/p.jpg");
+
+  const tintOnly = sanitizeLiveFx({ tint: "rgba(1,2,3,0.2)", lensId: "snap-1" });
+  const withPoster = sanitizeLiveFx({
+    posterMode: "cover",
+    posterUrl: "https://cdn.example/p.jpg",
+  });
+  const picked = pickLiveFxForOverlay(tintOnly, withPoster);
+  assert.equal(picked.posterUrl, "https://cdn.example/p.jpg", "prefer payload that has the image");
+
+  let tries = 0;
+  const recovered = await retryAsync(async () => {
+    tries += 1;
+    if (tries < 3) throw new Error("not yet");
+    return "ok";
+  }, 3, 1);
+  assert.equal(recovered, "ok");
+  assert.equal(tries, 3);
+
   console.log("live-fx: all checks passed");
 }
 
-run();
+void run();

@@ -1,6 +1,7 @@
 import { type Category, type LiveStream } from "../mock/lives";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
+import { retryAsync } from "./live-fx";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { minutesUntil } from "./time";
 import { normalizeCurrency } from "./money";
@@ -288,16 +289,55 @@ export async function uploadLiveCover(userId: string, picked: { blob: Blob; ext:
   return path;
 }
 
-/** Upload a local live overlay (poster / fond) and return a signed https URL viewers can load. */
-export async function uploadLiveOverlayImage(userId: string, uri: string): Promise<string> {
+export type OverlayUploadSource = {
+  blob: Blob;
+  ext: string;
+  contentType: string;
+  preview?: string;
+};
+
+async function blobForOverlayUpload(uri: string): Promise<OverlayUploadSource> {
   const res = await fetch(uri);
+  if (!res.ok && res.status !== 0) throw new Error(`overlay_fetch_failed:${res.status}`);
   const blob = await res.blob();
+  if (!blob || blob.size < 32) throw new Error("overlay_empty_blob");
   const mime = blob.type && blob.type !== "application/octet-stream" ? blob.type : "image/jpeg";
   const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
-  const path = await uploadLiveCover(userId, { blob, ext, contentType: mime });
+  return { blob, ext, contentType: mime };
+}
+
+/** Upload a local live overlay (poster / fond) and return a signed https URL viewers can load. */
+export async function uploadLiveOverlayImage(
+  userId: string,
+  uri: string,
+  already?: OverlayUploadSource,
+): Promise<string> {
+  const picked = already ?? (await blobForOverlayUpload(uri));
+  const path = await uploadLiveCover(userId, {
+    blob: picked.blob,
+    ext: picked.ext,
+    contentType: picked.contentType,
+  });
   const url = await resolveStoredImage("live-covers", path);
-  if (!url) throw new Error("overlay_upload_failed");
+  if (!url) {
+    const { data } = supabase.storage.from("live-covers").getPublicUrl(path);
+    if (data.publicUrl) return data.publicUrl;
+    throw new Error("overlay_upload_failed");
+  }
   return url;
+}
+
+export async function uploadLiveOverlayImageWithRetry(
+  userId: string,
+  uri: string,
+  already?: OverlayUploadSource,
+): Promise<string> {
+  try {
+    return await retryAsync(() => uploadLiveOverlayImage(userId, uri, already));
+  } catch (err) {
+    console.warn("[LiveFx] overlay upload failed", userId ? "user=ok" : "user=missing", err);
+    throw err;
+  }
 }
 
 export async function uploadLiveProductImage(

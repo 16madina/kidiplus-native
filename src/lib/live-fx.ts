@@ -169,3 +169,46 @@ export function liveFxHasVisual(fx: LiveFxPayload): boolean {
     (fx.tint !== "" && fx.tint !== "transparent")
   );
 }
+
+/** Poster sent to viewers — never a local file:// URI. */
+export function overlayPosterForViewers(opts: {
+  posterMode: PosterMode;
+  remoteUrl: string | null | undefined;
+}): { posterUrl: string | null; posterMode: PosterMode } {
+  if (opts.posterMode !== "cover" || !isPublishableImageUrl(opts.remoteUrl)) {
+    return { posterUrl: null, posterMode: "off" };
+  }
+  return { posterUrl: opts.remoteUrl, posterMode: "cover" };
+}
+
+export async function retryAsync<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+  delayMs = 450,
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw last;
+}
+
+/** Prefer the payload that already has a public poster URL. */
+export function pickLiveFxForOverlay(
+  fromChannel: LiveFxPayload | null | undefined,
+  fromLiveKit: LiveFxPayload,
+): LiveFxPayload {
+  const a = fromChannel ?? EMPTY_LIVE_FX;
+  const aPoster = a.posterMode === "cover" && isPublishableImageUrl(a.posterUrl);
+  const bPoster = fromLiveKit.posterMode === "cover" && isPublishableImageUrl(fromLiveKit.posterUrl);
+  if (aPoster) return a;
+  if (bPoster) return fromLiveKit;
+  return liveFxHasVisual(a) ? a : fromLiveKit;
+}

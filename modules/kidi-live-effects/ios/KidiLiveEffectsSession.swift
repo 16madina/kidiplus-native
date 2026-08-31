@@ -50,6 +50,12 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var pixelPool: CVPixelBufferPool?
   private var poolWidth = 0
   private var poolHeight = 0
+  private var cachedMask: CIImage?
+  private var cachedMaskExtent = CGRect.null
+  private var visionHold = 0
+  /// Video stays ~30 fps; Vision runs about half that (~10–15 fps).
+  private let visionEvery = 2
+  private var previewTick = 0
   var onUnavailable: (() -> Void)?
   var onFirstFrame: (() -> Void)?
   private var didEmitFirstFrame = false
@@ -124,6 +130,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     slowFrames = 0
     fastFrames = 0
     lastTs = 0
+    resetMaskCache()
     // Live already owns Camera Kit — never open a 2nd capture session.
     if composeIntoPublish {
       running = true
@@ -173,6 +180,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     slowFrames = 0
     fastFrames = 0
     lastTs = 0
+    resetMaskCache()
     composeIntoPublish = true
     running = true
     queue.async {
@@ -204,6 +212,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       self.disabled = false
       self.ladderIndex = 0
       self.slowFrames = 0
+      self.resetMaskCache()
       if self.session.isRunning {
         self.session.stopRunning()
       }
@@ -347,8 +356,23 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     if disabled { return nil }
     guard let mask = personMask(for: camera) else { return nil }
     let composed = applyBackground(camera, mask: mask)
-    present(composed)
-    return makeOutgoingSample(from: composed, width: nativeW, height: nativeH, prototype: sample)
+    guard let outgoing = makeOutgoingSample(
+      from: composed,
+      width: nativeW,
+      height: nativeH,
+      prototype: sample
+    ) else { return nil }
+    if let rendered = CMSampleBufferGetImageBuffer(outgoing) {
+      presentRendered(rendered)
+    }
+    return outgoing
+  }
+
+  private func resetMaskCache() {
+    cachedMask = nil
+    cachedMaskExtent = .null
+    visionHold = 0
+    previewTick = 0
   }
 
   private func ensurePool(width: Int, height: Int) -> CVPixelBufferPool? {
@@ -482,8 +506,14 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   }
 
   /// Ladder downscales only the Vision input. Output mask matches the full frame.
+  /// Reuses the last mask for a few frames so Vision stays ~10–15 fps.
   private func personMask(for image: CIImage) -> CIImage? {
     let target = image.extent
+    if let cachedMask, cachedMaskExtent == target, visionHold < visionEvery {
+      visionHold += 1
+      return cachedMask
+    }
+    visionHold = 0
     let maxW = ladder[min(ladderIndex, ladder.count - 1)]
     var work = image
     let scale = min(1, maxW / max(1, image.extent.width))
@@ -497,9 +527,9 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     do {
       try handler.perform([req])
     } catch {
-      return nil
+      return cachedMask
     }
-    guard let pb = req.results?.first?.pixelBuffer else { return nil }
+    guard let pb = req.results?.first?.pixelBuffer else { return cachedMask }
     let w = CVPixelBufferGetWidth(pb)
     let h = CVPixelBufferGetHeight(pb)
     CVPixelBufferLockBaseAddress(pb, .readOnly)
@@ -544,15 +574,18 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       bytesPerRow: w * 4,
       space: cs,
       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ), let cg = ctx.makeImage() else { return nil }
+    ), let cg = ctx.makeImage() else { return cachedMask }
     var mask = CIImage(cgImage: cg)
     let radius = max(1, CGFloat(w) * 0.008)
     mask = mask.applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
     let scaleX = target.width / CGFloat(w)
     let scaleY = target.height / CGFloat(h)
-    return mask.transformed(
+    let result = mask.transformed(
       by: CGAffineTransform(scaleX: scaleX, y: scaleY).translatedBy(x: target.minX, y: target.minY)
     )
+    cachedMask = result
+    cachedMaskExtent = target
+    return result
   }
 
   private func blur(_ image: CIImage, radius: CGFloat) -> CIImage {
@@ -612,17 +645,53 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     lastTs = now
   }
 
+  /// Local-only preview (setup screen). Live publish uses `presentRendered`.
   private func present(_ image: CIImage) {
-    let extent = image.extent.integral
-    guard extent.width > 2, extent.height > 2,
-          let cg = ciContext.createCGImage(image, from: extent) else { return }
-    let ui = UIImage(cgImage: cg)
+    let size = image.extent.size
+    guard size.width > 2, size.height > 2 else { return }
+    let normalized = Self.originZero(image, size: size)
+    let dest = CGRect(origin: .zero, size: size)
+    guard let cg = ciContext.createCGImage(normalized, from: dest) else { return }
+    pushPreview(UIImage(cgImage: cg))
+  }
+
+  /// Host preview = the same origin-zero buffer sent to LiveKit. Small copy
+  /// only — never `createCGImage` on the raw composed CIImage (infinite extent).
+  private func presentRendered(_ buffer: CVPixelBuffer) {
+    if previewHost == nil {
+      emitFirstFrameIfNeeded()
+      return
+    }
+    previewTick += 1
+    if previewTick % 2 != 1 { return }
+    let w = CVPixelBufferGetWidth(buffer)
+    let h = CVPixelBufferGetHeight(buffer)
+    guard w > 2, h > 2 else { return }
+    let src = CIImage(cvPixelBuffer: buffer)
+    let scale = min(1, 360 / CGFloat(max(w, h)))
+    let dest = CGRect(
+      origin: .zero,
+      size: CGSize(width: (CGFloat(w) * scale).rounded(.down), height: (CGFloat(h) * scale).rounded(.down))
+    )
+    let scaled = src.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    guard let cg = ciContext.createCGImage(scaled, from: dest) else { return }
+    pushPreview(UIImage(cgImage: cg))
+  }
+
+  private func pushPreview(_ ui: UIImage) {
     DispatchQueue.main.async {
       self.preview.image = ui
-      if !self.didEmitFirstFrame {
-        self.didEmitFirstFrame = true
-        self.onFirstFrame?()
-      }
+      self.emitFirstFrameIfNeeded()
+    }
+  }
+
+  private func emitFirstFrameIfNeeded() {
+    guard !didEmitFirstFrame else { return }
+    didEmitFirstFrame = true
+    if Thread.isMainThread {
+      onFirstFrame?()
+    } else {
+      DispatchQueue.main.async { self.onFirstFrame?() }
     }
   }
 }
