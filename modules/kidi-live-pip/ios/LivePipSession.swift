@@ -304,6 +304,10 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     }
 
     private func prepareForBackgroundPip(reason: String) {
+        guard eligible else {
+            print("[KiDi+] prepareForBackgroundPip skipped — not eligible (\(reason))")
+            return
+        }
         backgroundAudioArmed = true
         activatePipAudioSession(reason: reason)
         reconnectIfNeeded(reason: reason)

@@ -33,8 +33,11 @@ function run() {
   assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
   assert.match(session, /ensureRemoteVideoSubscribed/);
   assert.match(session, /already connected/);
+  assert.match(session, /prepareForBackgroundPip skipped/);
 
   const expoMod = readFileSync(new URL("../../modules/kidi-live-pip/ios/KidiLivePipModule.swift", import.meta.url), "utf8");
+  assert.match(expoMod, /DispatchQueue.main.async/);
+  assert.match(expoMod, /attachOnMain/);
   assert.match(expoMod, /Name\("KidiLivePip"\)/);
   assert.match(expoMod, /setEligible/);
   assert.match(expoMod, /keyWindowRootView/);
