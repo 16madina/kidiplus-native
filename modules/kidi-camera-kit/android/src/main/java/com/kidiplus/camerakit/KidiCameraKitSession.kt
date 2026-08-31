@@ -248,10 +248,23 @@ class KidiCameraKitSession(
 
         return suspendCancellableCoroutine { cont ->
             var resolved = false
+            var settleJob: Job? = null
+            var timeoutJob: Job? = null
             fun finish(list: List<Map<String, Any?>>) {
                 if (resolved || !cont.isActive) return
                 resolved = true
+                timeoutJob?.cancel()
+                settleJob?.cancel()
+                Log.i(TAG, "loadLenses settled count=${list.size}")
                 cont.resume(mapOf("lenses" to list))
+            }
+
+            fun scheduleSettle() {
+                settleJob?.cancel()
+                settleJob = scope.launch {
+                    delay(800)
+                    finish(cachedLenses)
+                }
             }
 
             lensObserve = s.lenses.repository.observe(
@@ -262,15 +275,19 @@ class KidiCameraKitSession(
                         lensByKey[key(lens.id, lens.groupId)] = lens
                         lens.toMap()
                     }
-                    finish(cachedLenses)
+                    Log.i(TAG, "observer lenses=${cachedLenses.size}")
+                    scheduleSettle()
                 }
             }
-            // Never hang the carousel: resolve with whatever we have after 8s.
-            val timeoutJob = scope.launch {
+            // Snap delivers the group in waves — first Some is often incomplete.
+            timeoutJob = scope.launch {
                 delay(LOAD_LENSES_TIMEOUT_MS)
                 finish(cachedLenses)
             }
-            cont.invokeOnCancellation { timeoutJob.cancel() }
+            cont.invokeOnCancellation {
+                timeoutJob?.cancel()
+                settleJob?.cancel()
+            }
         }
     }
 
@@ -1050,7 +1067,7 @@ class KidiCameraKitSession(
         private const val START_FRAME_TIMEOUT_MS = 3_000L
         private const val LENS_FRAME_TIMEOUT_MS = 3_000L
         private const val LENS_LOOKUP_TIMEOUT_MS = 6_000L
-        private const val LOAD_LENSES_TIMEOUT_MS = 8_000L
+        private const val LOAD_LENSES_TIMEOUT_MS = 12_000L
         private const val PUBLISH_FRAME_TIMEOUT_MS = 5_000L
         private const val STALL_TIMEOUT_MS = 3_000L
         private const val ADAPT_WARMUP_MS = 4_000L

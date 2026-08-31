@@ -69,6 +69,10 @@ export async function loadBridgeLenses(force = false): Promise<BridgeLens[]> {
     iconUrl: l.iconUrl,
     previewUrl: l.previewUrl,
   }));
+  console.log(
+    `[filters] Camera Kit ${lensesCache.length} lens(es)`,
+    lensesCache.map((l) => l.name),
+  );
   return lensesCache;
 }
 
