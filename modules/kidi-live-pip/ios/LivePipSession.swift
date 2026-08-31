@@ -79,6 +79,10 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             await teardown()
             return
         }
+        if eligible, connected, sessionUrl == url {
+            print("[KiDi+] LivePipSession setEligible skipped — already connected")
+            return
+        }
         eligible = true
         sessionUrl = url
         sessionToken = token

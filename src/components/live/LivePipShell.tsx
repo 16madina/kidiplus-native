@@ -111,9 +111,9 @@ export function LivePipShell({
         bottom: undefined,
         width: LIVE_PIP_MINI.width,
         height: LIVE_PIP_MINI.height,
-        // Radius for the black chrome / shadow only — never overflow:hidden
-        // here: that + transform blacks the LiveKit RTCView on iOS.
-        borderRadius: 18,
+        // No borderRadius / overflow:hidden on this transformed host —
+        // either one sets clipsToBounds on iOS and blacks the RTCView.
+        borderRadius: 0,
         zIndex: 55,
         overflow: "visible" as const,
         transform: [{ translateX: tx.value }, { translateY: ty.value }],

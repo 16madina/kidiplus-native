@@ -117,13 +117,32 @@ export function useViewerSystemPip(
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
   const guestPipIdRef = useRef(livePipViewerIdentity(null));
+  const displayNameRef = useRef(session?.displayName ?? "Invité");
+  displayNameRef.current = session?.displayName ?? "Invité";
   const roomName = session?.roomName ?? null;
   const userId = session?.userId ?? null;
-  const displayName = session?.displayName ?? "Invité";
   const pipIdentity = userId ? livePipViewerIdentity(userId) : guestPipIdRef.current;
+  const sessionKey = enabled && roomName ? `${roomName}|${pipIdentity}` : null;
+  const lastSessionKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (Platform.OS === "android") {
+      setAndroidLivePipEnabled(enabled);
+      if (!enabled) {
+        startedRef.current = false;
+        setActive(false);
+        setPreparing(false);
+        void dismissAndroidLivePip();
+      }
+      return () => {
+        setAndroidLivePipEnabled(false);
+      };
+    }
+
+    if (Platform.OS !== "ios") return;
+
+    if (!sessionKey || !KidiLivePip) {
+      lastSessionKeyRef.current = null;
       startedRef.current = false;
       iosReadyRef.current = false;
       setActive(false);
@@ -132,26 +151,31 @@ export function useViewerSystemPip(
       return;
     }
 
-    if (Platform.OS === "android") {
-      setAndroidLivePipEnabled(true);
-      return () => {
-        setAndroidLivePipEnabled(false);
-      };
-    }
-
-    if (Platform.OS !== "ios" || !roomName || !KidiLivePip) {
+    // Same room + identity: do not teardown/reconnect. displayName must not
+    // be a dep — profile hydrate used to kill the native session mid-live.
+    if (lastSessionKeyRef.current === sessionKey && iosReadyRef.current) {
       return;
     }
 
+    const prevKey = lastSessionKeyRef.current;
+    lastSessionKeyRef.current = sessionKey;
     let cancelled = false;
-    const work = (async () => {
-      // Let the RN viewer take the first LiveKit handshake, then connect
-      // the native PiP room — same 350ms delay as the Capacitor app.
-      await new Promise((r) => setTimeout(r, 350));
-      if (cancelled || !roomName) return;
-      try {
-        const lk = await fetchLiveKitSession(roomName, pipIdentity, displayName, "viewer");
+    void (async () => {
+      if (prevKey && prevKey !== sessionKey) {
+        await dismissNativeLivePip();
         if (cancelled) return;
+      }
+      await new Promise((r) => setTimeout(r, 350));
+      if (cancelled) return;
+      try {
+        const lk = await fetchLiveKitSession(
+          roomName!,
+          pipIdentity,
+          displayNameRef.current,
+          "viewer",
+        );
+        if (cancelled) return;
+        console.info("[pip] setEnabled once", { key: sessionKey });
         await setNativeLivePipEnabled({
           enabled: true,
           url: lk.url,
@@ -159,18 +183,15 @@ export function useViewerSystemPip(
         });
         if (!cancelled) iosReadyRef.current = true;
       } catch (e) {
-        iosReadyRef.current = false;
+        if (!cancelled) iosReadyRef.current = false;
         console.warn("[pip] iOS native token/connect failed", e);
       }
     })();
-    void work;
 
     return () => {
       cancelled = true;
-      iosReadyRef.current = false;
-      void dismissNativeLivePip();
     };
-  }, [displayName, enabled, pipIdentity, roomName]);
+  }, [enabled, pipIdentity, roomName, sessionKey]);
 
   useEffect(() => {
     if (!enabled) return;

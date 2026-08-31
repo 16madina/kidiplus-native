@@ -74,9 +74,20 @@ function run() {
   assert.match(shell, /overflow: "visible"/);
   assert.doesNotMatch(
     shell,
+    /borderRadius: 18,\s*\n\s*zIndex: 55/,
+    "mini transform host must not set borderRadius (clipsToBounds)",
+  );
+  assert.doesNotMatch(
+    shell,
     /borderRadius: 18,\s*\n\s*zIndex: 55,\s*\n\s*overflow: "hidden"/,
     "mini transform host must not clip the video",
   );
+
+  const pipHook = readFileSync(new URL("./live-pip.ts", import.meta.url), "utf8");
+  assert.match(pipHook, /lastSessionKeyRef/);
+  assert.match(pipHook, /displayNameRef/);
+  assert.match(pipHook, /\[enabled, pipIdentity, roomName, sessionKey\]/);
+  assert.doesNotMatch(pipHook, /\[displayName, enabled/);
 }
 
 run();

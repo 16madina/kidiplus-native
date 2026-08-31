@@ -32,6 +32,7 @@ function run() {
   assert.match(session, /setRemoteAudioSubscribed\(false, reason: "didBecomeActive"\)/);
   assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
   assert.match(session, /ensureRemoteVideoSubscribed/);
+  assert.match(session, /already connected/);
 
   const expoMod = readFileSync(new URL("../../modules/kidi-live-pip/ios/KidiLivePipModule.swift", import.meta.url), "utf8");
   assert.match(expoMod, /Name\("KidiLivePip"\)/);
