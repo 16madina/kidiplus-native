@@ -42,6 +42,11 @@ export function UpcomingLivesRow({
             <Text numberOfLines={1} style={[styles.when, { color: colors.mutedForeground }]}>
               {s.startsInMin != null ? `${s.startsInMin} min` : "—"}
             </Text>
+            {s.deliversToMe === false ? (
+              <Text numberOfLines={2} style={styles.noShip}>
+                {t("delivery.feedBadge", "Ne livre pas dans ton pays")}
+              </Text>
+            ) : null}
           </Press>
         ))}
       </ScrollView>
@@ -81,6 +86,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
     marginTop: 1,
+    maxWidth: 96,
+  },
+  noShip: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#B45309",
+    marginTop: 2,
     maxWidth: 96,
   },
 });

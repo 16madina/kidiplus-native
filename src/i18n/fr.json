@@ -2090,6 +2090,7 @@
   "delivery": {
     "title": "Livraison",
     "notInYourCountry": "Livraison indisponible dans ton pays 🌍",
+    "feedBadge": "Ne livre pas dans ton pays",
     "menuLabel": "Livraison",
     "settings": "Paramètres de livraison",
     "mode": "Mode de livraison",

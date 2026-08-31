@@ -36,6 +36,7 @@ import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
 import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
 import { ExpoGoBanner } from "./components/ExpoGoBanner";
+import { FirstSaleRewardOverlay } from "./components/rewards/FirstSaleRewardOverlay";
 import { HostResumeListener } from "./components/home/HostResumeListener";
 import { LivePipShell } from "./components/live/LivePipShell";
 import { isExpoGo } from "./lib/expo-go";
@@ -275,6 +276,7 @@ export function AppShell() {
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />
       </PushScreen>
+      <FirstSaleRewardOverlay />
       <ExpoGoBanner />
     </View>
   );
