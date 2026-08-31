@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Gavel, Gift, Heart, MoreVertical, Plus, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
+import { Check, Gavel, Gift, Heart, MoreVertical, Plus, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
@@ -49,7 +49,7 @@ import { fetchOrderById, type OrderView } from "../lib/orders";
 import { isExpoGo } from "../lib/expo-go";
 import { useLiveSystemPipFlag } from "../lib/live-system-pip";
 import { liveViewerChromeHiddenForPip } from "../lib/live-pip-presentation";
-import { useLayout } from "../lib/layout";
+import { liveSafeBottom, useLayout } from "../lib/layout";
 import {
   shouldFlashOutbid,
   viewerAuctionMood,
@@ -502,6 +502,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
 
   const viewersShown = liveId ? Math.max(room.viewers, s.viewers) : s.viewers;
   const ended = room.liveStatus === "ended";
+  const chromeBottom = liveSafeBottom(insets.bottom);
+  const chromeIcon = layout.iconSm;
 
   return (
     <View style={styles.root}>
@@ -575,40 +577,53 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       <GiftAnimationOverlay trigger={room.lastGift} />
       <FloatingHearts pulse={room.heartPulse ?? 0} />
 
-      <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        <Glass tone="dark" intensity={42} radius={999}>
-          <View style={styles.seller}>
-            <Image
-              source={{ uri: s.avatar }}
-              style={[styles.av, layout.narrow && { width: 32, height: 32, borderRadius: 16 }]}
-            />
-            <View style={{ maxWidth: layout.narrow ? 140 : 180 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={[styles.name, { fontSize: layout.s(14) }]} numberOfLines={1}>
-                  {s.seller}
-                </Text>
-                {s.isVerified ? <VerifiedBadge size={13} /> : null}
-                <ReferredBadge referred={s.isReferred} size={12} />
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <View style={[styles.live, ended && { backgroundColor: "rgba(255,255,255,0.25)" }]}>
-                  {!ended ? <View style={styles.dot} /> : null}
-                  <Text style={styles.liveText}>{ended ? t("live.ended") : "LIVE"}</Text>
-                </View>
-                <Text style={styles.viewers}>{formatViewers(viewersShown)}</Text>
-              </View>
-            </View>
+      <View style={[styles.top, { paddingTop: insets.top + 6 }]}>
+        <View style={styles.sellerCol}>
+          <Image source={{ uri: s.avatar }} style={styles.av} />
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {s.seller}
+            </Text>
+            {s.isVerified ? <VerifiedBadge size={11} /> : null}
+            <ReferredBadge referred={s.isReferred} size={10} />
           </View>
-        </Glass>
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <View style={styles.liveRow}>
+            <View style={[styles.live, ended && { backgroundColor: "rgba(255,255,255,0.25)" }]}>
+              {!ended ? <View style={styles.dot} /> : null}
+              <Text style={styles.liveText}>{ended ? t("live.ended") : "LIVE"}</Text>
+            </View>
+            <Text style={styles.viewers}>{formatViewers(viewersShown)}</Text>
+          </View>
+          {!follow.isSelf && s.sellerId && !s.fictitious ? (
+            <Press
+              onPress={() => {
+                if (!requireAccount()) return;
+                void follow.toggle();
+              }}
+              style={follow.following ? styles.followIcon : styles.followChip}
+              accessibilityLabel={follow.following ? t("follow.following") : t("follow.follow")}
+            >
+              {follow.following ? (
+                <Check size={12} color="#fff" strokeWidth={2.6} />
+              ) : (
+                <>
+                  <UserPlus size={11} color={NAVY} />
+                  <Text style={styles.followChipTxt}>{t("follow.follow")}</Text>
+                </>
+              )}
+            </Press>
+          ) : null}
+        </View>
+        <View style={styles.topRight}>
           {user ? (
             <Press
               onPress={() => openOverlay({ kind: "wallet" })}
-              style={{ minHeight: 0, minWidth: 0 }}
+              style={styles.walletHit}
+              accessibilityLabel={t("wallet.title")}
             >
               <Glass tone="dark" intensity={42} radius={999}>
                 <View style={styles.walletPill}>
-                  <Wallet size={13} color={GOLD} />
+                  <Wallet size={12} color={GOLD} />
                   <Text style={styles.walletTxt} numberOfLines={1}>
                     {formatMoney(user.walletBalance, walletCurrency, i18n.language)}
                   </Text>
@@ -616,34 +631,16 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
               </Glass>
             </Press>
           ) : null}
-          {!follow.isSelf && s.sellerId && !s.fictitious ? (
-            <Press
-              onPress={() => {
-                if (!requireAccount()) return;
-                void follow.toggle();
-              }}
-              style={{ minHeight: 0, minWidth: 0 }}
-            >
-              <Glass tone={follow.following ? "dark" : "gold"} intensity={42} radius={999}>
-                <View style={styles.followPill}>
-                  <UserPlus size={13} color={follow.following ? "#fff" : NAVY} />
-                  <Text style={[styles.followTxt, follow.following && { color: "#fff" }]}>
-                    {follow.following ? t("follow.following") : t("follow.follow")}
-                  </Text>
-                </View>
-              </Glass>
-            </Press>
-          ) : null}
-          <GlassIconButton size={layout.icon} tone="dark" onPress={openMore}>
-            <MoreVertical size={18} color="#fff" />
+          <GlassIconButton size={chromeIcon} tone="dark" onPress={openMore}>
+            <MoreVertical size={16} color="#fff" />
           </GlassIconButton>
           <GlassIconButton
-            size={layout.icon}
+            size={chromeIcon}
             tone="dark"
             accessibilityLabel={ended ? t("live.leave") : t("live.minimize")}
             onPress={ended ? closeLive : minimizeLive}
           >
-            <X size={20} color="#fff" />
+            <X size={16} color="#fff" />
           </GlassIconButton>
         </View>
       </View>
@@ -658,7 +655,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       ) : (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={[styles.bottom, { paddingBottom: insets.bottom + 12, gap: layout.compact ? 6 : 10 }]}
+          style={[styles.bottom, { bottom: chromeBottom, gap: layout.compact ? 6 : 10 }]}
           pointerEvents="box-none"
         >
           {room.chat.length > 0 ? (
@@ -718,42 +715,42 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             />
           ) : null}
 
-          <View style={[styles.chatRow, layout.narrow && { gap: 6 }]}>
+          <View style={[styles.chatRow, { gap: 6 }]}>
             <Glass tone="dark" intensity={40} radius={999} style={{ flex: 1 }}>
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
                 placeholder={t("live.chatPlaceholder")}
                 placeholderTextColor="rgba(255,255,255,0.6)"
-                style={[styles.input, { height: layout.icon, fontSize: layout.s(14) }]}
+                style={[styles.input, { height: chromeIcon, fontSize: layout.s(13) }]}
                 onSubmitEditing={() => void onSendChat()}
                 returnKeyType="send"
               />
             </Glass>
             <GlassIconButton
-              size={layout.icon}
+              size={chromeIcon}
               tone="dark"
               onPress={() => {
                 if (!requireAccount()) return;
                 room.sendHeart();
               }}
             >
-              <Heart size={18} color="#fff" />
+              <Heart size={16} color="#fff" />
             </GlassIconButton>
             {liveId || s.fictitious ? (
               <GlassIconButton
-                size={layout.icon}
+                size={chromeIcon}
                 tone="dark"
                 onPress={() => {
                   if (!requireAccount()) return;
                   setGiftsOpen(true);
                 }}
               >
-                <Gift size={18} color={GOLD} />
+                <Gift size={16} color={GOLD} />
               </GlassIconButton>
             ) : null}
-            <GlassIconButton size={layout.icon} tone="gold" onPress={() => void onSendChat()}>
-              <Send size={18} color="#fff" />
+            <GlassIconButton size={chromeIcon} tone="gold" onPress={() => void onSendChat()}>
+              <Send size={16} color="#fff" />
             </GlassIconButton>
           </View>
 
@@ -844,7 +841,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
         <Press style={styles.sheetBackdrop} onPress={() => setGiftsOpen(false)}>
           <View />
         </Press>
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.sheet, { paddingBottom: liveSafeBottom(insets.bottom, 16) }]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>{t("gifts.title")}</Text>
             <Press onPress={() => setGiftsOpen(false)} style={styles.sheetClose}>
@@ -908,31 +905,60 @@ const styles = StyleSheet.create({
   videoWait: { alignItems: "center", justifyContent: "center", backgroundColor: "#111" },
   top: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     zIndex: 50,
+    gap: 8,
   },
-  seller: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6 },
-  av: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: GOLD },
-  name: { color: "#fff", fontWeight: "800" },
+  sellerCol: {
+    width: 86,
+    alignItems: "center",
+    gap: 3,
+  },
+  av: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: GOLD },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 2, maxWidth: 86 },
+  name: { color: "#fff", fontWeight: "800", fontSize: 11, flexShrink: 1, textShadowColor: "rgba(0,0,0,0.7)", textShadowRadius: 3 },
+  liveRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   live: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
     backgroundColor: LIVE_RED,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
   },
-  liveText: { color: "#fff", fontSize: 10, fontWeight: "800" },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
-  viewers: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "700" },
-  walletPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
-  walletTxt: { color: "#fff", fontSize: 11, fontWeight: "800", maxWidth: 88 },
-  followPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8 },
-  followTxt: { color: NAVY, fontSize: 11, fontWeight: "800" },
-  bottom: { position: "absolute", left: 12, right: 12, bottom: 0, gap: 10, zIndex: 40 },
+  liveText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#fff" },
+  viewers: { color: "rgba(255,255,255,0.85)", fontSize: 10, fontWeight: "700" },
+  followChip: {
+    minHeight: 0,
+    minWidth: 0,
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: GOLD,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  followChipTxt: { color: NAVY, fontSize: 10, fontWeight: "800" },
+  followIcon: {
+    minHeight: 0,
+    minWidth: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  topRight: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
+  walletHit: { minHeight: 0, minWidth: 0 },
+  walletPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 6 },
+  walletTxt: { color: "#fff", fontSize: 10, fontWeight: "800", maxWidth: 68 },
+  bottom: { position: "absolute", left: 10, right: 10, bottom: 0, gap: 10, zIndex: 40 },
   chatList: { gap: 4, marginBottom: 4 },
   chatBubble: {
     alignSelf: "flex-start",

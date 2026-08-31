@@ -67,3 +67,5 @@ export function useLayout() {
     featuredWidth: compact || narrow ? s(92, width) : 108,
   };
 }
+
+export { liveSafeBottom } from "./live-safe-bottom";
