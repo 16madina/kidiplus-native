@@ -17,6 +17,7 @@ export type LiveEffectsNativeConfig = {
 
 export type KidiLiveEffectsNativeModule = {
   warmup(): Promise<{ supported: boolean }>;
+  preloadBackground?(url: string): Promise<{ ready: boolean }>;
   start(config: LiveEffectsNativeConfig): Promise<{ started: boolean }>;
   attachPublished?(config: LiveEffectsNativeConfig): Promise<{ attached: boolean }>;
   detachPublished?(): Promise<{ detached: boolean }>;

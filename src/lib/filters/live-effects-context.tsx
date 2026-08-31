@@ -19,6 +19,7 @@ import {
 } from "./live-effects-compositor";
 import {
   isNativeLiveEffectsSupported,
+  preloadNativeBackground,
   subscribeNativeLiveEffectsUnavailable,
 } from "./live-effects-native-bridge";
 
@@ -80,6 +81,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
     if (!picked) return;
     setBackgroundUrl(picked.preview);
     setBackgroundMode("image");
+    void preloadNativeBackground(picked.preview);
   }, [ensureNativeReady]);
 
   const setBackgroundBlur = useCallback(

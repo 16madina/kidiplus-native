@@ -47,6 +47,9 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var slowFrames = 0
   private var fastFrames = 0
   private var disabled = false
+  private var pixelPool: CVPixelBufferPool?
+  private var poolWidth = 0
+  private var poolHeight = 0
   var onUnavailable: (() -> Void)?
   var onFirstFrame: (() -> Void)?
   private var didEmitFirstFrame = false
@@ -121,6 +124,12 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     slowFrames = 0
     fastFrames = 0
     lastTs = 0
+    // Live already owns Camera Kit — never open a 2nd capture session.
+    if composeIntoPublish {
+      running = true
+      DispatchQueue.main.async { completion(true) }
+      return
+    }
     composeIntoPublish = false
     queue.async {
       self.configureSession()
@@ -129,6 +138,28 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       }
       self.running = true
       DispatchQueue.main.async { completion(true) }
+    }
+  }
+
+  func preloadBackground(url: String?, completion: @escaping (Bool) -> Void) {
+    guard let url, !url.isEmpty else {
+      completion(false)
+      return
+    }
+    if url == backgroundUrl, backgroundImage != nil {
+      completion(true)
+      return
+    }
+    backgroundUrl = url
+    let captured = url
+    DispatchQueue.global(qos: .userInitiated).async {
+      let img = Self.loadCIImage(captured)
+      self.queue.async {
+        if self.backgroundUrl == captured {
+          self.backgroundImage = img
+        }
+        DispatchQueue.main.async { completion(img != nil) }
+      }
     }
   }
 
@@ -305,46 +336,70 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   /// Camera Kit already applied the Snap filter. We only replace the background.
   /// Poster stays a viewer overlay — never baked into the published track.
   func composePublished(_ sample: CMSampleBuffer) -> CMSampleBuffer? {
-    guard composeIntoPublish else { return nil }
-    guard backgroundMode != "none" else { return nil }
+    guard composeIntoPublish, !disabled, backgroundMode != "none" else { return nil }
+    if backgroundMode == "image", backgroundImage == nil { return nil }
     guard let pb = CMSampleBufferGetImageBuffer(sample) else { return nil }
-    var ci = CIImage(cvPixelBuffer: pb)
+    let nativeW = CVPixelBufferGetWidth(pb)
+    let nativeH = CVPixelBufferGetHeight(pb)
+    guard nativeW > 2, nativeH > 2 else { return nil }
+    let camera = CIImage(cvPixelBuffer: pb)
     trackFps()
     if disabled { return nil }
-    let maxW = ladder[min(ladderIndex, ladder.count - 1)]
-    let scale = min(1, maxW / ci.extent.width)
-    if scale < 0.999 {
-      ci = ci.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-    }
-    let composed = compose(ci, includePoster: false, applyMirror: false)
-    return Self.sampleBuffer(from: composed, prototype: sample, context: ciContext)
+    guard let mask = personMask(for: camera) else { return nil }
+    let composed = applyBackground(camera, mask: mask)
+    present(composed)
+    return makeOutgoingSample(from: composed, width: nativeW, height: nativeH, prototype: sample)
   }
 
-  private static func sampleBuffer(
-    from image: CIImage,
-    prototype: CMSampleBuffer,
-    context: CIContext
-  ) -> CMSampleBuffer? {
-    let rect = image.extent.integral
-    let width = Int(rect.width)
-    let height = Int(rect.height)
-    guard width > 2, height > 2 else { return nil }
-    var pixelBuffer: CVPixelBuffer?
-    let attrs: [String: Any] = [
+  private func ensurePool(width: Int, height: Int) -> CVPixelBufferPool? {
+    if let pixelPool, poolWidth == width, poolHeight == height {
+      return pixelPool
+    }
+    pixelPool = nil
+    poolWidth = width
+    poolHeight = height
+    let pbAttrs: [String: Any] = [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+      kCVPixelBufferWidthKey as String: width,
+      kCVPixelBufferHeightKey as String: height,
+      kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any],
       kCVPixelBufferCGImageCompatibilityKey as String: true,
       kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
-      kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any],
     ]
-    let status = CVPixelBufferCreate(
+    let poolAttrs: [String: Any] = [
+      kCVPixelBufferPoolMinimumBufferCountKey as String: 3,
+    ]
+    var pool: CVPixelBufferPool?
+    let status = CVPixelBufferPoolCreate(
       kCFAllocatorDefault,
-      width,
-      height,
-      kCVPixelFormatType_32BGRA,
-      attrs as CFDictionary,
-      &pixelBuffer
+      poolAttrs as CFDictionary,
+      pbAttrs as CFDictionary,
+      &pool
     )
-    guard status == kCVReturnSuccess, let pixelBuffer else { return nil }
-    context.render(image, to: pixelBuffer, bounds: rect, colorSpace: CGColorSpaceCreateDeviceRGB())
+    guard status == kCVReturnSuccess else { return nil }
+    pixelPool = pool
+    return pool
+  }
+
+  private func makeOutgoingSample(
+    from image: CIImage,
+    width: Int,
+    height: Int,
+    prototype: CMSampleBuffer
+  ) -> CMSampleBuffer? {
+    guard let pool = ensurePool(width: width, height: height) else { return nil }
+    var pixelBuffer: CVPixelBuffer?
+    let rent = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pixelBuffer)
+    guard rent == kCVReturnSuccess, let pixelBuffer else { return nil }
+
+    let size = CGSize(width: width, height: height)
+    let normalized = Self.originZero(image, size: size)
+    ciContext.render(
+      normalized,
+      to: pixelBuffer,
+      bounds: CGRect(origin: .zero, size: size),
+      colorSpace: CGColorSpaceCreateDeviceRGB()
+    )
 
     var format: CMVideoFormatDescription?
     let fmtStatus = CMVideoFormatDescriptionCreateForImageBuffer(
@@ -387,26 +442,17 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     return outgoing
   }
 
+  private static func originZero(_ image: CIImage, size: CGSize) -> CIImage {
+    image
+      .transformed(by: CGAffineTransform(translationX: -image.extent.origin.x, y: -image.extent.origin.y))
+      .cropped(to: CGRect(origin: .zero, size: size))
+  }
+
   private func compose(_ camera: CIImage, includePoster: Bool, applyMirror: Bool) -> CIImage {
     let extent = camera.extent
-    let wantBg = backgroundMode != "none" && !disabled
-    var out: CIImage
-    if wantBg, let mask = personMask(for: camera) {
-      let bg: CIImage
-      if backgroundMode == "image", let img = backgroundImage {
-        bg = Self.cover(img, in: extent)
-      } else {
-        let blurred = blur(camera, radius: max(6, extent.width * 0.02)).cropped(to: extent)
-        let dim = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0.12)).cropped(to: extent)
-        bg = dim.composited(over: blurred)
-      }
-      let person = camera.applyingFilter("CIBlendWithMask", parameters: [
-        kCIInputBackgroundImageKey: CIImage.empty().cropped(to: extent),
-        kCIInputMaskImageKey: mask,
-      ])
-      out = person.composited(over: bg)
-    } else {
-      out = camera
+    var out = camera
+    if backgroundMode != "none", !disabled, let mask = personMask(for: camera) {
+      out = applyBackground(camera, mask: mask)
     }
     if applyMirror {
       out = out.transformed(by: CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -extent.width, y: 0))
@@ -418,8 +464,33 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     return out.cropped(to: extent)
   }
 
+  private func applyBackground(_ camera: CIImage, mask: CIImage) -> CIImage {
+    let extent = camera.extent
+    let bg: CIImage
+    if backgroundMode == "image", let img = backgroundImage {
+      bg = Self.cover(img, in: extent)
+    } else {
+      let blurred = blur(camera, radius: max(6, extent.width * 0.02)).cropped(to: extent)
+      let dim = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0.12)).cropped(to: extent)
+      bg = dim.composited(over: blurred)
+    }
+    let person = camera.applyingFilter("CIBlendWithMask", parameters: [
+      kCIInputBackgroundImageKey: CIImage.empty().cropped(to: extent),
+      kCIInputMaskImageKey: mask,
+    ])
+    return person.composited(over: bg).cropped(to: extent)
+  }
+
+  /// Ladder downscales only the Vision input. Output mask matches the full frame.
   private func personMask(for image: CIImage) -> CIImage? {
-    let handler = VNImageRequestHandler(ciImage: image, options: [:])
+    let target = image.extent
+    let maxW = ladder[min(ladderIndex, ladder.count - 1)]
+    var work = image
+    let scale = min(1, maxW / max(1, image.extent.width))
+    if scale < 0.999 {
+      work = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+    let handler = VNImageRequestHandler(ciImage: work, options: [:])
     let req = VNGeneratePersonSegmentationRequest()
     req.qualityLevel = .balanced
     req.outputPixelFormat = kCVPixelFormatType_OneComponent8
@@ -477,9 +548,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     var mask = CIImage(cgImage: cg)
     let radius = max(1, CGFloat(w) * 0.008)
     mask = mask.applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
-    let scaleX = image.extent.width / CGFloat(w)
-    let scaleY = image.extent.height / CGFloat(h)
-    return mask.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+    let scaleX = target.width / CGFloat(w)
+    let scaleY = target.height / CGFloat(h)
+    return mask.transformed(
+      by: CGAffineTransform(scaleX: scaleX, y: scaleY).translatedBy(x: target.minX, y: target.minY)
+    )
   }
 
   private func blur(_ image: CIImage, radius: CGFloat) -> CIImage {

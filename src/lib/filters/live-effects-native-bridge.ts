@@ -38,6 +38,15 @@ export async function warmupNativeLiveEffects(): Promise<boolean> {
   }
 }
 
+export async function preloadNativeBackground(url: string | null): Promise<void> {
+  if (!url || !KidiLiveEffects?.preloadBackground) return;
+  try {
+    await KidiLiveEffects.preloadBackground(url);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function startNativeLiveEffects(cfg: NativeEffectsConfig): Promise<void> {
   if (!KidiLiveEffects) throw new Error("kidi-live-effects module absent — rebuild natif requis");
   await KidiLiveEffects.start(cfg);

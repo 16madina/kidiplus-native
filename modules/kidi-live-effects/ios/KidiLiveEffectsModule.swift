@@ -60,6 +60,12 @@ public class KidiLiveEffectsModule: Module {
       }
     }
 
+    AsyncFunction("preloadBackground") { (url: String, promise: Promise) in
+      self.session.preloadBackground(url: url) { ok in
+        promise.resolve(["ready": ok])
+      }
+    }
+
     AsyncFunction("start") { (config: LiveEffectsNativeConfig, promise: Promise) in
       self.session.start(config: config.asDictionary()) { started in
         promise.resolve(["started": started])

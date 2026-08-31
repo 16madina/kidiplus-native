@@ -16,6 +16,7 @@ import { LocalAudioTrack, LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
 import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
+import { HostComposedPreview } from "../components/broadcast/HostComposedPreview";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
 import { HostPublishedPipeline } from "../components/broadcast/HostPublishedPipeline";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
@@ -492,7 +493,10 @@ function HostKitStage({
       facing={facing}
       hostVideo={
         camOn ? (
-          <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+          <View style={FILL}>
+            <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+            <HostComposedPreview />
+          </View>
         ) : (
           <View style={[FILL, styles.center]}>
             <Text style={styles.wait}>Caméra coupée</Text>
