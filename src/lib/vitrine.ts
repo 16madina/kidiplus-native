@@ -372,7 +372,11 @@ export async function uploadVitrineMedia(picked: PickedImage): Promise<string | 
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const path = `${uid}/${rand}.${picked.ext || "jpg"}`;
-  const { error } = await supabase.storage.from("vitrine-media").upload(path, picked.blob, {
+  const body =
+    picked.contentType.startsWith("video/") && picked.blob.size === 0
+      ? await fetch(picked.preview).then((r) => r.blob())
+      : picked.blob;
+  const { error } = await supabase.storage.from("vitrine-media").upload(path, body, {
     cacheControl: "3600",
     upsert: false,
     contentType: picked.contentType || undefined,
