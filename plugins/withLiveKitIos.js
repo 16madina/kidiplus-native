@@ -31,12 +31,17 @@ function withLiveKitIos(config) {
         `post_install do |installer|
     ${MARKER}
     installer.pods_project.targets.each do |target|
-      next unless ['livekit-react-native', 'livekit-react-native-webrtc', 'LiveKitExpoPlugin', 'KidiCameraKit', 'LiveKitClient'].include?(target.name)
+      next unless ['livekit-react-native', 'livekit-react-native-webrtc', 'LiveKitExpoPlugin', 'KidiCameraKit', 'KidiLivePip', 'LiveKitClient'].include?(target.name)
       target.build_configurations.each do |bc|
         bc.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
         bc.build_settings['DEFINES_MODULE'] = 'YES'
       end
     end`,
+      );
+    } else if (!contents.includes("'KidiLivePip'")) {
+      contents = contents.replace(
+        "'KidiCameraKit', 'LiveKitClient'",
+        "'KidiCameraKit', 'KidiLivePip', 'LiveKitClient'",
       );
     }
 
@@ -45,4 +50,4 @@ function withLiveKitIos(config) {
   });
 }
 
-module.exports = createRunOncePlugin(withLiveKitIos, "withLiveKitIos", "1.2.0");
+module.exports = createRunOncePlugin(withLiveKitIos, "withLiveKitIos", "1.3.0");

@@ -1,6 +1,6 @@
 import { bootLiveKit } from "../../lib/livekit-boot";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
   LiveKitRoom,
@@ -18,7 +18,7 @@ import {
   stopViewerPlaybackAudioSession,
 } from "../../lib/live-audio-session";
 import { fetchLiveKitSession } from "../../lib/livekit";
-import { VIEWER_PUBLISH_MIC, hostIosPipConfig } from "../../lib/live-viewer-media";
+import { VIEWER_PUBLISH_MIC } from "../../lib/live-viewer-media";
 import {
   EMPTY_LIVE_FX,
   LIVE_FX_TOPIC,
@@ -26,7 +26,6 @@ import {
   pickLiveFxForOverlay,
   type LiveFxPayload,
 } from "../../lib/live-fx";
-import { useLiveSystemPipFlag } from "../../lib/live-system-pip";
 import { LiveFxOverlay } from "./LiveFxOverlay";
 import { GOLD } from "../../theme";
 
@@ -195,7 +194,6 @@ function RemoteCamera({
 }) {
   const { t } = useTranslation();
   const room = useRoomContext();
-  const systemPip = useLiveSystemPipFlag();
   const tracks = useTracks([Track.Source.Camera]);
   const [fx, setFx] = useState<LiveFxPayload>(EMPTY_LIVE_FX);
   const host = tracks.find(
@@ -251,7 +249,6 @@ function RemoteCamera({
           style={FILL}
           objectFit="cover"
           zOrder={0}
-          iosPIP={Platform.OS === "ios" ? hostIosPipConfig(systemPip) : undefined}
         />
         <LiveFxOverlay fx={pickLiveFxForOverlay(overlayFx, fx)} />
       </View>

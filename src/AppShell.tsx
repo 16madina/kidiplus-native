@@ -94,7 +94,7 @@ export function AppShell() {
     expandLive,
     closeLive,
   } = useNav();
-  const { authOverlay, closeAuth } = useAuth();
+  const { authOverlay, closeAuth, user } = useAuth();
   const { dark, colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const tabletColumn = width >= 768 ? { maxWidth: CONTENT_MAX_WIDTH, width: "100%" as const, alignSelf: "center" as const } : null;
@@ -115,7 +115,17 @@ export function AppShell() {
   const liveHasVideo =
     Boolean(live.open && watchingStream?.roomName && !watchingStream.fictitious) &&
     !isExpoGo();
-  const pip = useViewerSystemPip(liveHasVideo, closeLive);
+  const pip = useViewerSystemPip(
+    liveHasVideo,
+    liveHasVideo && watchingStream?.roomName
+      ? {
+          roomName: watchingStream.roomName,
+          userId: user?.id ?? null,
+          displayName: user?.displayName?.trim() || "Invité",
+        }
+      : null,
+    closeLive,
+  );
   const systemPip = pip.systemPip;
   const hideTabs =
     tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live");

@@ -10,9 +10,7 @@ export function makeRoomName(sellerId: string): string {
   return `live_${clean}_${Date.now().toString(36)}`;
 }
 
-export function guestLiveKitIdentity(): string {
-  return `guest_${Math.random().toString(36).slice(2, 10)}`;
-}
+export { guestLiveKitIdentity, livePipViewerIdentity } from "./livekit-identity";
 
 export function normalizeLiveKitUrl(url: string): string {
   if (url.startsWith("https://")) return `wss://${url.slice("https://".length)}`;

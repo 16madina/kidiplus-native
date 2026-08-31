@@ -3,6 +3,19 @@ package com.kidiplus.livepip
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
+
+class LivePipEnableOptions : Record {
+  @Field
+  var enabled: Boolean = false
+
+  @Field
+  var url: String? = null
+
+  @Field
+  var token: String? = null
+}
 
 class KidiLivePipModule : Module() {
   private val modeListener: (Boolean) -> Unit = { active ->
@@ -29,9 +42,9 @@ class KidiLivePipModule : Module() {
       KidiLivePipState.enabled = false
     }
 
-    Function("setEnabled") { enabled: Boolean ->
-      KidiLivePipState.enabled = enabled
-      enabled
+    Function("setEnabled") { options: LivePipEnableOptions ->
+      KidiLivePipState.enabled = options.enabled
+      options.enabled
     }
 
     Function("isSupported") {

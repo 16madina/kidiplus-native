@@ -1,7 +1,7 @@
 {
   "name": "kidi-live-pip",
   "version": "1.0.0",
-  "description": "Android system Picture-in-Picture for KiDi+ live viewing",
+  "description": "System Picture-in-Picture for KiDi+ live viewing (Android Activity PiP + iOS native LiveKit)",
   "license": "UNLICENSED",
   "main": "src/index.ts",
   "types": "src/index.ts",
