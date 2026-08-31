@@ -98,7 +98,7 @@ export function LivePipShell({
         height,
         borderRadius: 0,
         zIndex: 200,
-        overflow: "hidden" as const,
+        overflow: "visible" as const,
         transform: [{ translateX: 0 }, { translateY: 0 }],
       };
     }
@@ -111,9 +111,11 @@ export function LivePipShell({
         bottom: undefined,
         width: LIVE_PIP_MINI.width,
         height: LIVE_PIP_MINI.height,
+        // Radius for the black chrome / shadow only — never overflow:hidden
+        // here: that + transform blacks the LiveKit RTCView on iOS.
         borderRadius: 18,
         zIndex: 55,
-        overflow: "hidden" as const,
+        overflow: "visible" as const,
         transform: [{ translateX: tx.value }, { translateY: ty.value }],
       };
     }
@@ -127,7 +129,7 @@ export function LivePipShell({
       height,
       borderRadius: 0,
       zIndex: 80,
-      overflow: "hidden" as const,
+      overflow: "visible" as const,
       transform: [{ translateX: 0 }, { translateY: 0 }],
     };
   });
@@ -137,10 +139,12 @@ export function LivePipShell({
       style={[styles.shell, box, floatingMini && styles.miniShadow]}
       pointerEvents="box-none"
     >
-      <View style={styles.fill}>{children}</View>
+      <View style={styles.videoHost} collapsable={false}>
+        {children}
+      </View>
 
       {floatingMini ? (
-        <View style={StyleSheet.absoluteFill} {...drag.panHandlers}>
+        <View style={styles.miniClip} {...drag.panHandlers}>
           <Press
             haptic="none"
             accessibilityLabel={t("live.expand")}
@@ -178,7 +182,26 @@ const styles = StyleSheet.create({
   shell: {
     backgroundColor: "#000",
   },
-  fill: { flex: 1 },
+  /** Video lives here: no overflow clip, no radius — RTCView stays valid. */
+  videoHost: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: "visible",
+    borderRadius: 0,
+  },
+  /** Chrome only (badge / close). Clip is never an ancestor of the video. */
+  miniClip: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
   miniShadow: {
     ...Platform.select({
       web: { boxShadow: "0 12px 40px rgba(0,0,0,0.45)" },

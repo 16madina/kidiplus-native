@@ -193,8 +193,18 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             return self.stopPip()
         }
         eligible = false
+        backgroundAudioArmed = false
         await teardown()
         return wasPip
+    }
+
+    /// True only while the app is resigning / in background / system PiP.
+    /// Foreground: RN LiveKit owns audio. Native must not subscribe or activate
+    /// AVAudioSession or the two rooms fight in-process (silent RN viewer).
+    private var backgroundAudioArmed = false
+
+    private var isAppInForeground: Bool {
+        UIApplication.shared.applicationState == .active && !backgroundAudioArmed
     }
 
     private func activatePipAudioSession(reason: String) {
@@ -213,8 +223,48 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Force-subscribe remote audio + video. Stale / racing unsubscribes are the
-    /// usual cause of "video without sound" or "sound without video" in system PiP.
+    private func setRemoteAudioSubscribed(_ on: Bool, reason: String) {
+        print("[KiDi+] setRemoteAudioSubscribed=\(on) (\(reason)) remotes=\(room.remoteParticipants.count)")
+        for participant in room.remoteParticipants.values {
+            for publication in participant.trackPublications.values {
+                guard publication.kind == .audio,
+                      let remote = publication as? RemoteTrackPublication else { continue }
+                Task {
+                    do {
+                        try await remote.set(subscribed: on)
+                        print("[KiDi+] LivePipSession audio subscribed=\(on) (\(reason))")
+                    } catch {
+                        print("[KiDi+] LivePipSession audio subscribe=\(on) failed (\(reason)): \(error)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Video-only — safe in the foreground (does not steal the RN audio session).
+    private func ensureRemoteVideoSubscribed(reason: String) {
+        print("[KiDi+] ensureRemoteVideoSubscribed (\(reason)) remotes=\(room.remoteParticipants.count)")
+        for participant in room.remoteParticipants.values {
+            for publication in participant.trackPublications.values {
+                guard publication.kind != .audio,
+                      let remote = publication as? RemoteTrackPublication else { continue }
+                Task {
+                    do {
+                        try await remote.set(subscribed: true)
+                        if let track = publication.track as? VideoTrack {
+                            await MainActor.run {
+                                self.setHostTrack(track)
+                            }
+                        }
+                    } catch {
+                        print("[KiDi+] LivePipSession video subscribe failed (\(reason)): \(error)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Force-subscribe remote audio + video. Only call from background / PiP.
     private func ensureAllRemoteMediaSubscribed(reason: String) {
         print("[KiDi+] ensureAllRemoteMediaSubscribed (\(reason)) remotes=\(room.remoteParticipants.count)")
         for participant in room.remoteParticipants.values {
@@ -250,6 +300,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     }
 
     private func prepareForBackgroundPip(reason: String) {
+        backgroundAudioArmed = true
         activatePipAudioSession(reason: reason)
         reconnectIfNeeded(reason: reason)
         ensureAllRemoteMediaSubscribed(reason: reason)
@@ -267,19 +318,19 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         if connected {
             await teardownRoomOnly()
         }
-        // Ensure LiveKit can play remote host audio in the background PiP bubble.
-        // Without this, video PiP can appear while playout stays silent.
-        await MainActor.run {
-            self.activatePipAudioSession(reason: "pre-connect")
-        }
+        // Foreground: do NOT activate AVAudioSession — the RN viewer owns it.
+        // Audio is armed later in prepareForBackgroundPip.
         room.add(delegate: self)
         do {
-            try await room.connect(url: url, token: token)
+            try await room.connect(
+                url: url,
+                token: token,
+                connectOptions: ConnectOptions(autoSubscribe: false)
+            )
             connected = true
             print("[KiDi+] LivePipSession connected, remotes=\(room.remoteParticipants.count)")
             await MainActor.run {
                 self.bindExistingRemoteTracks()
-                self.ensureAllRemoteMediaSubscribed(reason: "post-connect")
             }
         } catch {
             print("[KiDi+] LivePipSession connect failed: \(error)")
@@ -310,25 +361,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     }
 
     private func bindExistingRemoteTracks() {
-        for participant in room.remoteParticipants.values {
-            for publication in participant.trackPublications.values {
-                // Keep audio + video subscribed so host A/V both keep playing in system PiP.
-                if let remote = publication as? RemoteTrackPublication {
-                    Task {
-                        do {
-                            try await remote.set(subscribed: true)
-                            if publication.kind == .audio {
-                                print("[KiDi+] LivePipSession audio track subscribed")
-                            }
-                        } catch {
-                            print("[KiDi+] LivePipSession subscribe failed: \(error)")
-                        }
-                    }
-                }
-                if let track = publication.track as? VideoTrack {
-                    setHostTrack(track)
-                }
-            }
+        ensureRemoteVideoSubscribed(reason: "bind-existing")
+        if !isAppInForeground {
+            setRemoteAudioSubscribed(true, reason: "bind-existing-background")
         }
     }
 
@@ -462,6 +497,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             ) { [weak self] _ in
                 guard let self else { return }
                 self.cancelPipRetries()
+                self.backgroundAudioArmed = false
+                // Hand audio back to the RN room — stay subscribed to video only.
+                self.setRemoteAudioSubscribed(false, reason: "didBecomeActive")
                 // Stop system PiP first, THEN hide the native source — hiding
                 // while still active produced a black flash / stuck surface.
                 if self.isInPip {
@@ -497,8 +535,40 @@ extension LivePipSession: RoomDelegate {
         }
     }
 
+    func room(_ room: Room, participant: RemoteParticipant, didPublishTrack publication: RemoteTrackPublication) {
+        if publication.kind == .audio {
+            if self.isAppInForeground { return }
+            Task {
+                do {
+                    try await publication.set(subscribed: true)
+                } catch {
+                    print("[KiDi+] LivePipSession audio publish-subscribe failed: \(error)")
+                }
+            }
+            return
+        }
+        Task {
+            do {
+                try await publication.set(subscribed: true)
+            } catch {
+                print("[KiDi+] LivePipSession video publish-subscribe failed: \(error)")
+            }
+        }
+    }
+
     func room(_ room: Room, participant: RemoteParticipant, didSubscribeTrack publication: RemoteTrackPublication) {
         if publication.kind == .audio {
+            if self.isAppInForeground {
+                Task {
+                    do {
+                        try await publication.set(subscribed: false)
+                        print("[KiDi+] LivePipSession audio dropped in foreground")
+                    } catch {
+                        print("[KiDi+] LivePipSession audio drop failed: \(error)")
+                    }
+                }
+                return
+            }
             print("[KiDi+] LivePipSession remote audio subscribed")
             Task { @MainActor in
                 self.activatePipAudioSession(reason: "audio-subscribed")

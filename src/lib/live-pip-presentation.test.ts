@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   LIVE_PIP_MINI,
   livePipMode,
@@ -66,6 +67,16 @@ function run() {
   assert.equal(viewerKeepsFullVideoQuality(false, true), true);
   assert.equal(viewerAdaptiveStreamEnabled(true), false);
   assert.equal(viewerAdaptiveStreamEnabled(false), true);
+
+  const shell = readFileSync(new URL("../components/live/LivePipShell.tsx", import.meta.url), "utf8");
+  assert.match(shell, /videoHost/);
+  assert.match(shell, /miniClip/);
+  assert.match(shell, /overflow: "visible"/);
+  assert.doesNotMatch(
+    shell,
+    /borderRadius: 18,\s*\n\s*zIndex: 55,\s*\n\s*overflow: "hidden"/,
+    "mini transform host must not clip the video",
+  );
 }
 
 run();

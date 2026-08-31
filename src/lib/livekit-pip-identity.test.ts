@@ -28,6 +28,10 @@ function run() {
   assert.match(session, /AVPictureInPictureController/);
   assert.match(session, /func setEligible/);
   assert.match(session, /willResignActiveNotification/);
+  assert.match(session, /backgroundAudioArmed/);
+  assert.match(session, /setRemoteAudioSubscribed\(false, reason: "didBecomeActive"\)/);
+  assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
+  assert.match(session, /ensureRemoteVideoSubscribed/);
 
   const expoMod = readFileSync(new URL("../../modules/kidi-live-pip/ios/KidiLivePipModule.swift", import.meta.url), "utf8");
   assert.match(expoMod, /Name\("KidiLivePip"\)/);
