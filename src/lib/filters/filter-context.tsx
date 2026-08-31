@@ -16,6 +16,7 @@ import {
   isCameraKitSupported,
   loadBridgeLenses,
 } from "./camera-kit-bridge";
+import { composeCarouselLenses } from "./lenses-carousel";
 import { NONE_LENS, STYLE_LENSES, type Lens } from "./lenses-catalog";
 
 type FilterContextValue = {
@@ -102,10 +103,9 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     void clearBridgeLens();
   }, []);
 
-  // Styles locaux (teintes) + lenses Snap. En live, Camera Kit publie la
-  // vidéo filtrée (comme kidiplus.com) dès que LiveKit Swift est lié.
+  // Vraies lenses Snap d'abord (comme kidiplus.com), styles locaux ensuite.
   const lenses = useMemo(
-    () => [NONE_LENS, ...STYLE_LENSES.filter((l) => l.lensId !== "none"), ...snapLenses],
+    () => composeCarouselLenses(NONE_LENS, snapLenses, STYLE_LENSES),
     [snapLenses],
   );
 

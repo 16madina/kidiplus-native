@@ -39,11 +39,13 @@ final class KidiCameraKitSession: NSObject {
     private var cameraPosition: AVCaptureDevice.Position = .front
 
     private var cachedLenses: [BridgeLens] = []
+    private var lensesByGroup: [String: [BridgeLens]] = [:]
     private var lensByKey: [String: Lens] = [:]
     private var pendingLoadCompletion: ((Result<[BridgeLens], Error>) -> Void)?
     private var pendingLoadGroups: Set<String> = []
     private var receivedLoadGroups: Set<String> = []
     private var loadTimeoutWork: DispatchWorkItem?
+    private var lensSettleWork: DispatchWorkItem?
 
     private let lensQueue = DispatchQueue(label: "com.kidiplus.camerakit.lenses")
 
@@ -151,12 +153,6 @@ final class KidiCameraKitSession: NSObject {
 
         DispatchQueue.main.async {
             self.groupIds = groupIds
-            let existing = self.collectLenses(from: session, groupIds: groupIds)
-            if !existing.isEmpty {
-                completion(.success(existing))
-                return
-            }
-
             self.pendingLoadCompletion?(.failure(KidiCameraKitError.message("Superseded by a newer loadLenses call")))
             self.pendingLoadCompletion = completion
             self.pendingLoadGroups = Set(groupIds)
@@ -166,15 +162,23 @@ final class KidiCameraKitSession: NSObject {
                 session.lenses.repository.addObserver(self, groupID: groupId)
             }
 
+            // Snap delivers the group in waves. The first repository snapshot is
+            // often 4–5 lenses short. Wait for observer updates to settle.
+            if groupIds.contains(where: { !(self.lensesByGroup[$0] ?? []).isEmpty }) {
+                self.schedulePendingLoadSettle()
+            }
+
             self.loadTimeoutWork?.cancel()
             let timeout = DispatchWorkItem { [weak self] in
                 guard let self, let pending = self.pendingLoadCompletion else { return }
                 self.pendingLoadCompletion = nil
-                let lenses = self.collectLenses(from: session, groupIds: groupIds)
+                self.lensSettleWork?.cancel()
+                let lenses = self.knownLenses(groupIds: groupIds, session: session)
+                print("[KidiCameraKit] loadLenses timeout count=\(lenses.count)")
                 pending(.success(lenses))
             }
             self.loadTimeoutWork = timeout
-            DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timeout)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: timeout)
         }
     }
 
@@ -854,16 +858,13 @@ extension KidiCameraKitSession: LensRepositoryGroupObserver {
         forGroupID groupID: String
     ) {
         DispatchQueue.main.async {
-            for lens in lenses {
-                self.lensByKey[self.lensKey(id: lens.id, groupId: lens.groupId)] = lens
-            }
+            self.storeObserverLenses(lenses, groupID: groupID)
             _ = self.cameraKit?.lenses.prefetcher.prefetch(lenses: lenses, completion: nil)
+            print("[KidiCameraKit] group \(groupID) observer lenses=\(lenses.count)")
 
             guard self.pendingLoadCompletion != nil else { return }
             self.receivedLoadGroups.insert(groupID)
-            if self.receivedLoadGroups.isSuperset(of: self.pendingLoadGroups) {
-                self.finishPendingLoad()
-            }
+            self.schedulePendingLoadSettle()
         }
     }
 
@@ -876,19 +877,72 @@ extension KidiCameraKitSession: LensRepositoryGroupObserver {
             print("[KidiCameraKit] lens group \(groupID) failed: \(error?.localizedDescription ?? "unknown")")
             guard self.pendingLoadCompletion != nil else { return }
             self.receivedLoadGroups.insert(groupID)
-            if self.receivedLoadGroups.isSuperset(of: self.pendingLoadGroups) {
-                self.finishPendingLoad()
-            }
+            self.schedulePendingLoadSettle()
         }
+    }
+
+    private func storeObserverLenses(_ lenses: [Lens], groupID: String) {
+        var mapped: [BridgeLens] = []
+        for lens in lenses {
+            lensByKey[lensKey(id: lens.id, groupId: lens.groupId)] = lens
+            mapped.append(
+                BridgeLens(
+                    id: lens.id,
+                    groupId: lens.groupId,
+                    name: lens.name ?? "Lens",
+                    iconUrl: lens.iconUrl?.absoluteString,
+                    previewUrl: nil
+                )
+            )
+        }
+        lensesByGroup[groupID] = mapped
+        cachedLenses = knownLenses(groupIds: groupIds, session: cameraKit)
+    }
+
+    private func schedulePendingLoadSettle() {
+        lensSettleWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.finishPendingLoad()
+        }
+        lensSettleWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 
     private func finishPendingLoad() {
         loadTimeoutWork?.cancel()
         loadTimeoutWork = nil
-        guard let completion = pendingLoadCompletion, let session = cameraKit else { return }
+        lensSettleWork?.cancel()
+        lensSettleWork = nil
+        guard let completion = pendingLoadCompletion else { return }
         pendingLoadCompletion = nil
-        let lenses = collectLenses(from: session, groupIds: Array(pendingLoadGroups))
+        let lenses = knownLenses(groupIds: Array(pendingLoadGroups), session: cameraKit)
+        print("[KidiCameraKit] loadLenses settled count=\(lenses.count)")
         completion(.success(lenses))
+    }
+
+    /// Prefer the observer catalog (full group). `repository.lenses(groupID:)`
+    /// often returns only the lenses already downloaded — 4–5 short.
+    private func knownLenses(groupIds: [String], session: CameraKitSession?) -> [BridgeLens] {
+        var result: [BridgeLens] = []
+        var seen = Set<String>()
+        for groupId in groupIds {
+            let batch: [BridgeLens]
+            if let observerList = lensesByGroup[groupId], !observerList.isEmpty {
+                batch = observerList
+            } else if let session {
+                batch = collectLenses(from: session, groupIds: [groupId])
+            } else {
+                batch = []
+            }
+            for lens in batch {
+                let key = "\(lens.groupId)|\(lens.id)"
+                if seen.insert(key).inserted {
+                    result.append(lens)
+                }
+            }
+        }
+        cachedLenses = result
+        return result
     }
 
     private func collectLenses(from session: CameraKitSession, groupIds: [String]) -> [BridgeLens] {
@@ -907,7 +961,6 @@ extension KidiCameraKitSession: LensRepositoryGroupObserver {
                 )
             }
         }
-        cachedLenses = result
         return result
     }
 

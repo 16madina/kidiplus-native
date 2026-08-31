@@ -96,20 +96,19 @@ export function FiltersCarousel({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        {lensesLoading && lenses.length <= 1 ? (
+        {lensesLoading ? (
           <View style={styles.loading}>
             <ActivityIndicator color={GOLD} />
           </View>
-        ) : (
-          lenses.map((lens) => (
+        ) : null}
+        {lenses.map((lens) => (
             <LensThumb
               key={`${lens.groupId}:${lens.lensId}`}
               lens={lens}
               active={activeLens.lensId === lens.lensId}
               onPress={() => setActiveLens(lens)}
             />
-          ))
-        )}
+        ))}
       </ScrollView>
     </View>
   );
