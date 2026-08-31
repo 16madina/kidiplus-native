@@ -1,7 +1,12 @@
 export const DEFI_PLUS_COUNT_FROM = 10;
 export const DEFI_PLUS_HIT_S = 10;
 export const DEFI_PLUS_NAME_HOLD_S = 3;
-export const DEFI_PLUS_DURATION_MS = 15_000;
+/** After VS + names have been held, they fade out over this many seconds. */
+export const DEFI_PLUS_NAME_FADE_S = 3;
+/** Intro overlay outlives the 15s match countdown so the names can fade slowly. */
+export const DEFI_PLUS_DURATION_MS = Math.round(
+  (DEFI_PLUS_HIT_S + 1.7 + DEFI_PLUS_NAME_HOLD_S + DEFI_PLUS_NAME_FADE_S + 0.3) * 1000,
+);
 
 export const PHASE = {
   enterEnd: 2.2,
@@ -23,8 +28,28 @@ export function easeOutCubic(u: number) {
   return 1 - (1 - u) ** 3;
 }
 
+export function easeInCubic(u: number) {
+  return u * u * u;
+}
+
+export function easeInOutCubic(u: number) {
+  return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+}
+
 export function lerp(a: number, b: number, u: number) {
   return a + (b - a) * u;
+}
+
+export function smootherstep(u: number) {
+  const x = clamp01(u);
+  return x * x * x * (x * (x * 6 - 15) + 10);
+}
+
+/** Ease in, then constant speed — never parks before the end. */
+export function cruise(u: number) {
+  const x = clamp01(u);
+  if (x < 0.12) return easeInCubic(x / 0.12) * 0.12;
+  return x;
 }
 
 export function heartbeat(t: number) {
