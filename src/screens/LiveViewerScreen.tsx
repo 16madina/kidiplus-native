@@ -90,7 +90,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
-  const { openOverlay, livePresentation, minimizeLive, closeLive } = useNav();
+  const { openOverlay, livePresentation, closeLive } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
@@ -758,8 +758,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           <GlassIconButton
             size={chromeIcon}
             tone="dark"
-            accessibilityLabel={ended ? t("live.leave") : t("live.minimize")}
-            onPress={ended ? closeLive : minimizeLive}
+            accessibilityLabel={t("live.leave")}
+            onPress={closeLive}
           >
             <X size={16} color="#fff" />
           </GlassIconButton>

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react-native";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Press } from "../Press";
-import { LIVE_PIP_MINI } from "../../lib/live-pip-presentation";
+import { LIVE_PIP_MINI, liveEdgeShouldCatch, liveEdgeShouldMinimize } from "../../lib/live-pip-presentation";
 import { LIVE_RED } from "../../theme";
 
 type Props = {
@@ -78,13 +78,9 @@ export function LivePipShell({
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, g) =>
-          !floatingMini &&
-          !systemPip &&
-          g.dx > 10 &&
-          Math.abs(g.dx) > Math.abs(g.dy) * 1.2 &&
-          Math.abs(g.dy) < 24,
+          !floatingMini && !systemPip && liveEdgeShouldCatch(g.dx, g.dy),
         onPanResponderRelease: (_, g) => {
-          if (g.dx > 64 || g.vx > 0.45) onMinimize();
+          if (liveEdgeShouldMinimize(g.dx, g.vx)) onMinimize();
         },
       }),
     [floatingMini, onMinimize, systemPip],
