@@ -24,6 +24,7 @@ import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { useNav } from "../context/navigation";
 import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
 import {
+  battleEnd,
   battleHeartbeat,
   fetchBattleForLive,
   isBattleGuestIdentity,
@@ -303,13 +304,23 @@ function useHostLiveExtras(liveId: string) {
     };
   }, [liveId]);
 
+  const endBattleIfRunning = useCallback(
+    async (sellerId: string) => {
+      if (!isBattleLiveActive(battle) || !battle?.session.id) return;
+      await battleEnd(battle.session.id, "disconnected", sellerId);
+    },
+    [battle],
+  );
+
   return {
+    battle,
     battleActive,
     myLive,
     opponentLive,
     startedAtMsRef,
     peakRef,
     onBattleAccepted,
+    endBattleIfRunning,
   };
 }
 
@@ -323,6 +334,7 @@ function HostChrome({
   hostFighter,
   guestFighter,
   guestStatus,
+  battle,
   battleActive,
   viewerFallback,
   micOn,
@@ -344,6 +356,7 @@ function HostChrome({
   hostFighter: { displayName: string; avatarUrl: string | null };
   guestFighter: { displayName: string; avatarUrl: string | null } | null;
   guestStatus?: string;
+  battle?: HydratedBattle | null;
   battleActive: boolean;
   viewerFallback: number;
   micOn: boolean;
@@ -383,6 +396,7 @@ function HostChrome({
         onMinimize={closeOverlay}
         onBattleAccepted={onBattleAccepted}
         cameraFacing={facing}
+        battle={battle}
       />
       {busy ? (
         <View style={[FILL, styles.ending]} pointerEvents="auto">
@@ -441,6 +455,7 @@ function HostKitStage({
     setBusy(true);
     const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
     const peakViewers = extras.peakRef.current;
+    await extras.endBattleIfRunning(identity);
 
     const ended = await endLiveInDb(liveId);
     if (!ended.ok) {
@@ -517,6 +532,7 @@ function HostKitStage({
             }
           : null
       }
+      battle={extras.battle}
       battleActive={extras.battleActive}
       viewerFallback={0}
       micOn={micOn}
@@ -696,6 +712,7 @@ function HostLiveKitStage({
     setBusy(true);
     const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
     const peakViewers = Math.max(extras.peakRef.current, Math.max(0, people.length - 1));
+    await extras.endBattleIfRunning(identity);
 
     const ended = await endLiveInDb(liveId);
     if (!ended.ok) {
@@ -806,6 +823,7 @@ function HostLiveKitStage({
           : null
       }
       guestStatus={remoteBattleStatus}
+      battle={extras.battle}
       battleActive={extras.battleActive}
       viewerFallback={Math.max(0, people.length - 1)}
       micOn={isMicrophoneEnabled}

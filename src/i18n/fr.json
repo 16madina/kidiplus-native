@@ -2381,12 +2381,20 @@
       "statusSold": "Vendu",
       "statusUnsold": "Invendu"
     },
+    "tools": {
+      "muteMic": "Couper le micro",
+      "unmuteMic": "Réactiver le micro",
+      "muteCam": "Couper la caméra",
+      "unmuteCam": "Activer la caméra",
+      "flip": "Retourner la caméra"
+    },
     "more": {
-      "title": "Plus",
+      "title": "Outils du live",
+      "close": "Fermer",
       "peek": "Afficher les commandes",
       "products": "Produits",
       "moderators": "Modération",
-      "settings": "Paramètres"
+      "settings": "Filtres"
     },
     "hud": {
       "banner": "DÉFI PLUS",

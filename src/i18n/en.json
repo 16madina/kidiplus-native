@@ -2380,12 +2380,20 @@
       "statusSold": "Sold",
       "statusUnsold": "Unsold"
     },
+    "tools": {
+      "muteMic": "Mute microphone",
+      "unmuteMic": "Unmute microphone",
+      "muteCam": "Turn camera off",
+      "unmuteCam": "Turn camera on",
+      "flip": "Flip camera"
+    },
     "more": {
-      "title": "More",
+      "title": "Live tools",
+      "close": "Close",
       "peek": "Show controls",
       "products": "Products",
       "moderators": "Moderation",
-      "settings": "Settings"
+      "settings": "Filters"
     },
     "hud": {
       "banner": "DÉFI PLUS",

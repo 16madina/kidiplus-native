@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Alert,
+  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -35,6 +37,12 @@ import { AddProductSheet } from "./AddProductSheet";
 import { ShopPickerSheet } from "./ShopPickerSheet";
 import { ModeratorsSheet } from "./ModeratorsSheet";
 import { BattleInviteSheet } from "./BattleInviteSheet";
+import { BattleScoreHud } from "../battle/BattleScoreHud";
+import { BattleFeaturedRow, BattlePeerProductSheet } from "../battle/BattleFeaturedRow";
+import { BattleHostBar } from "../battle/BattleHostBar";
+import { DefiPlusIntroOverlay } from "../battle/DefiPlusIntroOverlay";
+import { BattleResultOverlay } from "../battle/BattleResultOverlay";
+import { BattleSuddenDeathOverlay } from "../battle/BattleSuddenDeathOverlay";
 import { FiltersCarousel } from "./FiltersCarousel";
 import { PosterGestureLayer } from "./PosterGestureLayer";
 import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
@@ -54,11 +62,31 @@ import {
   type AuctionEndReveal,
   type LiveProductRow,
 } from "../../lib/live-host";
-import { battleAccept, battleDecline, usePendingBattleInvite } from "../../lib/battles";
+import {
+  battleAccept,
+  battleDecline,
+  battleEnd,
+  battleInvite,
+  isBattleFinished,
+  isBattleLiveActive,
+  usePendingBattleInvite,
+  type HydratedBattle,
+} from "../../lib/battles";
+import { battleDockMetrics, battleFighters, battleRemainingMs } from "../../lib/battle-timing";
+import { pickBattleFeatured } from "../../lib/battle-featured";
+import { useBattlePeerProducts } from "../../lib/use-battle-peer-products";
+import { isDefiPlusIntroActive, resolveDefiPlusIntroStart } from "../../lib/defi-plus";
 import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { useLayout } from "../../lib/layout";
+import {
+  HOST_PORTRAIT_CARD_WIDTH,
+  hostAuctionGutter,
+  hostAuctionTopExtra,
+  hostFeaturedRight,
+  hostRailBottom,
+} from "../../lib/host-hud-layout";
 import { GOLD, NAVY } from "../../theme";
 
 const RAIL_BG = "rgba(10,12,20,0.55)";
@@ -78,6 +106,7 @@ export function HostStudioHud({
   onEnd,
   onMinimize,
   onBattleAccepted,
+  battle,
 }: {
   liveId: string;
   identity: string;
@@ -93,6 +122,7 @@ export function HostStudioHud({
   onMinimize?: () => void;
   onBattleAccepted?: () => void | Promise<void>;
   cameraFacing?: "front" | "back";
+  battle?: HydratedBattle | null;
 }) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -120,7 +150,22 @@ export function HostStudioHud({
   const [reveal, setReveal] = useState<AuctionEndReveal | null>(null);
   const [suddenDeathMode, setSuddenDeathMode] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [peerOpen, setPeerOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [dismissedResultId, setDismissedResultId] = useState<string | null>(null);
+  const [introFallbackAt, setIntroFallbackAt] = useState<number | null>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
+  const battleActive = isBattleLiveActive(battle);
+  const resultOpen = isBattleFinished(battle) && !!battle && battle.session.id !== dismissedResultId;
+  const fighters = battle && battleActive ? battleFighters(battle, liveId) : null;
+  const dock = battleDockMetrics(insets.top, Dimensions.get("window").height);
+  const remainingMs = battle && battleActive ? battleRemainingMs(battle.session, nowMs) : 0;
+  const introStartsAt = battleActive
+    ? resolveDefiPlusIntroStart(battle?.session.started_at, introFallbackAt)
+    : null;
+  const introOn = battleActive && isDefiPlusIntroActive(introStartsAt, nowMs);
+  const peerProducts = useBattlePeerProducts(battleActive ? fighters?.right.liveId ?? null : null);
+  const peerFeatured = pickBattleFeatured(peerProducts);
 
   // Pre-launch crowd (admin → Simu) : fake viewers, comments and bids.
   useHostPrelaunchSim(session, session.currency || user?.walletCurrency || "EUR");
@@ -145,6 +190,57 @@ export function HostStudioHud({
     const id = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(id);
   }, [toast]);
+
+  useEffect(() => {
+    if (!battleActive) return;
+    const id = setInterval(() => setNowMs(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [battleActive, battle?.session.id]);
+
+  useEffect(() => {
+    if (!battleActive) {
+      setIntroFallbackAt(null);
+      return;
+    }
+    setIntroFallbackAt((prev) => prev ?? Date.now());
+  }, [battleActive, battle?.session.id]);
+
+  const leaveBattle = () => {
+    if (!battle?.session.id || !user?.id) return;
+    Alert.alert(t("battle.hud.leave"), undefined, [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("battle.hud.leave"),
+        style: "destructive",
+        onPress: () => {
+          void battleEnd(battle.session.id, "forfeit", user.id);
+        },
+      },
+    ]);
+  };
+
+  useEffect(() => {
+    const text = battle?.session.last_sale_text;
+    const at = battle?.session.last_sale_at;
+    if (!text || !at || !battleActive) return;
+    if (Date.now() - Date.parse(at) > 8000) return;
+    setToast(text);
+  }, [battle?.session.last_sale_text, battle?.session.last_sale_at, battleActive]);
+
+  const requestRematch = () => {
+    if (!battle || !user?.id) return;
+    const other = battle.lives.find((l) => l.seller_id !== user.id);
+    if (!other) return;
+    setDismissedResultId(battle.session.id);
+    void battleInvite({
+      fromLiveId: liveId,
+      toSellerId: other.seller_id,
+      durationSec: battle.session.duration_sec,
+      rematchOf: battle.session.id,
+    }).then((res) => {
+      setToast(res.ok ? t("battle.invite.sent") : res.error ?? t("battle.invite.failed"));
+    });
+  };
 
   useEffect(() => {
     if (session.suddenDeathTick === 0) return;
@@ -270,6 +366,16 @@ export function HostStudioHud({
         </View>
       </View>
 
+      {battleActive && battle && fighters ? (
+        <View pointerEvents="none" style={[styles.battleHud, { top: dock.hudTop }]}>
+          <BattleScoreHud
+            session={battle.session}
+            remainingMs={remainingMs}
+            left={fighters.left}
+            right={fighters.right}
+          />
+        </View>
+      ) : (
       <View
         pointerEvents="box-none"
         style={[styles.statsWrap, { top: insets.top + layout.statsTopExtra }]}
@@ -309,13 +415,15 @@ export function HostStudioHud({
           </View>
         ) : null}
       </View>
+      )}
 
+      {!battleActive ? (
       <View
         pointerEvents="box-none"
         style={[
           styles.rail,
           {
-            top: insets.top + layout.featuredTopExtra,
+            bottom: hostRailBottom(insets.bottom),
             gap: layout.railGap,
           },
         ]}
@@ -360,10 +468,26 @@ export function HostStudioHud({
           <Plus size={layout.compact ? 20 : 22} color={NAVY} strokeWidth={2.6} />
         </Press>
       </View>
+      ) : null}
 
+      {!battleActive ? (
       <View
         pointerEvents="none"
-        style={[styles.auctionStack, { top: insets.top + layout.auctionTopExtra }]}
+        style={[
+          styles.auctionStack,
+          {
+            top: insets.top + hostAuctionTopExtra({
+              layout: featuredLayout.layout,
+              featuredTopExtra: layout.featuredTopExtra,
+              compact: layout.compact,
+            }),
+            ...hostAuctionGutter({
+              layout: featuredLayout.layout,
+              icon: layout.icon,
+              portraitCardWidth: HOST_PORTRAIT_CARD_WIDTH,
+            }),
+          },
+        ]}
       >
         <AuctionFinalCountdown
           secondsLeft={session.timeLeft}
@@ -388,10 +512,11 @@ export function HostStudioHud({
           lower={bidLower}
         />
       </View>
+      ) : null}
       <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
 
       {/* Layout (vertical/horizontal) is display-only — it never restarts the sale. */}
-      {featured ? (
+      {featured && !battleActive ? (
         <View
           pointerEvents="box-none"
           style={
@@ -400,12 +525,12 @@ export function HostStudioHud({
                   styles.featuredLand,
                   {
                     top: insets.top + layout.featuredTopExtra + (layout.compact ? 0 : 28),
-                    right: layout.icon + 18,
+                    right: hostFeaturedRight(),
                   },
                 ]
               : [
                   styles.featuredPort,
-                  { top: insets.top + layout.featuredTopExtra, right: layout.icon + 18 },
+                  { top: insets.top + layout.featuredTopExtra, right: hostFeaturedRight() },
                 ]
           }
         >
@@ -431,6 +556,26 @@ export function HostStudioHud({
         </View>
       ) : null}
 
+      {battleActive ? (
+        <View pointerEvents="box-none" style={[styles.battleCards, { top: dock.cardTop }]}>
+          <BattleFeaturedRow
+            own={featured}
+            peer={peerFeatured}
+            currency={currency}
+            ownSecondsLeft={auctionOnFeatured ? session.timeLeft : 0}
+            onManageOwn={() => setProductsOpen(true)}
+            onStartOwn={featured ? () => void runFeaturedAction(featured) : undefined}
+            onOpenPeer={() => setPeerOpen(true)}
+          />
+        </View>
+      ) : null}
+      <BattlePeerProductSheet
+        open={peerOpen && !!peerFeatured}
+        onClose={() => setPeerOpen(false)}
+        product={peerFeatured}
+        currency={currency}
+      />
+
       {toast ? (
         <View pointerEvents="none" style={[styles.toast, { top: insets.top + 118 }]}>
           <Text style={styles.toastTxt}>{toast}</Text>
@@ -443,7 +588,7 @@ export function HostStudioHud({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.bottomWrap}
       >
-        <View style={[styles.bottom, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + 10, paddingRight: battleActive ? 64 : 64 }]}>
           <View pointerEvents="none" style={styles.chatFeed}>
             {session.chat.slice(-5).map((m) => (
               <View key={m.id} style={styles.chatBubble}>
@@ -611,6 +756,47 @@ export function HostStudioHud({
           "broadcast.filters.liveHint",
           "Le filtre et l’image sont visibles pour tes spectateurs.",
         )}
+      />
+
+      {battleActive ? (
+        <BattleHostBar
+          micOn={micOn}
+          camOn={camOn}
+          filtersActive={filtersOpen || activeLens.lensId !== "none"}
+          onToggleMic={onToggleMic}
+          onToggleCam={onToggleCam}
+          onFlip={onFlip}
+          onLeave={leaveBattle}
+          onOpenModerators={() => setModsOpen(true)}
+          onOpenProducts={() => setProductsOpen(true)}
+          onOpenFilters={() => setFiltersOpen(true)}
+        />
+      ) : null}
+
+      {introOn ? (
+        <DefiPlusIntroOverlay
+          active
+          startsAt={introStartsAt}
+          leftName={fighters?.left.displayName}
+          rightName={fighters?.right.displayName}
+        />
+      ) : null}
+
+      <BattleSuddenDeathOverlay
+        active={
+          battleActive &&
+          (!!battle?.session.sudden_death || battle?.session.status === "sudden_death")
+        }
+      />
+
+      <BattleResultOverlay
+        open={resultOpen}
+        battle={battle ?? null}
+        selfSellerId={user?.id}
+        onDone={() => {
+          if (battle?.session.id) setDismissedResultId(battle.session.id);
+        }}
+        onRematch={requestRematch}
       />
 
       {incoming ? (
@@ -834,12 +1020,10 @@ const styles = StyleSheet.create({
   },
   auctionStack: {
     position: "absolute",
-    left: 0,
-    right: 64,
     zIndex: 55,
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
   },
   sdPill: {
     maxWidth: "92%",
@@ -975,4 +1159,17 @@ const styles = StyleSheet.create({
     backgroundColor: GOLD,
   },
   incomingYesTxt: { color: NAVY, fontWeight: "900" },
+  battleHud: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 34,
+  },
+  battleCards: {
+    position: "absolute",
+    left: 4,
+    right: 4,
+    zIndex: 32,
+    height: 76,
+  },
 });
