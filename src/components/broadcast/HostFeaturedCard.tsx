@@ -15,6 +15,7 @@ import {
   type HostFeaturedCtaKind,
   type HostFeaturedLayout,
 } from "../../lib/host-featured-layout";
+import { HOST_PORTRAIT_CARD_WIDTH } from "../../lib/host-hud-layout";
 import { GOLD, NAVY } from "../../theme";
 
 /** Display preference only — never starts, stops, or resets a sale. */
@@ -209,15 +210,15 @@ const CARD_BG = "rgba(8,10,16,0.82)";
 const CARD_BORDER = "rgba(232,185,59,0.85)";
 
 const styles = StyleSheet.create({
-  portWrap: { alignItems: "flex-end", maxWidth: 168 },
+  portWrap: { alignItems: "flex-end", maxWidth: HOST_PORTRAIT_CARD_WIDTH + 8 },
   portCard: {
-    width: 156,
+    width: HOST_PORTRAIT_CARD_WIDTH,
     backgroundColor: CARD_BG,
     borderColor: CARD_BORDER,
     borderWidth: 1.5,
     borderRadius: 14,
-    padding: 8,
-    gap: 6,
+    padding: 6,
+    gap: 4,
   },
   portHead: {
     flexDirection: "row",
@@ -234,8 +235,8 @@ const styles = StyleSheet.create({
   portTap: { alignItems: "stretch", minHeight: 0, minWidth: 0, gap: 4 },
   portImg: {
     width: "100%",
-    aspectRatio: 1,
-    borderRadius: 10,
+    aspectRatio: 1.05,
+    borderRadius: 9,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   landWrap: { width: "100%" },
@@ -275,9 +276,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   landBody: { flex: 1, minWidth: 0, gap: 2 },
-  name: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  price: { color: "#fff", fontWeight: "800", fontSize: 15, fontVariant: ["tabular-nums"] },
-  meta: { color: "rgba(255,255,255,0.86)", fontSize: 12, fontWeight: "600" },
+  name: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  price: { color: "#fff", fontWeight: "800", fontSize: 14, fontVariant: ["tabular-nums"] },
+  meta: { color: "rgba(255,255,255,0.86)", fontSize: 11, fontWeight: "600" },
   ph: { backgroundColor: "rgba(255,255,255,0.12)" },
   dots: { width: 28, height: 28, minWidth: 28, minHeight: 28, borderRadius: 14 },
   cta: {
