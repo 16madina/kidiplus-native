@@ -12,6 +12,7 @@ import {
   VIEWER_APPLE_PLAYBACK,
   VIEWER_PUBLISH_MIC,
   liveSystemPipOn,
+  hostIosPipConfig,
   viewerAdaptiveStreamEnabled,
   viewerKeepsFullVideoQuality,
 } from "./live-viewer-media.ts";
@@ -40,6 +41,15 @@ function run() {
   assert.equal(liveSystemPipOn(false, false), false);
   assert.equal(liveSystemPipOn(false, true), true);
   assert.equal(liveSystemPipOn(true, false), true);
+
+  const pipOff = hostIosPipConfig(false);
+  assert.equal(pipOff.enabled, false);
+  assert.equal(pipOff.startAutomatically, false);
+  const pipOn = hostIosPipConfig(true);
+  assert.equal(pipOn.enabled, true);
+  assert.equal(pipOn.startAutomatically, true);
+  assert.equal(pipOn.preferredSize.width, 9);
+  assert.equal(pipOn.preferredSize.height, 16);
 
   assert.equal(VIEWER_PUBLISH_MIC, false);
   assert.equal(VIEWER_ANDROID_AUDIO_PRESET, "media");

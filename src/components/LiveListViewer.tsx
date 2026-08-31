@@ -59,6 +59,7 @@ export function LiveListViewer({
       }
       onViewableItemsChanged={onViewableItemsChanged}
       viewabilityConfig={viewabilityConfig}
+      removeClippedSubviews={false}
       style={styles.list}
     />
   );
