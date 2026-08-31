@@ -226,7 +226,8 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
   },
   img: {
-    flex: 1,
+    width: CARD - 5,
+    height: CARD - 5,
     borderRadius: RADIUS - 4,
     backgroundColor: NAVY,
     overflow: "hidden",
