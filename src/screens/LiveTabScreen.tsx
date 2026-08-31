@@ -14,6 +14,7 @@ import { useNav } from "../context/navigation";
 import { GOLD, GOLD_GO_LIVE, GOLD_GUEST, GUEST_CREAM, NAVY } from "../theme";
 import { HostOpenLiveBanner } from "../components/home/HostOpenLiveBanner";
 import { cancelScheduledLiveInDb, fetchMyScheduledLives, type ScheduledLiveRow } from "../lib/lives";
+import { LIVE_TAB_CHOICE } from "../lib/live-tab-choice";
 
 const guestHero = require("../../assets/guest/guest-live-hero.jpg");
 const liveLogo = require("../../assets/brand/kidi-live-logo-v3.png");
@@ -325,12 +326,12 @@ const styles = StyleSheet.create({
   choiceRow: { flexDirection: "row", gap: 12, paddingHorizontal: 16, marginTop: 16 },
   choice: {
     flex: 1,
-    height: 210,
+    aspectRatio: LIVE_TAB_CHOICE.aspectRatio,
+    minHeight: LIVE_TAB_CHOICE.minHeight,
     borderRadius: 22,
     overflow: "hidden",
     padding: 14,
     justifyContent: "flex-end",
-    minHeight: 0,
     minWidth: 0,
     alignItems: "flex-start",
     backgroundColor: "#0B1938",
