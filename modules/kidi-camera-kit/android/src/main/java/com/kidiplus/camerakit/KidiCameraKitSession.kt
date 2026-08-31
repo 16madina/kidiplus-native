@@ -142,6 +142,12 @@ class KidiCameraKitSession(
     private var publishOutput: Closeable? = null
     private var publishEnabled = false
 
+    private var battleRoom: Room? = null
+    private var battleTrack: LocalVideoTrack? = null
+    private var battleCapturer: CameraKitSurfaceCapturer? = null
+    private var battlePublishOutput: Closeable? = null
+    private var battleGuestEnabled = false
+
     // Adaptive capture profile (Camera Kit output size + publish encoding).
     private var profileIndex = 0
     private var adaptiveJob: Job? = null
@@ -167,6 +173,7 @@ class KidiCameraKitSession(
             "sessionStarted" to previewStarted,
             "captureRunning" to previewStarted,
             "publishing" to publishEnabled,
+            "battleGuestPublishing" to battleGuestEnabled,
             "frameCount" to frameCount.get(),
             "lastFrameAgeMs" to if (last > 0) SystemClock.elapsedRealtime() - last else 0,
             "lensId" to currentLensKey?.substringAfter('|').orEmpty(),
@@ -356,7 +363,7 @@ class KidiCameraKitSession(
     }
 
     suspend fun stopPreview(): Map<String, Any?> {
-        if (publishEnabled) {
+        if (publishEnabled || battleGuestEnabled) {
             // The preview surface is also the publisher's input; report honestly
             // instead of pretending the camera was released.
             return mapOf("stopped" to false, "reason" to "publishing")
@@ -423,6 +430,26 @@ class KidiCameraKitSession(
             Log.e(TAG, "setPublishEnabled failed", e)
             stopPublishing()
             throw IllegalStateException("Publish failed: ${e.message}", e)
+        }
+    }
+
+    suspend fun setBattleGuestPublishEnabled(enabled: Boolean, roomUrl: String?, token: String?): Map<String, Any?> {
+        if (!enabled) {
+            stopBattleGuestPublishing()
+            return mapOf("enabled" to false)
+        }
+        val url = roomUrl.orEmpty()
+        val tok = token.orEmpty()
+        if (url.isEmpty() || tok.isEmpty()) {
+            throw IllegalStateException("Missing battle roomUrl or token")
+        }
+        return try {
+            startBattleGuestPublishing(url, tok)
+            mapOf("enabled" to true)
+        } catch (e: Exception) {
+            Log.e(TAG, "setBattleGuestPublishEnabled failed", e)
+            stopBattleGuestPublishing()
+            throw IllegalStateException("Battle guest publish failed: ${e.message}", e)
         }
     }
 
@@ -503,6 +530,75 @@ class KidiCameraKitSession(
         Log.i(TAG, "LiveKit video published")
     }
 
+    private suspend fun startBattleGuestPublishing(url: String, token: String) {
+        val act = activity ?: throw IllegalStateException("no activity")
+        val s = session ?: throw IllegalStateException("Camera Kit session missing")
+        if (!previewStarted && !publishEnabled) {
+            throw IllegalStateException("Camera Kit is not publishing — refuse to open a second camera")
+        }
+        stopBattleGuestPublishing()
+        battleGuestEnabled = true
+        previewRequested = true
+
+        val room = LiveKit.create(act.applicationContext)
+        battleRoom = room
+        room.connect(url, token)
+        Log.i(TAG, "battle guest room connected")
+
+        val capturer = CameraKitSurfaceCapturer(
+            session = s,
+            width = BATTLE_GUEST_WIDTH,
+            height = BATTLE_GUEST_HEIGHT,
+            fps = BATTLE_GUEST_FPS,
+            onConnected = { handle -> battlePublishOutput = handle },
+            onFrame = { },
+        )
+        battleCapturer = capturer
+        val track = room.localParticipant.createVideoTrack(
+            name = "camera",
+            capturer = capturer,
+            options = LocalVideoTrackOptions(
+                isScreencast = false,
+                captureParams = VideoCaptureParameter(
+                    BATTLE_GUEST_WIDTH,
+                    BATTLE_GUEST_HEIGHT,
+                    BATTLE_GUEST_FPS,
+                    adaptOutputToDimensions = false,
+                ),
+            ),
+        )
+        battleTrack = track
+        track.startCapture()
+        room.localParticipant.publishVideoTrack(
+            track,
+            VideoTrackPublishOptions(
+                videoEncoding = VideoEncoding(BATTLE_GUEST_BITRATE, BATTLE_GUEST_FPS),
+                simulcast = false,
+                source = Track.Source.CAMERA,
+            ),
+        )
+        Log.i(TAG, "battle guest video published ${BATTLE_GUEST_WIDTH}x${BATTLE_GUEST_HEIGHT}@${BATTLE_GUEST_FPS}")
+        try {
+            room.localParticipant.setMicrophoneEnabled(true)
+            Log.i(TAG, "battle guest microphone published")
+        } catch (e: Exception) {
+            Log.w(TAG, "battle guest mic publish failed", e)
+        }
+    }
+
+    private suspend fun stopBattleGuestPublishing() {
+        battleGuestEnabled = false
+        battlePublishOutput?.close()
+        battlePublishOutput = null
+        runCatching { battleTrack?.stopCapture() }
+        runCatching { battleTrack?.stop() }
+        battleTrack = null
+        battleCapturer = null
+        runCatching { battleRoom?.disconnect() }
+        battleRoom = null
+        Log.i(TAG, "battle guest publish stopped")
+    }
+
     private suspend fun stopPublishing() {
         publishEnabled = false
         stopAdaptiveMonitor()
@@ -577,7 +673,7 @@ class KidiCameraKitSession(
 
     /** Call from the module's `OnActivityEntersBackground` hook. */
     fun onHostPause() {
-        if (!previewRequested && !publishEnabled) return
+        if (!previewRequested && !publishEnabled && !battleGuestEnabled) return
         // CameraX is lifecycle-bound: use-cases are dropped when the activity
         // stops. Drop `previewStarted` so resume rebinds instead of trusting a
         // frozen frame.
@@ -590,7 +686,7 @@ class KidiCameraKitSession(
 
     /** Call from the module's `OnActivityEntersForeground` hook. */
     fun onHostResume() {
-        if (!initialized || (!previewRequested && !publishEnabled)) return
+        if (!initialized || (!previewRequested && !publishEnabled && !battleGuestEnabled)) return
         Log.i(TAG, "activity resumed; rebinding preview")
         ensurePreview { ok ->
             if (ok) emit("previewResumed") else revertToRawCamera("resume_failed")
@@ -602,6 +698,7 @@ class KidiCameraKitSession(
         lensObserve?.close()
         lensObserve = null
         stopWatchdog()
+        runCatching { runBlocking { stopBattleGuestPublishing() } }
         runCatching { runBlocking { stopPublishing() } }
         teardownPreviewSync()
         cleanupSession()
@@ -959,6 +1056,10 @@ class KidiCameraKitSession(
         private const val ADAPT_WARMUP_MS = 4_000L
         private const val ADAPT_WINDOW_MS = 2_000L
         private const val ADAPT_MIN_FPS = 20.0
+        private const val BATTLE_GUEST_WIDTH = 960
+        private const val BATTLE_GUEST_HEIGHT = 540
+        private const val BATTLE_GUEST_FPS = 24
+        private const val BATTLE_GUEST_BITRATE = 700_000
 
         /**
          * Capture/publish ladder used when Camera Kit owns the camera. 720p30 is

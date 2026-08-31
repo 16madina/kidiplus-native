@@ -134,6 +134,26 @@ export async function setBridgePublishEnabled(opts: {
   await mod.setPublishEnabled(opts.enabled, opts.roomUrl ?? null, opts.token ?? null);
 }
 
+export function canUseNativeBattleGuestPublish(): boolean {
+  return typeof KidiCameraKit?.setBattleGuestPublishEnabled === "function";
+}
+
+export async function setBridgeBattleGuestPublishEnabled(opts: {
+  enabled: boolean;
+  roomUrl?: string;
+  token?: string;
+}): Promise<{ enabled: boolean }> {
+  const mod = await ensureInitialized();
+  if (typeof mod.setBattleGuestPublishEnabled !== "function") {
+    throw new Error("Battle guest native publish missing — rebuild iOS");
+  }
+  return mod.setBattleGuestPublishEnabled(
+    opts.enabled,
+    opts.roomUrl ?? null,
+    opts.token ?? null,
+  );
+}
+
 export async function flipBridgeCamera(): Promise<{ flipped: boolean; facing: string } | null> {
   if (!KidiCameraKit) return null;
   try {

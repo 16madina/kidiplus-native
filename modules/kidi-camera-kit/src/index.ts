@@ -24,6 +24,11 @@ export type KidiCameraKitNativeModule = {
     roomUrl: string | null,
     token: string | null,
   ): Promise<{ enabled: boolean }>;
+  setBattleGuestPublishEnabled?(
+    enabled: boolean,
+    roomUrl: string | null,
+    token: string | null,
+  ): Promise<{ enabled: boolean }>;
   getStatus(): Promise<Record<string, unknown>>;
   isAvailable(): Promise<{ available: boolean; supported: boolean; hasToken: boolean }>;
 };

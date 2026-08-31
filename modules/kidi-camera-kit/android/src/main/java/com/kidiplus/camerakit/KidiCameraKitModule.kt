@@ -134,6 +134,10 @@ class KidiCameraKitModule : Module() {
             requireSession().setPublishEnabled(enabled, roomUrl, token)
         }
 
+        AsyncFunction("setBattleGuestPublishEnabled") Coroutine { enabled: Boolean, roomUrl: String?, token: String? ->
+            requireSession().setBattleGuestPublishEnabled(enabled, roomUrl, token)
+        }
+
         View(KidiCameraKitPreviewView::class) {}
     }
 }

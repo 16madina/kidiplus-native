@@ -95,6 +95,17 @@ public class KidiCameraKitModule: Module {
             }
         }
 
+        AsyncFunction("setBattleGuestPublishEnabled") { (enabled: Bool, roomUrl: String?, token: String?, promise: Promise) in
+            self.session.setBattleGuestPublishEnabled(enabled: enabled, roomUrl: roomUrl, token: token) { result in
+                switch result {
+                case .success(let isEnabled):
+                    promise.resolve(["enabled": isEnabled])
+                case .failure(let error):
+                    promise.reject(error)
+                }
+            }
+        }
+
         AsyncFunction("getStatus") { () -> [String: Any] in
             self.session.getStatus()
         }

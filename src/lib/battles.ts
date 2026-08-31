@@ -97,6 +97,11 @@ export function battleGuestIdentity(sellerId: string): string {
   return `battle_${sellerId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 100)}`;
 }
 
+/** Subscribe-only HUD identity so the host JS room never collides with the native publisher. */
+export function battleHudIdentity(sellerId: string): string {
+  return `hud_${sellerId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 100)}`;
+}
+
 export function isBattleGuestIdentity(identity: string): boolean {
   return identity.startsWith("battle_");
 }

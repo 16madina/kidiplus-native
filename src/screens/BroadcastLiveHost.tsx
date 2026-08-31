@@ -15,6 +15,7 @@ import {
 import { LocalAudioTrack, LocalVideoTrack, Track } from "livekit-client";
 import { Press } from "../components/Press";
 import { BattleSplitStage } from "../components/battle/BattleSplitStage";
+import { HostBattleGuestPane } from "../components/battle/HostBattleGuestPane";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostComposedPreview } from "../components/broadcast/HostComposedPreview";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
@@ -26,6 +27,7 @@ import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
 import {
   battleEnd,
   battleHeartbeat,
+  battleHudIdentity,
   fetchBattleForLive,
   isBattleGuestIdentity,
   isBattleLiveActive,
@@ -194,10 +196,11 @@ export function BroadcastLiveHost({
     );
   }
 
-  if (kitPublishing) {
+      if (kitPublishing) {
     return (
       <HostKitStage
         liveId={liveId}
+        roomName={roomName}
         identity={identity}
         displayName={displayName}
         facing={facing}
@@ -417,12 +420,14 @@ function HostChrome({
 }
 
 /**
- * Android Camera Kit publishes filtered frames with its own LiveKit room
- * (same as kidiplus.com). Do not also connect the JS room — same token
- * would kick the native publisher and viewers would lose the video.
+ * Camera Kit publishes filtered frames with its own LiveKit room
+ * (same as kidiplus.com). Do not also connect the JS room with the host
+ * token — that would kick the native publisher and viewers would lose the video.
+ * During a battle we join as a viewer (`hud_*`) only, to see/hear the opponent.
  */
 function HostKitStage({
   liveId,
+  roomName,
   identity,
   displayName,
   facing: initialFacing,
@@ -432,6 +437,7 @@ function HostKitStage({
   rtmpMode = false,
 }: {
   liveId: string;
+  roomName: string;
   identity: string;
   displayName: string;
   facing: CameraType;
@@ -447,7 +453,30 @@ function HostKitStage({
   const [flipBusy, setFlipBusy] = useState(false);
   const [camOn, setCamOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
+  const [hudSession, setHudSession] = useState<{ url: string; token: string } | null>(null);
   const camBusyRef = useRef(false);
+
+  const remoteBattleStatus = useBattleGuestPublish({
+    enabled: extras.battleActive,
+    userId: identity,
+    displayName,
+    remoteRoomName: extras.opponentLive?.room_name ?? null,
+    nativeKitPublishing: true,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLiveKitSession(roomName, battleHudIdentity(identity), displayName, "viewer")
+      .then((s) => {
+        if (!cancelled) setHudSession(s);
+      })
+      .catch((e) => {
+        console.warn("[battle] hud subscribe token failed", e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomName, identity, displayName]);
 
   useEffect(() => {
     setNativeLensApplyAllowed(true);
@@ -510,7 +539,7 @@ function HostKitStage({
     }
   };
 
-  return (
+  const chrome = (
     <HostChrome
       liveId={liveId}
       identity={identity}
@@ -529,7 +558,12 @@ function HostKitStage({
           </View>
         )
       }
-      guestVideo={null}
+      guestVideo={
+        extras.battleActive && hudSession ? (
+          <HostBattleGuestPane hostIdentity={identity} />
+        ) : null
+      }
+      guestStatus={remoteBattleStatus}
       hostFighter={
         extras.myLive
           ? { displayName: extras.myLive.display_name, avatarUrl: extras.myLive.avatar_url }
@@ -579,6 +613,23 @@ function HostKitStage({
         </>
       }
     />
+  );
+
+  if (!hudSession) return chrome;
+
+  return (
+    <LiveKitRoom
+      serverUrl={hudSession.url}
+      token={hudSession.token}
+      connect={extras.battleActive}
+      audio={false}
+      video={false}
+      options={HOST_ROOM_OPTIONS}
+      connectOptions={HOST_CONNECT_OPTIONS}
+      onDisconnected={ignoreDisconnect}
+    >
+      {chrome}
+    </LiveKitRoom>
   );
 }
 
@@ -659,6 +710,7 @@ function HostLiveKitStage({
     userId: identity,
     displayName,
     remoteRoomName: extras.opponentLive?.room_name ?? null,
+    nativeKitPublishing: false,
     getSourceTrack: getBattleSourceTrack,
     getSourceAudioTrack: getBattleSourceAudioTrack,
   });
