@@ -41,6 +41,7 @@ import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
 import { GOLD, GUEST_CREAM, NAVY, NAVY_600, NAVY_INSET, initials } from "../theme";
 import { formatMoney } from "../lib/money";
+import { PROFILE_MENU_TINT } from "../lib/profile-menu-tints";
 import { fetchMyPromoCodes } from "../lib/referrals";
 import { isHttpUrl } from "../lib/storage";
 
@@ -222,43 +223,44 @@ function AuthedProfile() {
 
       {user.isSeller ? (
         <Section title={t("profile.sections.boutique")}>
-          <Row icon={<Store size={18} color={colors.foreground} />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
-          <Row icon={<Truck size={18} color={colors.foreground} />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
-          <Row icon={<BadgeCheck size={18} color={colors.foreground} />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
+          <Row tint={PROFILE_MENU_TINT.shop} icon={<Store size={16} color="#fff" />} label={t("profile.quick.myShop")} onPress={() => openOverlay({ kind: "shop" })} />
+          <Row tint={PROFILE_MENU_TINT.delivery} icon={<Truck size={16} color="#fff" />} label={t("delivery.title")} onPress={() => openOverlay({ kind: "delivery" })} />
+          <Row tint={PROFILE_MENU_TINT.certify} icon={<BadgeCheck size={16} color="#fff" />} label={t("verify.menuLabel")} onPress={() => openOverlay({ kind: "certification" })} />
         </Section>
       ) : null}
       <Section title={t("profile.sections.finances")}>
-        <Row icon={<Wallet size={18} color={colors.foreground} />} label={t("profile.menu.wallet")} onPress={() => openOverlay({ kind: "wallet" })} />
+        <Row tint={PROFILE_MENU_TINT.wallet} icon={<Wallet size={16} color="#fff" />} label={t("profile.menu.wallet")} onPress={() => openOverlay({ kind: "wallet" })} />
         {user.isSeller ? (
-          <Row icon={<Coins size={18} color={colors.foreground} />} label={t("profile.quick.earnings")} onPress={() => openOverlay({ kind: "earnings" })} />
+          <Row tint={PROFILE_MENU_TINT.earnings} icon={<Coins size={16} color="#fff" />} label={t("profile.quick.earnings")} onPress={() => openOverlay({ kind: "earnings" })} />
         ) : null}
         {user.isSeller ? (
-          <Row icon={<CreditCard size={18} color={colors.foreground} />} label={t("sellerPayments.title")} onPress={() => openOverlay({ kind: "seller-payments" })} />
+          <Row tint={PROFILE_MENU_TINT.payouts} icon={<CreditCard size={16} color="#fff" />} label={t("sellerPayments.title")} onPress={() => openOverlay({ kind: "seller-payments" })} />
         ) : null}
       </Section>
       <Section title={t("profile.sections.purchases")}>
-        <Row icon={<ShoppingBag size={18} color={colors.foreground} />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
-        <Row icon={<MapPin size={18} color={colors.foreground} />} label={t("address.title")} onPress={() => openOverlay({ kind: "addresses" })} />
+        <Row tint={PROFILE_MENU_TINT.orders} icon={<ShoppingBag size={16} color="#fff" />} label={t("profile.menu.purchases")} onPress={() => openOverlay({ kind: "orders" })} />
+        <Row tint={PROFILE_MENU_TINT.address} icon={<MapPin size={16} color="#fff" />} label={t("address.title")} onPress={() => openOverlay({ kind: "addresses" })} />
       </Section>
       <Section title={t("profile.sections.community")}>
         <Row
-          icon={<HeartHandshake size={18} color={GOLD} />}
+          tint={PROFILE_MENU_TINT.referral}
+          icon={<HeartHandshake size={16} color="#fff" />}
           label={hasCode ? t("referral.menu") : t("referral.claim.entry")}
           onPress={() => openOverlay({ kind: "referral" })}
         />
       </Section>
       {user.isAdmin ? (
         <Section title={t("profile.sections.admin")}>
-          <Row icon={<Shield size={18} color={GOLD} />} label={t("admin.title")} onPress={() => openOverlay({ kind: "admin" })} />
+          <Row tint={PROFILE_MENU_TINT.admin} icon={<Shield size={16} color="#fff" />} label={t("admin.title")} onPress={() => openOverlay({ kind: "admin" })} />
         </Section>
       ) : null}
       <Section title={t("profile.sections.account")}>
-        <Row icon={<UserPen size={18} color={colors.foreground} />} label={t("profile.editProfile")} onPress={() => openOverlay({ kind: "edit-profile" })} />
-        <Row icon={<Settings size={18} color={colors.foreground} />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />
-        <Row icon={<Lightbulb size={18} color={colors.foreground} />} label="Découvrir" onPress={() => openOverlay({ kind: "discover" })} />
-        <Row icon={<Moon size={18} color={colors.foreground} />} label={t("profile.menu.darkMode")} right={<Text style={{ color: GOLD, fontWeight: "700" }}>{dark ? "ON" : "OFF"}</Text>} onPress={() => setDark(!dark)} />
-        <Row icon={<HelpCircle size={18} color={colors.foreground} />} label={t("profile.menu.help")} onPress={() => openOverlay({ kind: "help" })} />
-        <Row icon={<LogOut size={18} color="#C0392B" />} label={t("profile.signOut")} danger onPress={signOut} />
+        <Row tint={PROFILE_MENU_TINT.edit} icon={<UserPen size={16} color="#fff" />} label={t("profile.editProfile")} onPress={() => openOverlay({ kind: "edit-profile" })} />
+        <Row tint={PROFILE_MENU_TINT.settings} icon={<Settings size={16} color="#fff" />} label={t("profile.menu.settings")} onPress={() => openOverlay({ kind: "settings" })} />
+        <Row tint={PROFILE_MENU_TINT.discover} icon={<Lightbulb size={16} color="#fff" />} label="Découvrir" onPress={() => openOverlay({ kind: "discover" })} />
+        <Row tint={PROFILE_MENU_TINT.darkMode} icon={<Moon size={16} color="#fff" />} label={t("profile.menu.darkMode")} right={<Text style={{ color: GOLD, fontWeight: "700" }}>{dark ? "ON" : "OFF"}</Text>} onPress={() => setDark(!dark)} />
+        <Row tint={PROFILE_MENU_TINT.help} icon={<HelpCircle size={16} color="#fff" />} label={t("profile.menu.help")} onPress={() => openOverlay({ kind: "help" })} />
+        <Row tint={PROFILE_MENU_TINT.signOut} icon={<LogOut size={16} color="#fff" />} label={t("profile.signOut")} danger onPress={signOut} />
       </Section>
       <View style={{ paddingHorizontal: 24, paddingTop: 22, alignItems: "center", gap: 10 }}>
         <Press onPress={() => openOverlay({ kind: "legal", page: "terms" })} style={{ minHeight: 0 }}>
@@ -308,14 +310,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function MenuIcon({ icon, tint }: { icon: React.ReactNode; tint: string }) {
+  return <View style={[styles.menuIcon, { backgroundColor: tint }]}>{icon}</View>;
+}
+
 function Row({
   icon,
+  tint,
   label,
   onPress,
   right,
   danger,
 }: {
   icon: React.ReactNode;
+  tint: string;
   label: string;
   onPress: () => void;
   right?: React.ReactNode;
@@ -324,8 +332,8 @@ function Row({
   const { colors } = useAppTheme();
   return (
     <Press onPress={onPress} style={styles.row}>
-      {icon}
-      <Text style={[styles.rowLabel, { color: danger ? "#C0392B" : colors.foreground }]}>{label}</Text>
+      <MenuIcon icon={icon} tint={tint} />
+      <Text style={[styles.rowLabel, { color: danger ? PROFILE_MENU_TINT.signOut : colors.foreground }]}>{label}</Text>
       {right ?? <ChevronRight size={18} color={colors.mutedForeground} />}
     </Press>
   );
@@ -390,6 +398,13 @@ const styles = StyleSheet.create({
   quickInner: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   quickLabel: { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
   quickHint: { color: GOLD, fontSize: 10, fontWeight: "700" },
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 52, gap: 12 },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 54, gap: 12 },
   rowLabel: { flex: 1, fontSize: 15, fontWeight: "600" },
+  menuIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
