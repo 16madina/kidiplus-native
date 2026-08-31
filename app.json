@@ -46,6 +46,12 @@
       "backgroundColor": "#10162B"
     },
     "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "addGeneratedScheme": true
+        }
+      ],
       "expo-video",
       [
         "expo-splash-screen",

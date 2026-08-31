@@ -249,6 +249,10 @@
     "home": "Home",
     "bundles": "Bundles & clearance"
   },
+  "expoGo": {
+    "title": "You are in Expo Go — lives will not start here",
+    "body": "Close Expo Go. Open the KiDi+ icon on the iPhone. On the Mac: npm run rebuild:ios then npm start. Do not scan the QR."
+  },
   "home": {
     "categories": {
       "forYou": "For you",

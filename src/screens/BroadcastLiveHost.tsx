@@ -134,7 +134,7 @@ export function BroadcastLiveHost({
         const msg = e instanceof Error ? e.message : "Connexion LiveKit impossible";
         if (msg.includes("build natif") || msg.includes("Expo Go")) {
           setError(
-            "LiveKit a besoin d’un build natif (pas Expo Go). Sur Mac : npx expo run:ios --device",
+            "LiveKit a besoin de l’app KiDi+ (pas Expo Go). Sur Mac : npm run rebuild:ios, puis ouvre KiDi+.",
           );
         } else {
           setError(msg);

@@ -35,6 +35,7 @@ import { DmChatScreen } from "./screens/DmChatScreen";
 import { SellerPaymentsScreen } from "./screens/SellerPaymentsScreen";
 import { SellerProfileScreen } from "./screens/SellerProfileScreen";
 import { DiscoverScreen } from "./screens/DiscoverScreen";
+import { ExpoGoBanner } from "./components/ExpoGoBanner";
 import { HostResumeListener } from "./components/home/HostResumeListener";
 import { LivePipShell } from "./components/live/LivePipShell";
 import { isExpoGo } from "./lib/expo-go";
@@ -56,8 +57,8 @@ function LiveKitBuildRequired() {
   return (
     <View style={styles.livekitFallback}>
       <Text style={styles.livekitFallbackTxt}>
-        Les lives vidéo demandent un build natif (pas Expo Go). Sur ton Mac : npm install && npx expo
-        run:ios --device
+        Les lives vidéo demandent l’app KiDi+ (pas Expo Go). Sur ton Mac : npm run rebuild:ios
+        puis ouvre l’icône KiDi+ — pas Expo Go.
       </Text>
     </View>
   );
@@ -272,6 +273,7 @@ export function AppShell() {
       <PushScreen open={authOverlay} onClose={closeAuth} zIndex={90}>
         <AuthFlow overlay />
       </PushScreen>
+      <ExpoGoBanner />
     </View>
   );
 }
