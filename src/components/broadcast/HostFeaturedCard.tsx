@@ -9,6 +9,7 @@ import { formatAuctionSeconds } from "../live/auction-now-bar";
 import {
   DEFAULT_HOST_FEATURED_LAYOUT,
   HOST_FEATURED_LAYOUT_KEY,
+  featuredPriceLine,
   hostFeaturedCtaKind,
   parseHostFeaturedLayout,
   type HostFeaturedCtaKind,
@@ -16,6 +17,7 @@ import {
 } from "../../lib/host-featured-layout";
 import { GOLD, NAVY } from "../../theme";
 
+/** Display preference only — never starts, stops, or resets a sale. */
 export function useHostFeaturedLayout() {
   const [layout, setLayout] = useState<HostFeaturedLayout>(DEFAULT_HOST_FEATURED_LAYOUT);
 
@@ -94,29 +96,36 @@ export function HostFeaturedCard({
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const kind = hostFeaturedCtaKind({ mode, status, auctionLive });
-  const ctaDisabled = busy || kind === "timer";
+  const landscape = layout === "landscape";
   const stockLabel = t("live.stockCount", "Stock : {{count}}", { count: stock });
   const startLabel = t("live.startFrom", "Départ : {{amount}}", { amount: priceLabel });
+  const priceLine = featuredPriceLine({
+    auctionLive,
+    mode,
+    layout,
+    priceLabel,
+    startLabel,
+  });
+
+  const applyLayout = (next: HostFeaturedLayout) => {
+    setMenuOpen(false);
+    if (next === layout) return;
+    onChangeLayout(next);
+  };
 
   const menu = (
     <View style={styles.menu}>
       <Press
         haptic="none"
-        onPress={() => {
-          onChangeLayout("portrait");
-          setMenuOpen(false);
-        }}
-        style={[styles.menuItem, layout === "portrait" && styles.menuOn]}
+        onPress={() => applyLayout("portrait")}
+        style={[styles.menuItem, !landscape && styles.menuOn]}
       >
         <Text style={styles.menuTxt}>{t("live.cardPortrait", "Carte verticale")}</Text>
       </Press>
       <Press
         haptic="none"
-        onPress={() => {
-          onChangeLayout("landscape");
-          setMenuOpen(false);
-        }}
-        style={[styles.menuItem, layout === "landscape" && styles.menuOn]}
+        onPress={() => applyLayout("landscape")}
+        style={[styles.menuItem, landscape && styles.menuOn]}
       >
         <Text style={styles.menuTxt}>{t("live.cardLandscape", "Carte horizontale")}</Text>
       </Press>
@@ -134,77 +143,62 @@ export function HostFeaturedCard({
     </Press>
   );
 
-  const cta = (
-    <Press
-      onPress={() => {
-        if (kind === "timer") {
-          onOpenProducts();
-          return;
-        }
-        onSell();
-      }}
-      disabled={ctaDisabled && kind !== "timer"}
-      style={[styles.cta, kind === "timer" && styles.ctaTimer, layout === "landscape" && styles.ctaWide]}
-    >
-      <CtaLabel kind={kind} secondsLeft={secondsLeft} />
-    </Press>
-  );
-
-  if (layout === "landscape") {
-    return (
-      <View style={styles.landWrap}>
-        <View style={styles.landCard}>
-          <Press haptic="none" onPress={onOpenProducts} style={styles.landTap}>
-            <View style={styles.landThumbWrap}>
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={styles.landThumb} contentFit="cover" />
-              ) : (
-                <View style={[styles.landThumb, styles.ph]} />
-              )}
+  return (
+    <View style={landscape ? styles.landWrap : styles.portWrap}>
+      <View style={landscape ? styles.landCard : styles.portCard}>
+        {!landscape ? (
+          <View style={styles.portHead}>
+            <Text style={styles.portEyebrow}>{t("live.featured")}</Text>
+            {dots}
+          </View>
+        ) : null}
+        <Press
+          haptic="none"
+          onPress={onOpenProducts}
+          style={landscape ? styles.landTap : styles.portTap}
+        >
+          <View style={landscape ? styles.landThumbWrap : undefined}>
+            {imageUrl ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={landscape ? styles.landThumb : styles.portImg}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[landscape ? styles.landThumb : styles.portImg, styles.ph]} />
+            )}
+            {landscape ? (
               <View style={styles.landBadge}>
                 <Text style={styles.landBadgeTxt}>{t("live.featured")}</Text>
               </View>
-            </View>
-            <View style={styles.landBody}>
-              <Text style={styles.name} numberOfLines={1}>
-                {name}
-              </Text>
-              <Text style={styles.meta} numberOfLines={1}>
-                {mode === "auction" ? startLabel : priceLabel}
-              </Text>
-              <Text style={styles.meta} numberOfLines={1}>
-                {stockLabel}
-              </Text>
-            </View>
-          </Press>
-          {cta}
-          {dots}
-        </View>
-        {menuOpen ? menu : null}
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.portWrap}>
-      <View style={styles.portCard}>
-        <View style={styles.portHead}>
-          <Text style={styles.portEyebrow}>{t("live.featured")}</Text>
-          {dots}
-        </View>
-        <Press haptic="none" onPress={onOpenProducts} style={styles.portTap}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.portImg} contentFit="cover" />
-          ) : (
-            <View style={[styles.portImg, styles.ph]} />
-          )}
-          <Text style={styles.name} numberOfLines={2}>
-            {name}
-          </Text>
-          <Text style={styles.price}>{priceLabel}</Text>
-          <Text style={styles.meta}>{stockLabel}</Text>
+            ) : null}
+          </View>
+          <View style={landscape ? styles.landBody : undefined}>
+            <Text style={styles.name} numberOfLines={landscape ? 1 : 2}>
+              {name}
+            </Text>
+            <Text style={landscape ? styles.meta : styles.price} numberOfLines={1}>
+              {priceLine}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {stockLabel}
+            </Text>
+          </View>
         </Press>
-        {cta}
+        <Press
+          onPress={() => {
+            if (kind === "timer") {
+              onOpenProducts();
+              return;
+            }
+            onSell();
+          }}
+          disabled={!!busy && kind !== "timer"}
+          style={[styles.cta, kind === "timer" && styles.ctaTimer, landscape && styles.ctaWide]}
+        >
+          <CtaLabel kind={kind} secondsLeft={secondsLeft} />
+        </Press>
+        {landscape ? dots : null}
       </View>
       {menuOpen ? menu : null}
     </View>

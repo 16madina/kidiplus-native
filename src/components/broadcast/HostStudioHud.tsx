@@ -390,6 +390,7 @@ export function HostStudioHud({
       </View>
       <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
 
+      {/* Layout (vertical/horizontal) is display-only — it never restarts the sale. */}
       {featured ? (
         <View
           pointerEvents="box-none"
@@ -409,6 +410,7 @@ export function HostStudioHud({
           }
         >
           <HostFeaturedCard
+            key={featured.id}
             name={featured.name}
             imageUrl={featured.image_url}
             priceLabel={fmt(Number(featured.price ?? featured.start_price))}
