@@ -41,6 +41,8 @@ import { BattleScoreHud } from "../battle/BattleScoreHud";
 import { BattleFeaturedRow, BattlePeerProductSheet } from "../battle/BattleFeaturedRow";
 import { BattleHostBar } from "../battle/BattleHostBar";
 import { DefiPlusIntroOverlay } from "../battle/DefiPlusIntroOverlay";
+import { BattleResultOverlay } from "../battle/BattleResultOverlay";
+import { BattleSuddenDeathOverlay } from "../battle/BattleSuddenDeathOverlay";
 import { FiltersCarousel } from "./FiltersCarousel";
 import { PosterGestureLayer } from "./PosterGestureLayer";
 import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
@@ -64,6 +66,8 @@ import {
   battleAccept,
   battleDecline,
   battleEnd,
+  battleInvite,
+  isBattleFinished,
   isBattleLiveActive,
   usePendingBattleInvite,
   type HydratedBattle,
@@ -141,8 +145,10 @@ export function HostStudioHud({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [peerOpen, setPeerOpen] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
+  const [dismissedResultId, setDismissedResultId] = useState<string | null>(null);
   const incoming = usePendingBattleInvite(user?.id ?? null);
   const battleActive = isBattleLiveActive(battle);
+  const resultOpen = isBattleFinished(battle) && !!battle && battle.session.id !== dismissedResultId;
   const fighters = battle && battleActive ? battleFighters(battle, liveId) : null;
   const dock = battleDockMetrics(insets.top, Dimensions.get("window").height);
   const remainingMs = battle && battleActive ? battleRemainingMs(battle.session, nowMs) : 0;
@@ -193,6 +199,29 @@ export function HostStudioHud({
         },
       },
     ]);
+  };
+
+  useEffect(() => {
+    const text = battle?.session.last_sale_text;
+    const at = battle?.session.last_sale_at;
+    if (!text || !at || !battleActive) return;
+    if (Date.now() - Date.parse(at) > 8000) return;
+    setToast(text);
+  }, [battle?.session.last_sale_text, battle?.session.last_sale_at, battleActive]);
+
+  const requestRematch = () => {
+    if (!battle || !user?.id) return;
+    const other = battle.lives.find((l) => l.seller_id !== user.id);
+    if (!other) return;
+    setDismissedResultId(battle.session.id);
+    void battleInvite({
+      fromLiveId: liveId,
+      toSellerId: other.seller_id,
+      durationSec: battle.session.duration_sec,
+      rematchOf: battle.session.id,
+    }).then((res) => {
+      setToast(res.ok ? t("battle.invite.sent") : res.error ?? t("battle.invite.failed"));
+    });
   };
 
   useEffect(() => {
@@ -720,6 +749,23 @@ export function HostStudioHud({
           rightName={fighters?.right.displayName}
         />
       ) : null}
+
+      <BattleSuddenDeathOverlay
+        active={
+          battleActive &&
+          (!!battle?.session.sudden_death || battle?.session.status === "sudden_death")
+        }
+      />
+
+      <BattleResultOverlay
+        open={resultOpen}
+        battle={battle ?? null}
+        selfSellerId={user?.id}
+        onDone={() => {
+          if (battle?.session.id) setDismissedResultId(battle.session.id);
+        }}
+        onRematch={requestRematch}
+      />
 
       {incoming ? (
         <View style={styles.incomingWrap}>

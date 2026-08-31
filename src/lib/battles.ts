@@ -106,16 +106,22 @@ export function isBattleLiveActive(battle: HydratedBattle | null | undefined): b
   return status === "running" || status === "sudden_death";
 }
 
+export function isBattleFinished(battle: HydratedBattle | null | undefined): boolean {
+  const status = battle?.session?.status;
+  return status === "ended" || status === "cancelled";
+}
+
 export async function battleInvite(args: {
   fromLiveId: string;
   toSellerId: string;
   durationSec: number;
+  rematchOf?: string | null;
 }): Promise<Rpc> {
   const { data, error } = await supabase.rpc("battle_invite", {
     _from_live_id: args.fromLiveId,
     _to_seller_id: args.toSellerId,
     _duration_sec: args.durationSec,
-    _rematch_of: null,
+    _rematch_of: args.rematchOf ?? null,
   } as never);
   if (error) {
     const retry = await supabase.rpc("battle_invite", {

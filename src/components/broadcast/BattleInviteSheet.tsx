@@ -130,6 +130,7 @@ export function BattleInviteSheet({
         fromLiveId: liveId,
         toSellerId: selected.toSellerId,
         durationSec,
+        rematchOf: null,
       });
       if (!res.ok) {
         onToast(res.error ?? t("battle.invite.failed"));

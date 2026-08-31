@@ -24,6 +24,7 @@ import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { useNav } from "../context/navigation";
 import { useBattleGuestPublish } from "../hooks/useBattleGuestPublish";
 import {
+  battleEnd,
   battleHeartbeat,
   fetchBattleForLive,
   isBattleGuestIdentity,
@@ -303,6 +304,14 @@ function useHostLiveExtras(liveId: string) {
     };
   }, [liveId]);
 
+  const endBattleIfRunning = useCallback(
+    async (sellerId: string) => {
+      if (!isBattleLiveActive(battle) || !battle?.session.id) return;
+      await battleEnd(battle.session.id, "disconnected", sellerId);
+    },
+    [battle],
+  );
+
   return {
     battle,
     battleActive,
@@ -311,6 +320,7 @@ function useHostLiveExtras(liveId: string) {
     startedAtMsRef,
     peakRef,
     onBattleAccepted,
+    endBattleIfRunning,
   };
 }
 
@@ -445,6 +455,7 @@ function HostKitStage({
     setBusy(true);
     const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
     const peakViewers = extras.peakRef.current;
+    await extras.endBattleIfRunning(identity);
 
     const ended = await endLiveInDb(liveId);
     if (!ended.ok) {
@@ -701,6 +712,7 @@ function HostLiveKitStage({
     setBusy(true);
     const durationSec = Math.max(0, Math.floor((Date.now() - extras.startedAtMsRef.current) / 1000));
     const peakViewers = Math.max(extras.peakRef.current, Math.max(0, people.length - 1));
+    await extras.endBattleIfRunning(identity);
 
     const ended = await endLiveInDb(liveId);
     if (!ended.ok) {

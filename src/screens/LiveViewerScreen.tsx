@@ -43,7 +43,9 @@ import { GIFT_CATALOG, giftPrice, type GiftKey } from "../lib/gifts";
 import { BattleScoreHud } from "../components/battle/BattleScoreHud";
 import { BattleFeaturedRow, BattlePeerProductSheet } from "../components/battle/BattleFeaturedRow";
 import { DefiPlusIntroOverlay } from "../components/battle/DefiPlusIntroOverlay";
-import { isBattleLiveActive, useBattleForLive } from "../lib/battles";
+import { BattleResultOverlay } from "../components/battle/BattleResultOverlay";
+import { BattleSuddenDeathOverlay } from "../components/battle/BattleSuddenDeathOverlay";
+import { isBattleFinished, isBattleLiveActive, useBattleForLive } from "../lib/battles";
 import { battleDockMetrics, battleFighters, battleRemainingMs } from "../lib/battle-timing";
 import { pickBattleFeatured } from "../lib/battle-featured";
 import { useBattlePeerProducts } from "../lib/use-battle-peer-products";
@@ -118,6 +120,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     null;
   const [nowMs, setNowMs] = useState(Date.now());
   const [peerOpen, setPeerOpen] = useState(false);
+  const [dismissedResultId, setDismissedResultId] = useState<string | null>(null);
   const fighters = battle && liveId && battleActive ? battleFighters(battle, liveId) : null;
   const dock = battleDockMetrics(insets.top, Dimensions.get("window").height);
   const remainingMs = battle && battleActive ? battleRemainingMs(battle.session, nowMs) : 0;
@@ -125,6 +128,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const introOn = battleActive && isDefiPlusIntroActive(introStartsAt, nowMs);
   const peerProducts = useBattlePeerProducts(battleActive ? fighters?.right.liveId ?? null : null);
   const peerFeatured = pickBattleFeatured(peerProducts);
+  const resultOpen = isBattleFinished(battle) && !!battle && battle.session.id !== dismissedResultId;
 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -227,6 +231,14 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
   }, [battleActive, battle?.session.id]);
+
+  useEffect(() => {
+    const text = battle?.session.last_sale_text;
+    const at = battle?.session.last_sale_at;
+    if (!text || !at || !battleActive) return;
+    if (Date.now() - Date.parse(at) > 8000) return;
+    setToast(text);
+  }, [battle?.session.last_sale_text, battle?.session.last_sale_at, battleActive]);
 
   useEffect(() => {
     if (!auctionLive) setCustomOpen(false);
@@ -616,6 +628,20 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           rightName={fighters?.right.displayName}
         />
       ) : null}
+      <BattleSuddenDeathOverlay
+        active={
+          battleActive &&
+          (!!battle?.session.sudden_death || battle?.session.status === "sudden_death")
+        }
+      />
+      <BattleResultOverlay
+        open={resultOpen}
+        battle={battle}
+        selfSellerId={user?.id}
+        onDone={() => {
+          if (battle?.session.id) setDismissedResultId(battle.session.id);
+        }}
+      />
       <GiftAnimationOverlay trigger={room.lastGift} />
       <FloatingHearts pulse={room.heartPulse ?? 0} />
 
