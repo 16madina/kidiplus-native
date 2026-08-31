@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,6 +50,11 @@ import { isExpoGo } from "../lib/expo-go";
 import { useLiveSystemPipFlag } from "../lib/live-system-pip";
 import { liveViewerChromeHiddenForPip } from "../lib/live-pip-presentation";
 import { useLayout } from "../lib/layout";
+import {
+  shouldFlashOutbid,
+  viewerAuctionMood,
+  viewerAuctionUrgent,
+} from "../lib/viewer-auction-mood";
 import { supabase } from "../lib/supabase";
 import { GOLD, LIVE_RED, NAVY, formatViewers } from "../theme";
 import type { LiveStream } from "../mock/lives";
@@ -140,13 +145,54 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const nextBid = featured
     ? nextBidAmount(Number(featured.price ?? featured.start_price ?? 0), currency)
     : 0;
+  const bidderId = user?.id ?? identity;
   const isHighest =
-    !!user &&
     !!room.lastBid &&
     !!featured &&
     room.lastBid.productId === featured.id &&
-    room.lastBid.bidderId === user.id &&
+    (room.lastBid.bidderId === bidderId || (!!user && room.lastBid.bidderId === user.id)) &&
     room.lastBid.auctionRound === (featured.auction_round ?? room.auction?.auctionRound ?? 1);
+  const auctionRoundKey = room.auction
+    ? `${room.auction.productId}:${room.auction.auctionRound ?? 1}`
+    : "none";
+  const [participated, setParticipated] = useState(false);
+  const [outbidFlashKey, setOutbidFlashKey] = useState(0);
+  const wasHighestRef = useRef(false);
+
+  useEffect(() => {
+    setParticipated(false);
+    wasHighestRef.current = false;
+  }, [auctionRoundKey]);
+
+  useEffect(() => {
+    if (isHighest) setParticipated(true);
+    if (shouldFlashOutbid(wasHighestRef.current, isHighest, !!auctionLive)) {
+      setOutbidFlashKey((n) => n + 1);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+    }
+    wasHighestRef.current = isHighest;
+  }, [isHighest, auctionLive]);
+
+  const revealForFeatured =
+    room.lastReveal && featured && room.lastReveal.productId === featured.id ? room.lastReveal : null;
+  const auctionMood = viewerAuctionMood({
+    auctionLive: !!auctionLive,
+    ended: !!revealForFeatured,
+    isHighest,
+    participated,
+    viewerId: bidderId,
+    winnerId: revealForFeatured?.winnerId ?? null,
+  });
+  const auctionStatus =
+    auctionMood === "leading"
+      ? t("live.youAreLeading", "✓ Vous êtes en tête")
+      : auctionMood === "outbid"
+        ? t("live.youWereOutbid", "Vous avez été dépassé")
+        : auctionMood === "won"
+          ? t("live.youWonAuction", "Félicitations, vous avez gagné !")
+          : auctionMood === "lost"
+            ? t("live.auctionFinished", "Enchère terminée")
+            : null;
 
   const eligibility = useMemo(
     () => canDeliver({ settings: sellerSettings, sellerCountry, buyerCountry }),
@@ -642,18 +688,22 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
             </View>
           ) : null}
 
-          {auctionLive || (featured?.mode === "fixed" && featured.status === "active") ? (
+          {auctionLive || revealForFeatured || (featured?.mode === "fixed" && featured.status === "active") ? (
             <AuctionNowBar
-              eyebrow={auctionLive ? t("live.currentBid") : t("live.buyNow")}
+              eyebrow={auctionLive || revealForFeatured ? t("live.currentBid") : t("live.buyNow")}
               name={featured!.name}
               imageUrl={featured!.image_url}
               priceLabel={fmt(Number(featured!.price ?? featured!.start_price))}
               bidderName={
-                auctionLive && room.lastBid && room.lastBid.productId === featured!.id
+                auctionLive && !auctionStatus && room.lastBid && room.lastBid.productId === featured!.id
                   ? room.lastBid.bidderName
                   : null
               }
               secondsLeft={auctionLive && room.timeLeft > 0 ? room.timeLeft : null}
+              mood={auctionLive || revealForFeatured ? auctionMood : "normal"}
+              statusLabel={auctionLive || revealForFeatured ? auctionStatus : null}
+              urgentTimer={viewerAuctionUrgent(auctionLive ? room.timeLeft : null)}
+              outbidFlashKey={outbidFlashKey}
             />
           ) : featured || room.products.length > 0 ? (
             <AuctionNowBar
