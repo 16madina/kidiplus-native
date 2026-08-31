@@ -12,7 +12,7 @@ export const STORAGE_BUCKETS = [
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];
 
 /** Public buckets: `/object/public/` works. Private buckets must be signed. */
-const PUBLIC_BUCKETS = new Set<StorageBucket>(["vitrine-media"]);
+const PUBLIC_BUCKETS = new Set<StorageBucket>(["vitrine-media", "live-covers"]);
 
 /** Media uploaded to an older Superbase project still point at this host. */
 const LEGACY_STORAGE_HOSTS = ["https://rpersnzjidxtlekbbdtp.supabase.co"];
