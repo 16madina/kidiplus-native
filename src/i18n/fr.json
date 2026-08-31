@@ -249,6 +249,10 @@
     "home": "Maison",
     "bundles": "Déstockage & lots"
   },
+  "expoGo": {
+    "title": "Tu es dans Expo Go — les lives ne marchent pas ici",
+    "body": "Ferme Expo Go. Ouvre l’icône KiDi+ sur l’iPhone. Sur le Mac : npm run rebuild:ios puis npm start. Ne scanne pas le QR."
+  },
   "home": {
     "categories": {
       "forYou": "Pour toi",

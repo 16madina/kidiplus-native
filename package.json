@@ -4,9 +4,9 @@
   "main": "index.ts",
   "private": true,
   "scripts": {
-    "start": "expo start -c",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "start": "expo start --dev-client -c",
+    "android": "expo run:android --device",
+    "ios": "expo run:ios --device",
     "web": "expo start --web",
     "lint": "tsc --noEmit",
     "postinstall": "patch-package",

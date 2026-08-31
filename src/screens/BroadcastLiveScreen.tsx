@@ -35,8 +35,8 @@ export function BroadcastLiveScreen(props: {
           l’icône Expo Go).
         </Text>
         <Text style={styles.sub}>
-          Ferme Expo Go. Ouvre KiDi+. Sur le Mac, laisse tourner{" "}
-          {"npx expo start --dev-client"} — sans scanner le QR avec l’appareil photo.
+          Ferme Expo Go. Ouvre l’icône KiDi+. Sur le Mac : npm run rebuild:ios puis npm start.
+          Ne scanne pas le QR — ça rouvre Expo Go.
         </Text>
         <Press onPress={closeOverlay} style={styles.btn}>
           <Text style={styles.btnTxt}>Fermer</Text>
