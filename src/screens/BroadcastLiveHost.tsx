@@ -74,6 +74,7 @@ export function BroadcastLiveHost({
   identity,
   displayName,
   facing,
+  rtmpMode = false,
 }: {
   liveId: string;
   roomName: string;
@@ -81,6 +82,8 @@ export function BroadcastLiveHost({
   identity: string;
   displayName: string;
   facing: CameraType;
+  rtmpMode?: boolean;
+  rtmpCreds?: { url: string; streamKey: string; ingressId: string; participantIdentity: string };
 }) {
   const { closeOverlay } = useNav();
   const { activeLens } = useFilter();
@@ -201,6 +204,7 @@ export function BroadcastLiveHost({
         session={session}
         endingRef={endingRef}
         onEnded={setSummary}
+        rtmpMode={rtmpMode}
       />
     );
   }
@@ -218,7 +222,7 @@ export function BroadcastLiveHost({
         onDisconnected={ignoreDisconnect}
         onError={handleRoomError}
       >
-        <PublishLocalMedia facing={facing} />
+        {rtmpMode ? null : <PublishLocalMedia facing={facing} />}
         <HostLiveKitStage
           liveId={liveId}
           identity={identity}
@@ -226,6 +230,7 @@ export function BroadcastLiveHost({
           facing={facing}
           endingRef={endingRef}
           onEnded={setSummary}
+          rtmpMode={rtmpMode}
         />
       </LiveKitRoom>
     </View>
@@ -346,6 +351,7 @@ function HostChrome({
   onFlip,
   onEnd,
   onBattleAccepted,
+  rtmpMode = false,
 }: {
   liveId: string;
   identity: string;
@@ -368,6 +374,7 @@ function HostChrome({
   onFlip: () => void;
   onEnd: () => void;
   onBattleAccepted?: () => void;
+  rtmpMode?: boolean;
 }) {
   const { t } = useTranslation();
   const { closeOverlay } = useNav();
@@ -397,6 +404,7 @@ function HostChrome({
         onBattleAccepted={onBattleAccepted}
         cameraFacing={facing}
         battle={battle}
+        rtmpMode={rtmpMode}
       />
       {busy ? (
         <View style={[FILL, styles.ending]} pointerEvents="auto">
@@ -421,6 +429,7 @@ function HostKitStage({
   session,
   endingRef,
   onEnded,
+  rtmpMode = false,
 }: {
   liveId: string;
   identity: string;
@@ -429,6 +438,7 @@ function HostKitStage({
   session: { url: string; token: string };
   endingRef: MutableRefObject<boolean>;
   onEnded: (stats: LiveSummaryStats) => void;
+  rtmpMode?: boolean;
 }) {
   const { t } = useTranslation();
   const extras = useHostLiveExtras(liveId);
@@ -506,6 +516,7 @@ function HostKitStage({
       identity={identity}
       displayName={displayName}
       facing={facing}
+      rtmpMode={rtmpMode}
       hostVideo={
         camOn ? (
           <View style={FILL}>
@@ -598,6 +609,7 @@ function HostLiveKitStage({
   facing: initialFacing,
   endingRef,
   onEnded,
+  rtmpMode = false,
 }: {
   liveId: string;
   identity: string;
@@ -605,6 +617,7 @@ function HostLiveKitStage({
   facing: CameraType;
   endingRef: MutableRefObject<boolean>;
   onEnded: (stats: LiveSummaryStats) => void;
+  rtmpMode?: boolean;
 }) {
   const { t } = useTranslation();
   const room = useRoomContext();
@@ -807,6 +820,7 @@ function HostLiveKitStage({
       identity={identity}
       displayName={displayName}
       facing={facing}
+      rtmpMode={rtmpMode}
       hostVideo={hostVideo}
       guestVideo={guestVideo}
       hostFighter={

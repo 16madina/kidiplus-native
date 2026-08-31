@@ -6,6 +6,11 @@ import { uploadLiveProductImage } from "./lives";
 import { isSimBidderId } from "./prelaunch-live-sim";
 import type { LiveDraftProduct } from "./broadcast-products";
 import type { GiftKey } from "./gifts";
+import {
+  normalizeCondition,
+  parseStringArray,
+  type ProductCondition,
+} from "./live-product-options";
 
 /** Anti-snipe: a bid in the last N seconds resets the timer to N seconds. */
 export const AUCTION_EXTENSION_WINDOW_SECONDS = 10;
@@ -30,6 +35,10 @@ export type LiveProductRow = {
   auction_deadline_at: string | null;
   auction_round?: number | null;
   shop_product_id?: string | null;
+  brand?: string | null;
+  condition?: ProductCondition | null;
+  colors?: string[];
+  sizes?: string[];
 };
 
 export type AuctionStartEvt = {
@@ -69,6 +78,9 @@ export type HostChatMsg = {
   text: string;
   system?: boolean;
   isHost?: boolean;
+  source?: "kidi" | "youtube" | "facebook";
+  color?: string;
+  externalId?: string;
 };
 
 export type HostPresenceViewer = {
@@ -123,11 +135,17 @@ export async function fetchLiveProducts(liveId: string): Promise<LiveProductRow[
   const { data } = await supabase
     .from("live_products")
     .select(
-      "id, live_id, name, image_url, mode, start_price, price, stock, timer_seconds, status, sold_to_identity, final_price, position, auction_deadline_at, auction_round, shop_product_id",
+      "id, live_id, name, image_url, mode, start_price, price, stock, timer_seconds, status, sold_to_identity, final_price, position, auction_deadline_at, auction_round, shop_product_id, brand, condition, colors, sizes",
     )
     .eq("live_id", liveId)
     .order("position", { ascending: true });
-  const rows = (data ?? []) as LiveProductRow[];
+  const rows = ((data ?? []) as LiveProductRow[]).map((row) => ({
+    ...row,
+    brand: row.brand ?? null,
+    condition: normalizeCondition(row.condition),
+    colors: parseStringArray(row.colors),
+    sizes: parseStringArray(row.sizes),
+  }));
   return Promise.all(rows.map(hydrateProduct));
 }
 
@@ -289,6 +307,10 @@ export async function createLiveProductFromDraft(args: {
     ...(args.draft.shopProductId ? { shop_product_id: args.draft.shopProductId } : {}),
     ...(args.draft.description ? { description: args.draft.description } : {}),
     ...(args.draft.bidIncrement != null ? { bid_increment: args.draft.bidIncrement } : {}),
+    ...(args.draft.brand ? { brand: args.draft.brand } : {}),
+    ...(args.draft.condition ? { condition: args.draft.condition } : {}),
+    ...(args.draft.colors?.length ? { colors: args.draft.colors } : {}),
+    ...(args.draft.sizes?.length ? { sizes: args.draft.sizes } : {}),
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -866,11 +888,21 @@ export function useHostLiveSession(args: {
         user: displayName,
         text: trimmed,
         isHost: true,
+        source: "kidi",
       };
       pushChat(evt);
       sendBroadcast("chat", { ...evt, source: "kidi", userId: identity });
     },
     [displayName, identity, pushChat, sendBroadcast],
+  );
+
+  const ingestExternalChat = useCallback(
+    (evt: HostChatMsg) => {
+      if (!evt?.id || !evt.text?.trim()) return;
+      pushChat(evt);
+      sendBroadcast("chat", evt as unknown as Record<string, unknown>);
+    },
+    [pushChat, sendBroadcast],
   );
 
   const addDraft = useCallback(
@@ -938,6 +970,7 @@ export function useHostLiveSession(args: {
     lastExtensionTs,
     chat,
     sendChat,
+    ingestExternalChat,
     presenceCount,
     presentViewers,
     sales,

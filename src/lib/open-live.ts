@@ -20,6 +20,7 @@ export type BroadcastLiveOverlay = {
   identity: string;
   displayName: string;
   facing: "front" | "back";
+  rtmpMode?: boolean;
 };
 
 export function pickOpenLive(rows: OpenLiveRow[], preferredId?: string | null): OpenLiveRow | null {
@@ -40,5 +41,6 @@ export function openLiveRowToOverlay(
     identity: user.id,
     displayName: user.displayName.trim() || "Vendeur",
     facing: "front",
+    rtmpMode: row.broadcast_mode === "rtmp",
   };
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   BookOpen,
@@ -10,6 +11,7 @@ import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { useNav } from "../context/navigation";
 import { useAppTheme } from "../context/theme";
+import { AuctionGuideOverlay } from "../components/discover/AuctionGuideOverlay";
 import { GOLD, NAVY } from "../theme";
 
 const TUTORIALS = [
@@ -46,6 +48,7 @@ const TUTORIALS = [
 export function DiscoverScreen() {
   const { colors } = useAppTheme();
   const { openOverlay } = useNav();
+  const [bidGuide, setBidGuide] = useState(false);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -57,7 +60,10 @@ export function DiscoverScreen() {
           return (
             <Press
               key={tut.id}
-              onPress={() => tut.overlay && openOverlay(tut.overlay as any)}
+              onPress={() => {
+                if (tut.id === "bid") setBidGuide(true);
+                else if (tut.overlay) openOverlay(tut.overlay as never);
+              }}
               style={{ minHeight: 0 }}
             >
               <SurfaceCard>
@@ -75,6 +81,7 @@ export function DiscoverScreen() {
           );
         })}
       </ScrollView>
+      <AuctionGuideOverlay open={bidGuide} onClose={() => setBidGuide(false)} />
     </View>
   );
 }

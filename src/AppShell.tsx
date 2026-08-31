@@ -232,6 +232,8 @@ export function AppShell() {
               identity={broadcastLive.entry.identity}
               displayName={broadcastLive.entry.displayName}
               facing={broadcastLive.entry.facing}
+              rtmpMode={broadcastLive.entry.rtmpMode}
+              rtmpCreds={broadcastLive.entry.rtmpCreds}
             />
           </Suspense>
         ) : null}

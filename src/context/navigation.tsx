@@ -65,6 +65,8 @@ export type Overlay =
       identity: string;
       displayName: string;
       facing: "front" | "back";
+      rtmpMode?: boolean;
+      rtmpCreds?: { url: string; streamKey: string; ingressId: string; participantIdentity: string };
     }
   | { kind: "admin" }
   | { kind: "blocked-users" }

@@ -362,6 +362,7 @@ export async function createLiveInDb(input: {
   coverPath: string | null;
   roomName: string;
   currency?: string;
+  broadcastMode?: "camera" | "rtmp";
   products: Array<{
     name: string;
     imagePath: string | null;
@@ -370,6 +371,10 @@ export async function createLiveInDb(input: {
     stock: number;
     shopProductId?: string;
     timerSeconds?: number;
+    brand?: string | null;
+    condition?: string | null;
+    colors?: string[];
+    sizes?: string[];
   }>;
 }): Promise<string> {
   const { data: live, error } = await supabase
@@ -383,7 +388,7 @@ export async function createLiveInDb(input: {
       status: "live",
       started_at: new Date().toISOString(),
       host_last_seen_at: new Date().toISOString(),
-      broadcast_mode: "camera",
+      broadcast_mode: input.broadcastMode ?? "camera",
       ...(input.currency ? { currency: input.currency } : {}),
     })
     .select("id")
@@ -402,6 +407,10 @@ export async function createLiveInDb(input: {
       status: "upcoming",
       position: i,
       ...(p.shopProductId ? { shop_product_id: p.shopProductId } : {}),
+      ...(p.brand ? { brand: p.brand } : {}),
+      ...(p.condition ? { condition: p.condition } : {}),
+      ...(p.colors?.length ? { colors: p.colors } : {}),
+      ...(p.sizes?.length ? { sizes: p.sizes } : {}),
     }));
     const { error: pErr } = await supabase.from("live_products").insert(rows);
     if (pErr) throw pErr;
@@ -558,7 +567,7 @@ export async function createScheduledLiveInDb(input: {
 }
 
 export function isReplayPlayable(row: SellerLiveEntry): boolean {
-  if (row.replay_status !== "ready" || !row.replay_url) return false;
+  if (row.replay_status !== "ready") return false;
   if (!row.replay_expires_at) return true;
   return Date.parse(row.replay_expires_at) > Date.now();
 }

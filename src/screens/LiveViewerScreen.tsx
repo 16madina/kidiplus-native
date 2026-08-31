@@ -28,6 +28,8 @@ import { CustomBidPanel } from "../components/live/CustomBidPanel";
 import { BidPulseFlash } from "../components/live/BidPulseFlash";
 import { WinnerReveal } from "../components/live/WinnerReveal";
 import { GiftAnimationOverlay } from "../components/live/GiftAnimationOverlay";
+import { VariantPickerSheet } from "../components/live/VariantPickerSheet";
+import { variantSelectionState } from "../lib/live-product-options";
 import { FloatingHearts } from "../components/live/FloatingHearts";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { ReferredBadge } from "../components/ReferredBadge";
@@ -139,6 +141,10 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [payOrder, setPayOrder] = useState<OrderView | null>(null);
+  const [variantPick, setVariantPick] = useState<{
+    colors: string[];
+    sizes: string[];
+  } | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMsg, setReportMsg] = useState<{ id: string; text: string } | null>(null);
@@ -476,9 +482,25 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
       return;
     }
     if (!gateDelivery()) return;
+    const colors = featured.colors ?? [];
+    const sizes = featured.sizes ?? [];
+    const sel = variantSelectionState(colors, sizes);
+    if (sel.needsPick) {
+      setVariantPick({ colors, sizes });
+      return;
+    }
+    await completeBuy({ color: sel.color, size: sel.size });
+  };
+
+  const completeBuy = async (variant?: { color?: string; size?: string }) => {
+    if (!featured) return;
     setBusy(true);
     try {
-      const res = await room.buyNow({ productId: featured.id });
+      const res = await room.buyNow({
+        productId: featured.id,
+        color: variant?.color ?? null,
+        size: variant?.size ?? null,
+      });
       if (!res.ok) {
         if (res.error === "no_address") {
           Alert.alert(
@@ -774,7 +796,9 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
                       <Text style={styles.chatSystem}>{m.text}</Text>
                     ) : (
                       <Text style={styles.chatLine}>
-                        <Text style={styles.chatUser}>{m.user} </Text>
+                        {m.source === "youtube" ? <Text style={{ color: "#E24B4B", fontWeight: "900" }}>YT </Text> : null}
+                        {m.source === "facebook" ? <Text style={{ color: "#4B7BE5", fontWeight: "900" }}>FB </Text> : null}
+                        <Text style={[styles.chatUser, m.color ? { color: m.color } : null]}>{m.user} </Text>
                         {m.text}
                       </Text>
                     )}
@@ -967,6 +991,17 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
         </View>
       </Modal>
 
+      <VariantPickerSheet
+        open={!!variantPick}
+        onClose={() => setVariantPick(null)}
+        productName={featured?.name ?? ""}
+        colors={variantPick?.colors ?? []}
+        sizes={variantPick?.sizes ?? []}
+        onConfirm={(v) => {
+          setVariantPick(null);
+          void completeBuy(v);
+        }}
+      />
       <PaymentSheet
         order={payOrder}
         onClose={() => setPayOrder(null)}

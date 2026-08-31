@@ -16,8 +16,10 @@ import { Image } from "expo-image";
 import { Press } from "../Press";
 import { pickImageFromLibrary, type PickedImage } from "../../lib/pick-image";
 import { AUCTION_TIMER_PRESETS, newDraftId, type LiveDraftProduct, type LiveSaleKind } from "../../lib/broadcast-products";
+import type { ProductCondition } from "../../lib/live-product-options";
 import { currencySymbol, normalizeCurrency } from "../../lib/money";
 import { GOLD, NAVY } from "../../theme";
+import { ProductOptionsFields } from "../shop/ProductOptionsFields";
 
 export function AddProductSheet({
   open,
@@ -48,6 +50,10 @@ export function AddProductSheet({
   const [stock, setStock] = useState("1");
   const [bidIncrement, setBidIncrement] = useState("");
   const [description, setDescription] = useState("");
+  const [brand, setBrand] = useState("");
+  const [condition, setCondition] = useState<ProductCondition | null>(null);
+  const [colors, setColors] = useState<string[]>([]);
+  const [sizes, setSizes] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +67,10 @@ export function AddProductSheet({
     setStock("1");
     setBidIncrement("");
     setDescription("");
+    setBrand("");
+    setCondition(null);
+    setColors([]);
+    setSizes([]);
   }, [open, defaults.start, defaults.price]);
 
   const pickSlot = async (i: number) => {
@@ -94,6 +104,10 @@ export function AddProductSheet({
       stock: Math.max(1, Math.floor(Number(stock) || 1)),
       bidIncrement: Number.isFinite(inc) && inc > 0 ? inc : null,
       description: description.trim() || undefined,
+      brand: brand.trim() || null,
+      condition,
+      colors,
+      sizes,
     });
     onClose();
   };
@@ -228,6 +242,18 @@ export function AddProductSheet({
                   </View>
                 </>
               ) : null}
+
+              <ProductOptionsFields
+                brand={brand}
+                condition={condition}
+                colors={colors}
+                sizes={sizes}
+                onBrand={setBrand}
+                onCondition={setCondition}
+                onColors={setColors}
+                onSizes={setSizes}
+                light
+              />
 
               <Text style={styles.label}>{t("productOptions.description")}</Text>
               <TextInput

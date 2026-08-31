@@ -103,6 +103,7 @@ export function demoHomeStories(nowMs = Date.now()): VitrineStory[] {
         unread: true,
         clip: null,
         fictitious: true,
+        music: null,
       });
     });
   });

@@ -125,6 +125,10 @@ export function ShopPickerSheet({
         price: amount,
         timerSec,
         stock: Math.max(1, item?.stock ?? 1),
+        brand: item?.brand ?? null,
+        condition: item?.condition ?? null,
+        colors: item?.colors ?? [],
+        sizes: item?.sizes ?? [],
       } satisfies LiveDraftProduct;
     });
     onConfirm(drafts);

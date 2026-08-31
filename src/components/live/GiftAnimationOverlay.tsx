@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Easing, StyleSheet, Text, View } from "react-native";
 import { giftByKey, type GiftKey } from "../../lib/gifts";
+import { BAOBAB_DURATION_MS, baobabProgress, isBaobabGiftKey } from "../../lib/gift-baobab";
 import { GOLD } from "../../theme";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -21,7 +22,8 @@ const DURATIONS: Partial<Record<string, number>> = {
   lion: 4000,
   butterfly: 2000,
   star: 2000,
-  kidi: 4000,
+  kidi: BAOBAB_DURATION_MS,
+  baobab: BAOBAB_DURATION_MS,
 };
 
 type Item = GiftTrigger & { animId: string };
@@ -78,8 +80,15 @@ function GiftAnim({ item, dur, onDone }: { item: Item; dur: number; onDone: () =
       return <RocketAnim />;
     case "lion":
       return <LionAnim name={item.fromName} />;
+    case "butterfly":
+      return <ButterflyAnim />;
+    case "star":
+      return <StarAnim />;
+    case "kidi":
+    case "baobab":
+      return isBaobabGiftKey(key) ? <BaobabAnim /> : <SimpleEmoji emoji={g?.emoji ?? "🎁"} />;
     default:
-      return <SimpleEmoji emoji={g?.emoji ?? "🎁"} />;
+      return isBaobabGiftKey(key) ? <BaobabAnim /> : <SimpleEmoji emoji={g?.emoji ?? "🎁"} />;
   }
 }
 
@@ -269,6 +278,122 @@ function LionAnim({ name }: { name: string }) {
   );
 }
 
+function ButterflyAnim() {
+  const p = useProgress(2000);
+  return (
+    <View style={styles.fill}>
+      {[0, 1].map((i) => (
+        <Animated.Text
+          key={i}
+          style={{
+            position: "absolute",
+            fontSize: 56,
+            left: SCREEN_W * (0.25 + i * 0.32),
+            opacity: p.interpolate({ inputRange: [0, 0.12, 0.8, 1], outputRange: [0, 1, 1, 0] }),
+            transform: [
+              { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [220, -40] }) },
+              { rotate: p.interpolate({ inputRange: [0, 0.5, 1], outputRange: ["-18deg", "14deg", "-8deg"] }) },
+              { scale: p.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.15, 0.9] }) },
+            ],
+          }}
+        >
+          🦋
+        </Animated.Text>
+      ))}
+    </View>
+  );
+}
+
+function StarAnim() {
+  const p = useProgress(2000);
+  const trail = useMemo(() => Array.from({ length: 7 }, (_, i) => i), []);
+  return (
+    <View style={styles.fill}>
+      <Animated.Text
+        style={{
+          position: "absolute",
+          fontSize: 72,
+          opacity: p.interpolate({ inputRange: [0, 0.1, 0.8, 1], outputRange: [0, 1, 1, 0] }),
+          transform: [
+            { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [-40, SCREEN_W - 80] }) },
+            { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [80, 240] }) },
+            { rotate: p.interpolate({ inputRange: [0, 1], outputRange: ["-20deg", "40deg"] }) },
+          ],
+        }}
+      >
+        ⭐
+      </Animated.Text>
+      {trail.map((i) => (
+        <Animated.Text
+          key={i}
+          style={{
+            position: "absolute",
+            left: SCREEN_W * (0.1 + i * 0.12),
+            fontSize: 16,
+            opacity: p.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
+            transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [40, 380] }) }],
+          }}
+        >
+          ✨
+        </Animated.Text>
+      ))}
+    </View>
+  );
+}
+
+function BaobabAnim() {
+  const p = useProgress(BAOBAB_DURATION_MS);
+  const leaves = useMemo(() => Array.from({ length: 10 }, (_, i) => i), []);
+  const mid = baobabProgress(BAOBAB_DURATION_MS / 2);
+  void mid;
+  return (
+    <View style={styles.center}>
+      <Animated.View
+        style={{
+          opacity: p.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 1, 1, 0] }),
+          transform: [{ scale: p.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0.15, 1.05, 1] }) }],
+          alignItems: "center",
+        }}
+      >
+        <View style={styles.baobabCanopy} />
+        <View style={styles.baobabTrunk} />
+      </Animated.View>
+      <Animated.Text
+        style={{
+          position: "absolute",
+          top: "16%",
+          color: "#fff",
+          fontWeight: "900",
+          letterSpacing: 3,
+          fontSize: 13,
+          textTransform: "uppercase",
+          opacity: p.interpolate({ inputRange: [0.35, 0.45, 0.78, 0.88], outputRange: [0, 1, 1, 0] }),
+        }}
+      >
+        Baobab d’or
+      </Animated.Text>
+      {leaves.map((i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            left: SCREEN_W * (0.18 + (i % 5) * 0.14),
+            width: 10,
+            height: 14,
+            borderRadius: 8,
+            backgroundColor: i % 2 ? GOLD : "#2F6B3A",
+            opacity: p.interpolate({ inputRange: [0.4, 0.5, 0.9, 1], outputRange: [0, 1, 1, 0] }),
+            transform: [
+              { translateY: p.interpolate({ inputRange: [0.4, 1], outputRange: [80, 340] }) },
+              { rotate: p.interpolate({ inputRange: [0, 1], outputRange: ["-10deg", "25deg"] }) },
+            ],
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 function SimpleEmoji({ emoji }: { emoji: string }) {
   const p = useProgress(2000);
   return (
@@ -305,4 +430,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   bannerTxt: { color: GOLD, fontWeight: "900", fontSize: 16, textAlign: "center" },
+  baobabTrunk: {
+    width: 22,
+    height: 92,
+    borderRadius: 8,
+    backgroundColor: "#6B3F1D",
+    marginTop: -8,
+  },
+  baobabCanopy: {
+    width: 148,
+    height: 92,
+    borderRadius: 70,
+    backgroundColor: "#1F6B3A",
+    borderWidth: 3,
+    borderColor: GOLD,
+  },
 });

@@ -1,4 +1,5 @@
 import { parseStoryPosterClip, type VideoClip } from "./publish-media";
+import { MUSIC_COLUMNS, musicFromRow, musicToRow, type VitrineMusic } from "./vitrine-music";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
 import { storyExpiresAt } from "./vitrine-story-logic";
@@ -26,6 +27,7 @@ export type VitrineStory = {
   clip: VideoClip | null;
   /** Home-bar filler — not a real seller, remove when users fill the row. */
   fictitious?: boolean;
+  music: VitrineMusic | null;
 };
 
 type SellerEmbed = {
@@ -42,10 +44,16 @@ type StoryRow = {
   expires_at: string;
   created_at: string;
   seller: SellerEmbed | SellerEmbed[] | null;
+  music_url?: string | null;
+  music_title?: string | null;
+  music_artist?: string | null;
+  music_start_sec?: number | string | null;
+  music_volume?: number | string | null;
+  original_volume?: number | string | null;
 };
 
 const STORY_SELECT = `
-  id, user_id, media_url, poster_url, expires_at, created_at,
+  id, user_id, media_url, poster_url, expires_at, created_at, ${MUSIC_COLUMNS},
   seller:profiles!vitrine_stories_user_id_fkey(display_name, handle, avatar_url)
 `;
 
@@ -112,6 +120,7 @@ async function mapRow(row: StoryRow): Promise<VitrineStory | null> {
     expiresAt: row.expires_at,
     unread: true,
     clip: storedPoster.clip,
+    music: musicFromRow(row),
   };
 }
 
@@ -125,6 +134,7 @@ export async function fetchVitrineStories(limit = 30): Promise<VitrineStory[]> {
 export async function createVitrineStory(
   mediaUrl: string,
   posterUrl?: string | null,
+  music?: VitrineMusic | null,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const uid = (await supabase.auth.getUser()).data.user?.id;
   if (!uid) return { ok: false, error: "unauthorized" };
@@ -134,12 +144,13 @@ export async function createVitrineStory(
     media_url: mediaUrl,
     poster_url: posterUrl ?? null,
     expires_at: storyExpiresAt(),
+    ...musicToRow(music),
   };
-  let { data, error } = await supabase.from("vitrine_stories").insert(payload).select("id").maybeSingle();
+  let { data, error } = await supabase.from("vitrine_stories").insert(payload as never).select("id").maybeSingle();
   if (error && payload.poster_url) {
     const retry = await supabase
       .from("vitrine_stories")
-      .insert({ ...payload, poster_url: null })
+      .insert({ ...payload, poster_url: null } as never)
       .select("id")
       .maybeSingle();
     data = retry.data;

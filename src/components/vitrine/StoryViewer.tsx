@@ -20,6 +20,7 @@ import { encodeContentReportNote } from "../../lib/admin-takedown-logic";
 import { initials, NAVY } from "../../theme";
 import { isHttpUrl } from "../../lib/storage";
 import { isStoryVideoUrl, STORY_IMAGE_MS, type VitrineStory } from "../../lib/vitrine-stories";
+import { VitrineMusicLayer } from "./VitrineMusicLayer";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
@@ -159,6 +160,7 @@ export function StoryViewer({
             ) : (
               <Image source={{ uri: story.mediaUrl }} style={FILL} contentFit="cover" />
             )}
+            <VitrineMusicLayer music={story.music} active={visible} />
           </Pressable>
         </GestureDetector>
         <ReportSheet

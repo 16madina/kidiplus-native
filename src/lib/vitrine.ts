@@ -1,5 +1,6 @@
 import type { PickedImage } from "./pick-image";
 import { isVideoMediaUrl, parseVideoClipCaption, type VideoClip } from "./publish-media";
+import { MUSIC_COLUMNS, musicFromRow, musicToRow, type VitrineMusic } from "./vitrine-music";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
 
@@ -22,6 +23,7 @@ export type VitrineFeedPost = {
   handle: string;
   avatarUrl: string | null;
   createdAt: string;
+  music: VitrineMusic | null;
 };
 
 type SellerEmbed = {
@@ -43,11 +45,17 @@ type VitrineRow = {
   comment_count: number | null;
   created_at?: string | null;
   seller: SellerEmbed | SellerEmbed[] | null;
+  music_url?: string | null;
+  music_title?: string | null;
+  music_artist?: string | null;
+  music_start_sec?: number | string | null;
+  music_volume?: number | string | null;
+  original_volume?: number | string | null;
 };
 
 const POST_SELECT = `
   id, user_id, media_type, media_urls, poster_url, caption, product_id, live_id,
-  like_count, comment_count, created_at, active,
+  like_count, comment_count, created_at, active, ${MUSIC_COLUMNS},
   seller:profiles!vitrine_posts_user_id_fkey(display_name, handle, avatar_url, is_verified)
 `;
 
@@ -112,6 +120,7 @@ async function mapRow(row: VitrineRow, likedIds: Set<string>): Promise<VitrineFe
     handle,
     avatarUrl,
     createdAt: row.created_at || new Date().toISOString(),
+    music: musicFromRow(row),
   };
 }
 
@@ -393,6 +402,7 @@ export async function createVitrinePost(input: {
   productId?: string | null;
   liveId?: string | null;
   posterUrl?: string | null;
+  music?: VitrineMusic | null;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const uid = (await supabase.auth.getUser()).data.user?.id;
   if (!uid) return { ok: false, error: "unauthorized" };
@@ -410,7 +420,8 @@ export async function createVitrinePost(input: {
       product_id: input.productId ?? null,
       live_id: input.liveId ?? null,
       active: true,
-    })
+      ...musicToRow(input.music),
+    } as never)
     .select("id")
     .maybeSingle();
   if (error || !data) return { ok: false, error: error?.message ?? "failed" };

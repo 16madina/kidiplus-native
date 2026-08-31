@@ -36,6 +36,8 @@ import {
 } from "../../lib/publish-media";
 import { GOLD, LIVE_RED, NAVY } from "../../theme";
 import type { PublishHubMode } from "../../lib/publish-hub";
+import { musicLabel, type VitrineMusic } from "../../lib/vitrine-music";
+import { MusicPickerSheet } from "./MusicPickerSheet";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -71,6 +73,8 @@ export function PublishCameraPane({
   const [clipDuration, setClipDuration] = useState<number | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
+  const [music, setMusic] = useState<VitrineMusic | null>(null);
+  const [musicOpen, setMusicOpen] = useState(false);
   const [camReady, setCamReady] = useState(false);
   const maxSec = maxVideoSecForMode(mode);
 
@@ -211,11 +215,12 @@ export function PublishCameraPane({
       video && clip && (clipDuration == null || shouldPersistClip(clip, clipDuration)) ? clip : null;
     const res =
       mode === "story"
-        ? await createVitrineStory(url, encodeStoryPosterClip(null, persistClip))
+        ? await createVitrineStory(url, encodeStoryPosterClip(null, persistClip), music)
         : await createVitrinePost({
             mediaUrls: [url],
             mediaType: video ? "video" : "image",
             caption: encodeVideoClipCaption(caption, persistClip, clipDuration ?? undefined),
+            music,
           });
     setBusy(false);
     if (!res.ok) {
@@ -226,6 +231,7 @@ export function PublishCameraPane({
     setCaption("");
     setStage("capture");
     setClip(null);
+    setMusic(null);
     onPublished();
     Alert.alert(
       "KiDi+",
@@ -280,20 +286,25 @@ export function PublishCameraPane({
 
   if (draft && stage === "review") {
     return (
-      <ReviewPane
-        draft={draft}
-        clip={clip}
-        mode={mode}
-        caption={caption}
-        busy={busy}
-        onCaption={setCaption}
-        onChange={() => {
-          setDraft(null);
-          setClip(null);
-          setStage("capture");
-        }}
-        onPublish={() => void publish()}
-      />
+      <>
+        <ReviewPane
+          draft={draft}
+          clip={clip}
+          mode={mode}
+          caption={caption}
+          busy={busy}
+          music={music}
+          onMusic={() => setMusicOpen(true)}
+          onCaption={setCaption}
+          onChange={() => {
+            setDraft(null);
+            setClip(null);
+            setStage("capture");
+          }}
+          onPublish={() => void publish()}
+        />
+        <MusicPickerSheet open={musicOpen} onClose={() => setMusicOpen(false)} value={music} onChange={setMusic} />
+      </>
     );
   }
 
@@ -412,6 +423,8 @@ function ReviewPane({
   mode,
   caption,
   busy,
+  music,
+  onMusic,
   onCaption,
   onChange,
   onPublish,
@@ -421,6 +434,8 @@ function ReviewPane({
   mode: Exclude<PublishHubMode, "affiche">;
   caption: string;
   busy: boolean;
+  music: VitrineMusic | null;
+  onMusic: () => void;
   onCaption: (v: string) => void;
   onChange: () => void;
   onPublish: () => void;
@@ -451,6 +466,11 @@ function ReviewPane({
           {t("publish.storyHint")}
         </Text>
       )}
+      <Press onPress={onMusic} style={styles.musicBtn}>
+        <Text style={styles.musicTxt}>
+          {music ? musicLabel(music) : t("publish.music.add")}
+        </Text>
+      </Press>
       <View style={styles.reviewRow}>
         <Press onPress={onChange} style={styles.ghost}>
           <Text style={styles.ghostTxt}>{t("publish.changeMedia")}</Text>
@@ -619,4 +639,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ctaTxt: { color: NAVY, fontWeight: "900" },
+  musicBtn: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 148,
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: 1,
+    borderColor: GOLD,
+    paddingHorizontal: 12,
+  },
+  musicTxt: { color: GOLD, fontWeight: "800", fontSize: 12 },
 });

@@ -22,6 +22,8 @@ export function BroadcastLiveScreen(props: {
   identity: string;
   displayName: string;
   facing: CameraType;
+  rtmpMode?: boolean;
+  rtmpCreds?: { url: string; streamKey: string; ingressId: string; participantIdentity: string };
 }) {
   const { closeOverlay } = useNav();
 

@@ -44,6 +44,9 @@ import { useFollow } from "../lib/follows";
 import { GOLD, NAVY, initials } from "../theme";
 import { isHttpUrl } from "../lib/storage";
 import { type ShopItem } from "../mock/account";
+import { ProductOptionsFields } from "../components/shop/ProductOptionsFields";
+import type { ProductCondition } from "../lib/live-product-options";
+import { playableReplayUrl } from "../lib/live-replay";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -56,6 +59,10 @@ type FormState = {
   stock: string;
   description: string;
   photos: FormPhoto[];
+  brand: string;
+  condition: ProductCondition | null;
+  colors: string[];
+  sizes: string[];
 };
 
 function emptyForm(): FormState {
@@ -66,6 +73,10 @@ function emptyForm(): FormState {
     stock: "1",
     description: "",
     photos: [],
+    brand: "",
+    condition: null,
+    colors: [],
+    sizes: [],
   };
 }
 
@@ -148,6 +159,10 @@ export function ShopScreen({
       price: item.priceValue != null ? String(item.priceValue) : "",
       stock: String(item.stock),
       description: item.description ?? "",
+      brand: item.brand ?? "",
+      condition: item.condition ?? null,
+      colors: item.colors ?? [],
+      sizes: item.sizes ?? [],
       photos: paths.length
         ? paths.map((p, i) => ({ uri: i === 0 ? item.image : p, path: p }))
         : item.image
@@ -219,6 +234,10 @@ export function ShopScreen({
           price,
           stock,
           imagePaths: imagePaths.length ? imagePaths : undefined,
+          brand: form.brand,
+          condition: form.condition,
+          colors: form.colors,
+          sizes: form.sizes,
         });
         flash(t("shop.updated"));
       } else {
@@ -229,6 +248,10 @@ export function ShopScreen({
           currency,
           stock,
           imagePaths,
+          brand: form.brand,
+          condition: form.condition,
+          colors: form.colors,
+          sizes: form.sizes,
         });
         flash(t("shop.added"));
       }
@@ -339,6 +362,16 @@ export function ShopScreen({
               value={form.description}
               onChangeText={(description) => setForm({ ...form, description })}
               multiline
+            />
+            <ProductOptionsFields
+              brand={form.brand}
+              condition={form.condition}
+              colors={form.colors}
+              sizes={form.sizes}
+              onBrand={(brand) => setForm({ ...form, brand })}
+              onCondition={(condition) => setForm({ ...form, condition })}
+              onColors={(colors) => setForm({ ...form, colors })}
+              onSizes={(sizes) => setForm({ ...form, sizes })}
             />
             <GoldButton
               label={saving ? t("common.loading") : t("common.save")}
@@ -606,7 +639,19 @@ export function ShopScreen({
               </Text>
             ) : (
               replays.map((l) => (
-                <Press key={l.id} onPress={() => l.replay_url && setReplayUrl(l.replay_url)} style={{ alignItems: "stretch" }}>
+                <Press
+                  key={l.id}
+                  onPress={() => {
+                    void playableReplayUrl(l.id, {
+                      replay_status: (l.replay_status as "ready") ?? "ready",
+                      replay_url: l.replay_url,
+                      replay_expires_at: l.replay_expires_at,
+                    }).then((url) => {
+                      if (url) setReplayUrl(url);
+                    });
+                  }}
+                  style={{ alignItems: "stretch" }}
+                >
                   <Glass tone="light" intensity={32} radius={16} elevated={false}>
                     <View style={styles.liveRow}>
                       {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}

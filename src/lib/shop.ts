@@ -1,4 +1,9 @@
 import type { ShopItem } from "../mock/account";
+import {
+  normalizeCondition,
+  parseStringArray,
+  type ProductCondition,
+} from "./live-product-options";
 import { formatMoney, normalizeCurrency } from "./money";
 import { assertImageSize, type PickedImage } from "./pick-image";
 import { resolveStoredImage } from "./storage";
@@ -15,6 +20,10 @@ export type ShopProductRow = {
   currency: string;
   stock: number;
   active: boolean;
+  brand?: string | null;
+  condition?: ProductCondition | null;
+  colors?: string[];
+  sizes?: string[];
 };
 
 export type ShopSearchHit = {
@@ -33,6 +42,10 @@ export type ShopProductInput = {
   price: number;
   currency: string;
   stock: number;
+  brand?: string | null;
+  condition?: ProductCondition | null;
+  colors?: string[];
+  sizes?: string[];
 };
 
 function firstImage(row: ShopProductRow): string | null {
@@ -77,13 +90,17 @@ export async function toShopItem(row: ShopProductRow): Promise<ShopItem> {
       : imagePath
         ? [imagePath]
         : [],
+    brand: row.brand ?? null,
+    condition: normalizeCondition(row.condition),
+    colors: parseStringArray(row.colors),
+    sizes: parseStringArray(row.sizes),
   };
 }
 
 export async function listMyShopProducts(userId: string): Promise<ShopItem[]> {
   const { data, error } = await supabase
     .from("shop_products")
-    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active")
+    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active, brand, condition, colors, sizes")
     .eq("seller_id", userId)
     .order("created_at", { ascending: false });
   if (error || !data) return [];
@@ -93,7 +110,7 @@ export async function listMyShopProducts(userId: string): Promise<ShopItem[]> {
 export async function listSellerActiveShopProducts(sellerId: string): Promise<ShopItem[]> {
   const { data, error } = await supabase
     .from("shop_products")
-    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active")
+    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active, brand, condition, colors, sizes")
     .eq("seller_id", sellerId)
     .eq("active", true)
     .order("created_at", { ascending: false });
@@ -170,8 +187,12 @@ export async function createShopProduct(sellerId: string, input: ShopProductInpu
       currency: input.currency,
       stock: input.stock,
       active: true,
+      brand: input.brand?.trim() || null,
+      condition: input.condition ?? null,
+      colors: parseStringArray(input.colors ?? []),
+      sizes: parseStringArray(input.sizes ?? []),
     })
-    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active")
+    .select("id, seller_id, name, description, image_url, images, price, currency, stock, active, brand, condition, colors, sizes")
     .single();
   if (error || !data) throw new Error(formatShopError(error) || "insert failed");
   return toShopItem(data as ShopProductRow);
@@ -193,6 +214,10 @@ export async function updateShopProduct(
     dbPatch.images = images;
     dbPatch.image_url = images[0] ?? null;
   }
+  if (patch.brand !== undefined) dbPatch.brand = patch.brand?.trim() || null;
+  if (patch.condition !== undefined) dbPatch.condition = patch.condition;
+  if (patch.colors !== undefined) dbPatch.colors = parseStringArray(patch.colors);
+  if (patch.sizes !== undefined) dbPatch.sizes = parseStringArray(patch.sizes);
   const { error } = await supabase.from("shop_products").update(dbPatch).eq("id", id);
   if (error) throw new Error(formatShopError(error));
 }
