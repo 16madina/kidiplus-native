@@ -5,6 +5,9 @@ import {
   liveViewerBackAction,
   liveViewerChromeHidden,
   liveViewerChromeHiddenForPip,
+  liveEdgeShouldCatch,
+  liveEdgeShouldMinimize,
+  liveListItemLayout,
 } from "./live-pip-presentation.ts";
 import {
   ANDROID_PIP_PREPARE_MS,
@@ -55,6 +58,17 @@ function run() {
   assert.equal(VIEWER_ANDROID_AUDIO_PRESET, "media");
   assert.equal(VIEWER_APPLE_PLAYBACK.audioCategory, "playback");
   assert.equal(VIEWER_APPLE_PLAYBACK.audioMode, "moviePlayback");
+  assert.equal(VIEWER_APPLE_PLAYBACK.audioCategoryOptions.length, 0);
+
+  assert.equal(liveEdgeShouldCatch(12, 4), true);
+  assert.equal(liveEdgeShouldCatch(4, 2), false);
+  assert.equal(liveEdgeShouldMinimize(40, 0), true);
+  assert.equal(liveEdgeShouldMinimize(10, 0.4), true);
+  assert.equal(liveEdgeShouldMinimize(10, 0.1), false);
+
+  assert.deepEqual(liveListItemLayout(false, 2, 2, 800), { length: 800, offset: 1600, index: 2 });
+  assert.deepEqual(liveListItemLayout(true, 2, 2, 800), { length: LIVE_PIP_MINI.height, offset: 0, index: 2 });
+  assert.deepEqual(liveListItemLayout(true, 0, 2, 800), { length: 0, offset: 0, index: 0 });
   assert.ok(ANDROID_PIP_PREPARE_MS >= 120);
 
   assert.equal(viewerKeepsFullVideoQuality(false, false), false);

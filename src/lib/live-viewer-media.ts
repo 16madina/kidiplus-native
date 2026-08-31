@@ -6,7 +6,8 @@ export const ANDROID_PIP_PREPARE_MS = 180;
 
 export const VIEWER_APPLE_PLAYBACK = {
   audioCategory: "playback",
-  audioCategoryOptions: ["mixWithOthers"],
+  /** Empty: `mixWithOthers` lets iOS mute us in background / system PiP. */
+  audioCategoryOptions: [] as const,
   audioMode: "moviePlayback",
 } as const;
 

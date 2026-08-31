@@ -54,8 +54,10 @@ export function subscribeAndroidLivePipPrepare(cb: () => void): () => void {
 
 /**
  * Enable system PiP while a real live is on screen.
- * iOS: `preparing` goes true on AppState inactive/background so the host
- * VideoTrack can turn `iosPIP` on (it must stay off in the in-app mini).
+ * iOS: `preparing` goes true on AppState inactive/background (full screen *or*
+ * in-app mini) so the host VideoTrack can turn `iosPIP` on. LivePipShell
+ * expands to full size while `systemPip` is true so AVKit sees a real source.
+ * `iosPIP` must stay off while the 118×210 mini is on screen.
  * Android: MainActivity enters PiP on Home after `onPipPrepare` expands the video.
  * Closing the Android PiP bubble while the app is in background leaves the live.
  */
