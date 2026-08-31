@@ -40,7 +40,7 @@ import { PosterGestureLayer } from "./PosterGestureLayer";
 import { LiveEffectsOverlay } from "./LiveEffectsOverlay";
 import { LiveFxOverlay } from "../live/LiveFxOverlay";
 import { AuctionFinalCountdown } from "../live/AuctionFinalCountdown";
-import { AuctionNowBar } from "../live/AuctionNowBar";
+import { HostFeaturedCard, useHostFeaturedLayout } from "./HostFeaturedCard";
 import { BidPulseFlash } from "../live/BidPulseFlash";
 import { WinnerReveal } from "../live/WinnerReveal";
 import { GiftAnimationOverlay } from "../live/GiftAnimationOverlay";
@@ -128,6 +128,7 @@ export function HostStudioHud({
   const realViewers = Math.max(0, Math.max(session.presenceCount - 1, viewerFallback));
   const viewers = session.simViewers ?? realViewers;
   const featured = session.featured;
+  const featuredLayout = useHostFeaturedLayout();
   const auctionOnFeatured = session.auction && featured && session.auction.productId === featured.id;
   const currency = session.currency || user?.walletCurrency || "EUR";
   const fmt = (n: number) => formatMoney(n, currency, i18n.language);
@@ -198,15 +199,6 @@ export function HostStudioHud({
       }
     }
     setToast(t("live.productAdded", "Produit ajouté"));
-  };
-
-  const featuredCta = (p: LiveProductRow) => {
-    if (p.mode === "auction") {
-      return p.status === "sold" || p.status === "unsold"
-        ? `${t("live.startAuctionAgain", "Rejouer")} ▸`
-        : `${t("live.startAuction")} ▸`;
-    }
-    return t("live.listForSale");
   };
 
   return (
@@ -398,6 +390,45 @@ export function HostStudioHud({
       </View>
       <WinnerReveal reveal={reveal} onDone={() => setReveal(null)} />
 
+      {featured ? (
+        <View
+          pointerEvents="box-none"
+          style={
+            featuredLayout.layout === "landscape"
+              ? [
+                  styles.featuredLand,
+                  {
+                    top: insets.top + layout.featuredTopExtra + (layout.compact ? 0 : 28),
+                    right: layout.icon + 18,
+                  },
+                ]
+              : [
+                  styles.featuredPort,
+                  { top: insets.top + layout.featuredTopExtra, right: layout.icon + 18 },
+                ]
+          }
+        >
+          <HostFeaturedCard
+            name={featured.name}
+            imageUrl={featured.image_url}
+            priceLabel={fmt(Number(featured.price ?? featured.start_price))}
+            stock={featured.stock}
+            mode={featured.mode}
+            status={featured.status}
+            auctionLive={!!auctionOnFeatured}
+            secondsLeft={auctionOnFeatured ? session.timeLeft : null}
+            busy={busyId === featured.id}
+            layout={featuredLayout.layout}
+            onChangeLayout={featuredLayout.save}
+            onSell={() => void runFeaturedAction(featured)}
+            onOpenProducts={() => {
+              session.setFeaturedId(featured.id);
+              setProductsOpen(true);
+            }}
+          />
+        </View>
+      ) : null}
+
       {toast ? (
         <View pointerEvents="none" style={[styles.toast, { top: insets.top + 118 }]}>
           <Text style={styles.toastTxt}>{toast}</Text>
@@ -425,30 +456,6 @@ export function HostStudioHud({
               </View>
             ))}
           </View>
-          {featured ? (
-            <AuctionNowBar
-              eyebrow={
-                auctionOnFeatured
-                  ? t("live.currentBid")
-                  : featured.mode === "fixed" && featured.status === "active"
-                    ? t("live.buyNow")
-                    : t("live.featured")
-              }
-              name={featured.name}
-              imageUrl={featured.image_url}
-              priceLabel={fmt(Number(featured.price ?? featured.start_price))}
-              bidderName={
-                auctionOnFeatured && session.lastBid && session.lastBid.productId === featured.id
-                  ? session.lastBid.bidderName
-                  : null
-              }
-              secondsLeft={auctionOnFeatured && session.timeLeft > 0 ? session.timeLeft : null}
-              onPress={() => {
-                session.setFeaturedId(featured.id);
-                setProductsOpen(true);
-              }}
-            />
-          ) : null}
           <View style={styles.composer}>
             <TextInput
               value={draft}
@@ -475,15 +482,6 @@ export function HostStudioHud({
               <Send size={17} color="#fff" />
             </Press>
           </View>
-          {featured && !auctionOnFeatured ? (
-            <Press
-              onPress={() => void runFeaturedAction(featured)}
-              style={styles.hostCta}
-              disabled={busyId === featured.id}
-            >
-              <Text style={styles.hostCtaTxt}>{featuredCta(featured)}</Text>
-            </Press>
-          ) : null}
         </View>
       </KeyboardAvoidingView>
       ) : null}
@@ -794,15 +792,16 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   socialTxt: { color: NAVY, fontSize: 10, fontWeight: "900" },
-  hostCta: {
-    height: 44,
-    minHeight: 44,
-    minWidth: 0,
-    width: "100%",
-    borderRadius: 999,
-    backgroundColor: GOLD,
+  featuredPort: {
+    position: "absolute",
+    zIndex: 14,
+    alignItems: "flex-end",
   },
-  hostCtaTxt: { color: NAVY, fontSize: 15, fontWeight: "900" },
+  featuredLand: {
+    position: "absolute",
+    left: 12,
+    zIndex: 14,
+  },
   rail: {
     position: "absolute",
     right: 10,
