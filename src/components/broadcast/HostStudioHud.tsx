@@ -59,6 +59,13 @@ import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { useLayout } from "../../lib/layout";
+import {
+  HOST_PORTRAIT_CARD_WIDTH,
+  hostAuctionGutter,
+  hostAuctionTopExtra,
+  hostFeaturedRight,
+  hostRailBottom,
+} from "../../lib/host-hud-layout";
 import { GOLD, NAVY } from "../../theme";
 
 const RAIL_BG = "rgba(10,12,20,0.55)";
@@ -315,7 +322,7 @@ export function HostStudioHud({
         style={[
           styles.rail,
           {
-            top: insets.top + layout.featuredTopExtra,
+            bottom: hostRailBottom(insets.bottom),
             gap: layout.railGap,
           },
         ]}
@@ -363,7 +370,21 @@ export function HostStudioHud({
 
       <View
         pointerEvents="none"
-        style={[styles.auctionStack, { top: insets.top + layout.auctionTopExtra }]}
+        style={[
+          styles.auctionStack,
+          {
+            top: insets.top + hostAuctionTopExtra({
+              layout: featuredLayout.layout,
+              featuredTopExtra: layout.featuredTopExtra,
+              compact: layout.compact,
+            }),
+            ...hostAuctionGutter({
+              layout: featuredLayout.layout,
+              icon: layout.icon,
+              portraitCardWidth: HOST_PORTRAIT_CARD_WIDTH,
+            }),
+          },
+        ]}
       >
         <AuctionFinalCountdown
           secondsLeft={session.timeLeft}
@@ -400,12 +421,12 @@ export function HostStudioHud({
                   styles.featuredLand,
                   {
                     top: insets.top + layout.featuredTopExtra + (layout.compact ? 0 : 28),
-                    right: layout.icon + 18,
+                    right: hostFeaturedRight(),
                   },
                 ]
               : [
                   styles.featuredPort,
-                  { top: insets.top + layout.featuredTopExtra, right: layout.icon + 18 },
+                  { top: insets.top + layout.featuredTopExtra, right: hostFeaturedRight() },
                 ]
           }
         >
@@ -834,12 +855,10 @@ const styles = StyleSheet.create({
   },
   auctionStack: {
     position: "absolute",
-    left: 0,
-    right: 64,
     zIndex: 55,
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
   },
   sdPill: {
     maxWidth: "92%",
