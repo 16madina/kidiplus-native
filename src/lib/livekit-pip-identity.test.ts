@@ -32,10 +32,10 @@ function run() {
   assert.match(session, /cachedAppIsActive/);
   assert.match(session, /setRemoteAudioSubscribed\(false, reason: "didBecomeActive"\)/);
   assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
-  assert.match(session, /setEngineAvailability/);
-  assert.match(session, /isAutomaticConfigurationEnabled = false/);
+  assert.match(session, /setEngineAvailability\(\.default\)/);
+  assert.doesNotMatch(session, /setEngineAvailability\(\.none\)/);
   assert.match(session, /connect-foreground/);
-  assert.match(session, /setNativeAudioEngine\(false, reason: "didBecomeActive"\)/);
+  assert.match(session, /ensureSharedAudioEngineDefault\(reason: "didBecomeActive"\)/);
   assert.match(session, /ensureRemoteVideoSubscribed/);
   assert.match(session, /already connected/);
   assert.match(session, /prepareForBackgroundPip skipped/);

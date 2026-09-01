@@ -134,21 +134,13 @@ export function LivePipShell({
 
   return (
     <Animated.View style={[styles.shell, box]} pointerEvents="box-none">
-      {/*
-        The animated host carries translateX/Y only. Radius + clip live on
-        this static child so iOS does not set clipsToBounds on the
-        transformed ancestor (that blacks RTCMTLVideoView).
-        videoHost stays a stable parent so LiveKit children do not remount.
-      */}
-      <View
-        style={floatingMini ? [styles.miniFrame, styles.miniShadow] : styles.videoFill}
-        collapsable={false}
-      >
-        <View style={styles.videoHost} collapsable={false}>
-          {children}
-        </View>
+      <View style={styles.videoHost} collapsable={false}>
+        {children}
+      </View>
 
-        {floatingMini ? (
+      {floatingMini ? (
+        <>
+          <View style={[styles.miniFrame, styles.miniShadow]} pointerEvents="none" />
           <View style={StyleSheet.absoluteFill} {...drag.panHandlers}>
             <Press
               haptic="none"
@@ -171,8 +163,8 @@ export function LivePipShell({
               <X size={14} color="#fff" />
             </Press>
           </View>
-        ) : null}
-      </View>
+        </>
+      ) : null}
 
       {!floatingMini && !systemPip ? (
         <View
@@ -188,28 +180,7 @@ const styles = StyleSheet.create({
   shell: {
     backgroundColor: "#000",
   },
-  videoFill: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: "visible",
-    borderRadius: 0,
-  },
-  /** Static (no transform). Radius + clip here, never on the animated host. */
-  miniFrame: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
-  /** Video parent: no radius, no clip. Must stay mounted across mini/full. */
+  /** Video parent: no radius, no clip. Never an ancestor of a clipped view. */
   videoHost: {
     position: "absolute",
     top: 0,
@@ -218,6 +189,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     overflow: "visible",
     borderRadius: 0,
+  },
+  /** Sibling overlay — rounded chrome only. Does not wrap the video. */
+  miniFrame: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "transparent",
   },
   miniShadow: {
     ...Platform.select({

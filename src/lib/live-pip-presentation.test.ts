@@ -74,18 +74,23 @@ function run() {
   assert.match(shell, /overflow: "visible"/);
   assert.match(
     shell,
+    /pointerEvents="none"/,
+    "rounded frame is a sibling overlay, not a clipped ancestor of the video",
+  );
+  assert.match(shell, /<View style=\{styles\.videoHost\} collapsable=\{false\}>/);
+  assert.doesNotMatch(
+    shell,
     /floatingMini \? \[styles\.miniFrame, styles\.miniShadow\] : styles\.videoFill/,
-    "radius + clip wrap the video on a static child, not the transformed host",
+  );
+  assert.doesNotMatch(
+    shell,
+    /miniFrame:[\s\S]*overflow: "hidden"/,
+    "miniFrame overlay must not clip",
   );
   assert.doesNotMatch(
     shell,
     /borderRadius: 18,\s*\n\s*zIndex: 55/,
     "mini transform host must not set borderRadius (clipsToBounds)",
-  );
-  assert.doesNotMatch(
-    shell,
-    /style=\{\[styles\.shell, box, floatingMini && styles\.miniShadow\]\}/,
-    "shadow/border must not sit on the transformed animated host",
   );
   const floatingBox = shell.slice(shell.indexOf("if (floatingMini)"), shell.indexOf("return {", shell.indexOf("if (floatingMini)")));
   assert.doesNotMatch(floatingBox, /borderRadius: 18/);
