@@ -177,7 +177,20 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         return scenes.contains { $0.activationState == .foregroundActive }
     }
 
+    /// Foreground: RN webrtc owns AVAudioSession. The Swift LiveKit Room
+    /// must not start AudioManager / ADM or packets are discarded (mute mini).
+    private func setNativeAudioEngine(_ on: Bool, reason: String) {
+        AudioManager.shared.audioSession.isAutomaticConfigurationEnabled = false
+        do {
+            try AudioManager.shared.setEngineAvailability(on ? .default : .none)
+            print("[KiDi+] Swift audio engine \(on ? "on" : "off") (\(reason))")
+        } catch {
+            print("[KiDi+] Swift audio engine \(on ? "on" : "off") failed (\(reason)): \(error)")
+        }
+    }
+
     private func activatePipAudioSession(reason: String) {
+        setNativeAudioEngine(true, reason: reason)
         AudioManager.shared.isSpeakerOutputPreferred = true
         do {
             let session = AVAudioSession.sharedInstance()
@@ -254,8 +267,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         backgroundAudioArmed = true
         activatePipAudioSession(reason: reason)
         reconnectIfNeeded(reason: reason)
-        // Audio only — rebinding video rebuilds the PiP controller and
-        // flushes frames, which kills auto-inline on the Home gesture.
         setRemoteAudioSubscribed(true, reason: reason)
         pipController?.canStartPictureInPictureAutomaticallyFromInline = true
         print("[KiDi+] prepareForBackgroundPip armed autoInline (\(reason)) controller=\(pipController != nil) frames=\(hasRenderedFrame) pipActive=\(isInPip)")
@@ -268,8 +279,8 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         if connected {
             await teardownRoomOnly()
         }
-        // Foreground: do NOT activate AVAudioSession — the RN viewer owns it.
-        // Audio is armed later in prepareForBackgroundPip.
+        // Video-only in foreground. Engine + AVAudioSession stay with RN.
+        setNativeAudioEngine(false, reason: "connect-foreground")
         room.add(delegate: self)
         do {
             try await room.connect(
@@ -304,6 +315,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     }
 
     private func teardownRoomOnly() async {
+        setNativeAudioEngine(false, reason: "teardown")
         room.remove(delegate: self)
         await room.disconnect()
         connected = false
@@ -441,8 +453,8 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 guard let self else { return }
                 self.cachedAppIsActive = true
                 self.backgroundAudioArmed = false
-                // Hand audio back to the RN room — stay subscribed to video only.
                 self.setRemoteAudioSubscribed(false, reason: "didBecomeActive")
+                self.setNativeAudioEngine(false, reason: "didBecomeActive")
                 if self.isInPip {
                     self.stopPip()
                 }

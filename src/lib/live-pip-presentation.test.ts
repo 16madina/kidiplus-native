@@ -70,8 +70,13 @@ function run() {
 
   const shell = readFileSync(new URL("../components/live/LivePipShell.tsx", import.meta.url), "utf8");
   assert.match(shell, /videoHost/);
-  assert.match(shell, /miniClip/);
+  assert.match(shell, /miniFrame/);
   assert.match(shell, /overflow: "visible"/);
+  assert.match(
+    shell,
+    /floatingMini \? \[styles\.miniFrame, styles\.miniShadow\] : styles\.videoFill/,
+    "radius + clip wrap the video on a static child, not the transformed host",
+  );
   assert.doesNotMatch(
     shell,
     /borderRadius: 18,\s*\n\s*zIndex: 55/,
@@ -79,9 +84,12 @@ function run() {
   );
   assert.doesNotMatch(
     shell,
-    /borderRadius: 18,\s*\n\s*zIndex: 55,\s*\n\s*overflow: "hidden"/,
-    "mini transform host must not clip the video",
+    /style=\{\[styles\.shell, box, floatingMini && styles\.miniShadow\]\}/,
+    "shadow/border must not sit on the transformed animated host",
   );
+  const floatingBox = shell.slice(shell.indexOf("if (floatingMini)"), shell.indexOf("return {", shell.indexOf("if (floatingMini)")));
+  assert.doesNotMatch(floatingBox, /borderRadius: 18/);
+  assert.doesNotMatch(floatingBox, /overflow: "hidden"/);
 
   const pipHook = readFileSync(new URL("./live-pip.ts", import.meta.url), "utf8");
   assert.match(pipHook, /lastSessionKeyRef/);

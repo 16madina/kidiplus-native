@@ -111,8 +111,6 @@ export function LivePipShell({
         bottom: undefined,
         width: LIVE_PIP_MINI.width,
         height: LIVE_PIP_MINI.height,
-        // No borderRadius / overflow:hidden on this transformed host —
-        // either one sets clipsToBounds on iOS and blacks the RTCView.
         borderRadius: 0,
         zIndex: 55,
         overflow: "visible" as const,
@@ -135,38 +133,46 @@ export function LivePipShell({
   });
 
   return (
-    <Animated.View
-      style={[styles.shell, box, floatingMini && styles.miniShadow]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.videoHost} collapsable={false}>
-        {children}
-      </View>
-
-      {floatingMini ? (
-        <View style={styles.miniClip} {...drag.panHandlers}>
-          <Press
-            haptic="none"
-            accessibilityLabel={t("live.expand")}
-            onPress={() => {
-              if (draggedRef.current) return;
-              onExpand();
-            }}
-            style={styles.expandHit}
-          />
-          <View style={styles.liveBadge} pointerEvents="none">
-            <Text style={styles.liveBadgeTxt}>LIVE</Text>
-          </View>
-          <Press
-            haptic="light"
-            accessibilityLabel={t("live.leave")}
-            onPress={onClose}
-            style={styles.closeMini}
-          >
-            <X size={14} color="#fff" />
-          </Press>
+    <Animated.View style={[styles.shell, box]} pointerEvents="box-none">
+      {/*
+        The animated host carries translateX/Y only. Radius + clip live on
+        this static child so iOS does not set clipsToBounds on the
+        transformed ancestor (that blacks RTCMTLVideoView).
+        videoHost stays a stable parent so LiveKit children do not remount.
+      */}
+      <View
+        style={floatingMini ? [styles.miniFrame, styles.miniShadow] : styles.videoFill}
+        collapsable={false}
+      >
+        <View style={styles.videoHost} collapsable={false}>
+          {children}
         </View>
-      ) : null}
+
+        {floatingMini ? (
+          <View style={StyleSheet.absoluteFill} {...drag.panHandlers}>
+            <Press
+              haptic="none"
+              accessibilityLabel={t("live.expand")}
+              onPress={() => {
+                if (draggedRef.current) return;
+                onExpand();
+              }}
+              style={styles.expandHit}
+            />
+            <View style={styles.liveBadge} pointerEvents="none">
+              <Text style={styles.liveBadgeTxt}>LIVE</Text>
+            </View>
+            <Press
+              haptic="light"
+              accessibilityLabel={t("live.leave")}
+              onPress={onClose}
+              style={styles.closeMini}
+            >
+              <X size={14} color="#fff" />
+            </Press>
+          </View>
+        ) : null}
+      </View>
 
       {!floatingMini && !systemPip ? (
         <View
@@ -182,8 +188,7 @@ const styles = StyleSheet.create({
   shell: {
     backgroundColor: "#000",
   },
-  /** Video lives here: no overflow clip, no radius — RTCView stays valid. */
-  videoHost: {
+  videoFill: {
     position: "absolute",
     top: 0,
     left: 0,
@@ -192,8 +197,8 @@ const styles = StyleSheet.create({
     overflow: "visible",
     borderRadius: 0,
   },
-  /** Chrome only (badge / close). Clip is never an ancestor of the video. */
-  miniClip: {
+  /** Static (no transform). Radius + clip here, never on the animated host. */
+  miniFrame: {
     position: "absolute",
     top: 0,
     left: 0,
@@ -201,6 +206,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 18,
     overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  /** Video parent: no radius, no clip. Must stay mounted across mini/full. */
+  videoHost: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: "visible",
+    borderRadius: 0,
   },
   miniShadow: {
     ...Platform.select({
@@ -213,8 +230,6 @@ const styles = StyleSheet.create({
         elevation: 18,
       },
     }),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.2)",
   },
   expandHit: {
     ...StyleSheet.absoluteFill,
