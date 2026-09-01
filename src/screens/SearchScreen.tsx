@@ -23,6 +23,7 @@ import {
   liveMatchesExploreQuery,
   pickExploreResultTab,
 } from "../lib/explore-search";
+import { prioritizeDeliverable } from "../lib/delivery-feed";
 import { BROWSE_CATEGORIES, formatViewersFr } from "../mock/browse";
 import { GOLD, LIVE_RED, initials } from "../theme";
 
@@ -67,7 +68,7 @@ export function SearchScreen() {
   const liveResults = useMemo(() => {
     if (!query) return [];
     const match = (s: (typeof active)[number]) => liveMatchesExploreQuery(s, query);
-    return [...active.filter(match), ...upcoming.filter(match)];
+    return prioritizeDeliverable([...active.filter(match), ...upcoming.filter(match)]);
   }, [active, upcoming, query]);
 
   const liveSellerIds = useMemo(

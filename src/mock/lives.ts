@@ -55,6 +55,8 @@ export type LiveStream = {
   startedAt?: string;
   isVerified?: boolean;
   isReferred?: boolean;
+  /** Soft feed rank: false → seller does not ship to the viewer’s country. */
+  deliversToMe?: boolean | null;
 };
 
 export function isFictitiousSellerId(id: string | null | undefined): boolean {

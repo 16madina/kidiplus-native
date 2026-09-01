@@ -542,6 +542,7 @@ export function useViewerLiveRoom(
       }
       const amount =
         bidOpts?.amount ?? nextBidAmount(Number(product.price ?? product.start_price ?? 0), currency);
+      // Server rejects when the seller does not ship to the buyer (resolve_buyer_delivery).
       const { data, error: rpcErr } = await supabase.rpc("place_live_bid", {
         _live_id: liveId,
         _product_id: productId,
@@ -572,6 +573,7 @@ export function useViewerLiveRoom(
     async (buyOpts?: { productId?: string; color?: string | null; size?: string | null }) => {
       const productId = buyOpts?.productId ?? featured?.id;
       if (!productId) return { ok: false as const, error: "Aucun produit" };
+      // Server also calls resolve_buyer_delivery before creating the order.
       const { data, error: rpcErr } = await supabase.rpc("create_live_order", {
         _product_id: productId,
         _kind: "fixed",

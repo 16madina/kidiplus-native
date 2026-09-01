@@ -7,12 +7,14 @@ import { OverlayHeader, MockBanner } from "../components/OverlayHeader";
 import { Press } from "../components/Press";
 import { SurfaceCard } from "../components/SurfaceCard";
 import { useAppTheme } from "../context/theme";
+import { useNav } from "../context/navigation";
 import { GOLD } from "../theme";
 import { HELP_FAQS } from "../mock/account";
 
 export function HelpScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
+  const { openOverlay } = useNav();
   const [open, setOpen] = useState<string | null>(HELP_FAQS[0]?.q ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -20,6 +22,14 @@ export function HelpScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <OverlayHeader title={t("profile.menu.help")} />
       <ScrollView contentContainerStyle={styles.body}>
+        <Press onPress={() => openOverlay({ kind: "legal", page: "community" })} style={{ minHeight: 0 }}>
+          <SurfaceCard>
+            <Text style={{ fontWeight: "800", color: colors.foreground }}>{t("legal.community")}</Text>
+            <Text style={{ marginTop: 4, fontSize: 12, color: colors.mutedForeground }}>
+              {t("help.communityHint", "Interdits, bonnes pratiques, signalements.")}
+            </Text>
+          </SurfaceCard>
+        </Press>
         {HELP_FAQS.map((f) => {
           const isOpen = open === f.q;
           return (
