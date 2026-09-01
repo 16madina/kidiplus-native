@@ -29,11 +29,21 @@ function run() {
   assert.match(session, /func setEligible/);
   assert.match(session, /willResignActiveNotification/);
   assert.match(session, /backgroundAudioArmed/);
+  assert.match(session, /cachedAppIsActive/);
   assert.match(session, /setRemoteAudioSubscribed\(false, reason: "didBecomeActive"\)/);
   assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
   assert.match(session, /ensureRemoteVideoSubscribed/);
   assert.match(session, /already connected/);
   assert.match(session, /prepareForBackgroundPip skipped/);
+  assert.match(session, /scene not ForegroundActive \(autoInline\)/);
+  assert.match(session, /canStartPictureInPictureAutomaticallyFromInline = true/);
+  assert.match(session, /host video track already bound/);
+  const prepareFn = session.slice(session.indexOf("private func prepareForBackgroundPip"));
+  const prepareBody = prepareFn.slice(0, prepareFn.indexOf("\n    private func connect"));
+  assert.doesNotMatch(prepareBody, /startPipIfPossible/);
+  assert.doesNotMatch(prepareBody, /flushForPipHandoff/);
+  assert.doesNotMatch(prepareBody, /ensurePipController\(forceRebuild: true\)/);
+  assert.doesNotMatch(session, /UIApplication\.shared\.applicationState == \.active/);
 
   const expoMod = readFileSync(new URL("../../modules/kidi-live-pip/ios/KidiLivePipModule.swift", import.meta.url), "utf8");
   assert.match(expoMod, /DispatchQueue.main.async/);

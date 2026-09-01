@@ -1,3 +1,4 @@
+import AVKit
 import ExpoModulesCore
 import UIKit
 

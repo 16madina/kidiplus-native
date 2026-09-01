@@ -35,8 +35,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private var backgroundObserver: NSObjectProtocol?
     private var activeObserver: NSObjectProtocol?
     private weak var hostView: UIView?
-    private var pipRetryWorkItems: [DispatchWorkItem] = []
     private var previewConstraints: [NSLayoutConstraint] = []
+    /// Cached on the main thread — LiveKit delegates must not read UIApplication.
+    private var cachedAppIsActive = true
 
     var isInPip: Bool {
         pipController?.isPictureInPictureActive ?? false
@@ -65,7 +66,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             eligible = false
             sessionUrl = nil
             sessionToken = nil
-            cancelPipRetries()
             await teardown()
             return
         }
@@ -96,7 +96,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         DispatchQueue.main.async {
             guard self.eligible else {
                 print("[KiDi+] startPip skipped — not eligible")
-                self.cancelPipRetries()
                 self.destroyPipController()
                 return
             }
@@ -106,86 +105,46 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             }
             guard self.connected else {
                 print("[KiDi+] startPip skipped — native LiveKit not connected")
-                self.schedulePipRetries()
                 return
             }
             guard self.hostTrack != nil else {
                 print("[KiDi+] startPip skipped — no remote video track yet")
-                self.schedulePipRetries()
                 return
             }
             guard self.hasRenderedFrame else {
                 print("[KiDi+] startPip deferred — waiting for first video frame")
-                self.schedulePipRetries()
                 return
             }
-            // Must be visible before startPictureInPicture / auto-inline.
             self.ensureSourceViewsAttached()
             self.ensurePipController(forceRebuild: false)
             guard let pip = self.pipController else {
                 print("[KiDi+] startPip skipped — no pipController")
-                self.schedulePipRetries()
                 return
             }
             if pip.isPictureInPictureActive {
-                self.cancelPipRetries()
                 return
             }
-            // Prefer auto-inline once frames exist (iOS handles Home gesture).
+            // Home / app-switch is handled by auto-inline. Explicit
+            // startPictureInPicture() is only legal while the scene is
+            // UISceneActivationStateForegroundActive (iOS 15+ video-call PiP).
             pip.canStartPictureInPictureAutomaticallyFromInline = true
-            // Still try an explicit start — do not bail solely on
-            // isPictureInPicturePossible (it flickers false during resign).
+            guard self.isSceneForegroundActive() else {
+                print("[KiDi+] startPip skipped — scene not ForegroundActive (autoInline)")
+                return
+            }
             let possible: Bool
             if #available(iOS 15.0, *) {
                 possible = pip.isPictureInPicturePossible
             } else {
                 possible = true
             }
-            // If still "impossible", rebuild the controller once — stale
-            // ContentSource after hide/show of the source view is common.
-            if !possible {
-                print("[KiDi+] PiP not possible yet — rebuilding controller")
-                self.ensurePipController(forceRebuild: true)
-                self.pipController?.canStartPictureInPictureAutomaticallyFromInline = true
-            }
-            let controller = self.pipController ?? pip
             print("[KiDi+] starting Picture in Picture… possible=\(possible)")
-            controller.startPictureInPicture()
-            self.schedulePipRetries()
+            pip.startPictureInPicture()
         }
-    }
-
-    private func schedulePipRetries() {
-        cancelPipRetries()
-        // Aggressive retries while suspended — first frames / track subscribe
-        // often land a beat after Home.
-        let delays: [TimeInterval] = [0.25, 0.6, 1.2, 2.0, 3.5, 5.5]
-        for delay in delays {
-            let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                guard self.eligible else { return }
-                guard UIApplication.shared.applicationState != .active else { return }
-                guard !self.isInPip else {
-                    self.cancelPipRetries()
-                    return
-                }
-                print("[KiDi+] PiP retry after \(delay)s")
-                self.ensureSourceViewsAttached()
-                self.startPipIfPossible()
-            }
-            pipRetryWorkItems.append(work)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-        }
-    }
-
-    private func cancelPipRetries() {
-        pipRetryWorkItems.forEach { $0.cancel() }
-        pipRetryWorkItems.removeAll()
     }
 
     @discardableResult
     func stopPip() -> Bool {
-        cancelPipRetries()
         guard let pip = pipController, pip.isPictureInPictureActive else { return false }
         pip.stopPictureInPicture()
         return true
@@ -193,7 +152,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
 
     func dismiss() async -> Bool {
         let wasPip = await MainActor.run {
-            self.cancelPipRetries()
             return self.stopPip()
         }
         eligible = false
@@ -208,7 +166,15 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private var backgroundAudioArmed = false
 
     private var isAppInForeground: Bool {
-        UIApplication.shared.applicationState == .active && !backgroundAudioArmed
+        cachedAppIsActive && !backgroundAudioArmed
+    }
+
+    /// startPictureInPicture() asserts unless the content-source scene is
+    /// ForegroundActive. Home is handled by auto-inline, not this call.
+    private func isSceneForegroundActive() -> Bool {
+        if !Thread.isMainThread { return cachedAppIsActive }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.contains { $0.activationState == .foregroundActive }
     }
 
     private func activatePipAudioSession(reason: String) {
@@ -268,30 +234,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Force-subscribe remote audio + video. Only call from background / PiP.
-    private func ensureAllRemoteMediaSubscribed(reason: String) {
-        print("[KiDi+] ensureAllRemoteMediaSubscribed (\(reason)) remotes=\(room.remoteParticipants.count)")
-        for participant in room.remoteParticipants.values {
-            for publication in participant.trackPublications.values {
-                guard let remote = publication as? RemoteTrackPublication else { continue }
-                Task {
-                    do {
-                        try await remote.set(subscribed: true)
-                        if publication.kind == .audio {
-                            print("[KiDi+] LivePipSession audio force-subscribed (\(reason))")
-                        } else if let track = publication.track as? VideoTrack {
-                            await MainActor.run {
-                                self.setHostTrack(track)
-                            }
-                        }
-                    } catch {
-                        print("[KiDi+] LivePipSession force-subscribe failed (\(reason)): \(error)")
-                    }
-                }
-            }
-        }
-    }
-
     /// Reconnect the native room if it silently dropped while the app was in
     /// the foreground (network blip / idle disconnect during the in-app mini
     /// player). Without this, `connected` went stale and leaving the app
@@ -308,15 +250,15 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             print("[KiDi+] prepareForBackgroundPip skipped — not eligible (\(reason))")
             return
         }
+        cachedAppIsActive = false
         backgroundAudioArmed = true
         activatePipAudioSession(reason: reason)
         reconnectIfNeeded(reason: reason)
-        ensureAllRemoteMediaSubscribed(reason: reason)
-        ensureSourceViewsAttached()
-        // Drop any stale black frame left from a previous PiP cycle.
-        previewController.flushForPipHandoff()
-        videoCallController.flushForPipHandoff()
-        startPipIfPossible()
+        // Audio only — rebinding video rebuilds the PiP controller and
+        // flushes frames, which kills auto-inline on the Home gesture.
+        setRemoteAudioSubscribed(true, reason: reason)
+        pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+        print("[KiDi+] prepareForBackgroundPip armed autoInline (\(reason)) controller=\(pipController != nil) frames=\(hasRenderedFrame) pipActive=\(isInPip)")
     }
 
     private func connect(url: String, token: String) async {
@@ -348,7 +290,6 @@ final class LivePipSession: NSObject, @unchecked Sendable {
 
     private func teardown() async {
         await MainActor.run {
-            self.cancelPipRetries()
             _ = self.stopPip()
             self.destroyPipController()
             if let track = self.hostTrack {
@@ -376,6 +317,10 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     }
 
     private func setHostTrack(_ track: VideoTrack) {
+        if hostTrack === track, pipController != nil {
+            print("[KiDi+] LivePipSession host video track already bound")
+            return
+        }
         if let prev = hostTrack, prev !== track {
             prev.remove(videoRenderer: previewController)
             prev.remove(videoRenderer: videoCallController)
@@ -385,13 +330,8 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         ensureSourceViewsAttached()
         track.add(videoRenderer: previewController)
         track.add(videoRenderer: videoCallController)
-        // Create PiP controller only once we actually have a live video track.
-        ensurePipController(forceRebuild: true)
+        ensurePipController(forceRebuild: pipController == nil)
         print("[KiDi+] LivePipSession host video track bound")
-        // If user already left the app while we were connecting, start once frames arrive.
-        if UIApplication.shared.applicationState != .active {
-            startPipIfPossible()
-        }
     }
 
     private func ensureSourceViewsAttached() {
@@ -460,15 +400,11 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         hasRenderedFrame = true
         if first {
             print("[KiDi+] LivePipSession first video frame received")
-            // Enable automatic Home→PiP now that real frames exist.
-            pipController?.canStartPictureInPictureAutomaticallyFromInline = true
             if pipController == nil {
                 ensurePipController(forceRebuild: false)
-                pipController?.canStartPictureInPictureAutomaticallyFromInline = true
             }
-        }
-        if UIApplication.shared.applicationState != .active {
-            startPipIfPossible()
+            pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+            print("[KiDi+] autoInline armed, controller=\(pipController != nil)")
         }
     }
 
@@ -480,10 +416,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 queue: .main
             ) { [weak self] _ in
                 guard let self else { return }
-                // Hand exclusive playback to the native LiveKit session.
-                // The WebView A/V is muted from JS while inactive — otherwise
-                // WKWebView and native LiveKit fight AVAudioSession and you get
-                // either silent video or audio with a frozen PiP frame.
+                self.cachedAppIsActive = false
+                // Audio only. Do not startPictureInPicture() here — the scene
+                // is already leaving ForegroundActive and AVKit rejects it.
                 self.prepareForBackgroundPip(reason: "willResignActive")
             }
         }
@@ -504,17 +439,17 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 queue: .main
             ) { [weak self] _ in
                 guard let self else { return }
-                self.cancelPipRetries()
+                self.cachedAppIsActive = true
                 self.backgroundAudioArmed = false
                 // Hand audio back to the RN room — stay subscribed to video only.
                 self.setRemoteAudioSubscribed(false, reason: "didBecomeActive")
-                // Stop system PiP first, THEN hide the native source — hiding
-                // while still active produced a black flash / stuck surface.
                 if self.isInPip {
                     self.stopPip()
                 }
-                self.previewController.view?.isHidden = true
-                self.previewController.view?.alpha = 0
+                // Keep the source view in-hierarchy (behind RN) so the next
+                // Home gesture can auto-start PiP. Hiding it makes auto-inline
+                // report isPictureInPicturePossible=false.
+                self.ensureSourceViewsAttached()
             }
         }
     }
@@ -597,14 +532,8 @@ extension LivePipSession: RoomDelegate {
 extension LivePipSession: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         print("[KiDi+] PiP did start")
-        cancelPipRetries()
-        // Re-claim audio the moment the bubble appears — WebView often still
-        // holds the session for a beat after resignActive.
         activatePipAudioSession(reason: "pip-did-start")
-        ensureAllRemoteMediaSubscribed(reason: "pip-did-start")
-        // Force fresh frames into the PiP layers (avoids a stuck black surface).
-        previewController.flushForPipHandoff()
-        videoCallController.flushForPipHandoff()
+        setRemoteAudioSubscribed(true, reason: "pip-did-start")
         emitMode(true)
     }
 
@@ -619,7 +548,6 @@ extension LivePipSession: AVPictureInPictureControllerDelegate {
     ) {
         // Do NOT emitMode(false): JS treats that as "user closed PiP" and kills the live.
         print("[KiDi+] PiP failed to start: \(error)")
-        schedulePipRetries()
     }
 }
 
