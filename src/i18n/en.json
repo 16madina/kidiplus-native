@@ -102,7 +102,9 @@
     "optionsHintEditShop": "Add colors / sizes in My shop to reuse them here.",
     "updated": "Item updated",
     "imageOnly": "Image only",
-    "imageTooBig": "Image too large (max 5 MB)"
+    "imageTooBig": "Image too large (max 5 MB)",
+    "noReplays": "No replays yet. They stay available for 7 days after the live.",
+    "livesDone": "Lives done"
   },
   "reviews": {
     "leave": "Leave a review",
@@ -121,7 +123,9 @@
     "vitrineEmpty": "No posts in your showcase yet.",
     "vitrineEmptyPublic": "No posts yet.",
     "vitrineHint": "Tap the trash icon to remove a video.",
-    "availableInLives": "Available during lives"
+    "availableInLives": "Available during lives",
+    "livesOwnerOnly": "Replays are private — only you can open them from your shop.",
+    "replayHint": "Your lives stay for 7 days. Tap to watch or download."
   },
   "moderator": {
     "title": "Moderators",
@@ -585,7 +589,20 @@
     "replay": {
       "watch": "Watch replay",
       "preparing": "Replay coming soon…",
-      "openFailed": "Couldn't open this replay — try again in a moment."
+      "openFailed": "Couldn't open this replay — try again in a moment.",
+      "download": "Download",
+      "downloadShared": "Recording ready to share",
+      "downloadOpened": "Open the video then save it on your phone",
+      "downloadFailed": "Couldn't download — try again",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this replay for good? You won't be able to watch it again.",
+      "deleteFailed": "Couldn't delete — try again",
+      "deleted": "Replay deleted",
+      "unavailable": "Replay unavailable",
+      "expired": "Replay expired (7 days)",
+      "playerTitle": "Live replay",
+      "badgeDays": "Replay · expires in {{days}}d",
+      "scheduled": "Scheduled"
     },
     "rtmp": {
       "toggleTitle": "Multi-platform (Restream / OBS)",
