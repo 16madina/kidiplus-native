@@ -1,19 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Star, Tag, Users, Video } from "lucide-react-native";
+import {
+  Archive,
+  Clapperboard,
+  ImagePlus,
+  MessageCircle,
+  Pencil,
+  Play,
+  Plus,
+  Radio,
+  ShoppingBag,
+  Star,
+  Tag,
+  Trash2,
+  Users,
+  Video,
+} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { AuthInput } from "../components/AuthInput";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
@@ -33,7 +47,7 @@ import {
   updateShopProduct,
   uploadShopProductImage,
 } from "../lib/shop";
-import { countSellerLives, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
+import { countSellerLives, fetchLiveById, fetchSellerLives, type SellerLiveEntry } from "../lib/lives";
 import { countVitrinePostsByUser, fetchVitrinePostsByUser, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { fetchSellerPublic, uploadBanner, type SellerPublic } from "../lib/seller";
 import { VerifiedBadge } from "../components/VerifiedBadge";
@@ -46,7 +60,10 @@ import { isHttpUrl } from "../lib/storage";
 import { type ShopItem } from "../mock/account";
 import { ProductOptionsFields } from "../components/shop/ProductOptionsFields";
 import type { ProductCondition } from "../lib/live-product-options";
-import { playableReplayUrl } from "../lib/live-replay";
+import { deleteLiveReplay, playableReplayUrl } from "../lib/live-replay";
+import { downloadLiveReplay } from "../lib/live-replay-download";
+import { replayDaysLeft, sellerLiveStillListed, sellerReplayKind } from "../lib/live-replay-meta";
+import { ReplayPlayerModal, type ReplayOpen } from "../components/live/ReplayPlayerModal";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -90,7 +107,7 @@ export function ShopScreen({
   const { t } = useTranslation();
   const { colors, dark } = useAppTheme();
   const { user, becomeSeller, guestMode, openAuth } = useAuth();
-  const { openOverlay } = useNav();
+  const { openOverlay, openLive, closeOverlay } = useNav();
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,7 +116,7 @@ export function ShopScreen({
   const own = !sellerId || sellerId === user?.id;
   const followTargetId = !own && sellerId ? sellerId : null;
   const follow = useFollow(followTargetId);
-  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine" | "avis">("boutique");
+  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "vitrine" | "avis">("boutique");
   const [seller, setSeller] = useState<SellerPublic | null>(null);
   const [reviews, setReviews] = useState<SellerReview[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
@@ -107,7 +124,7 @@ export function ShopScreen({
   const [vitrinePosts, setVitrinePosts] = useState<VitrineFeedPost[]>([]);
   const [livesCount, setLivesCount] = useState(0);
   const [vitrineCount, setVitrineCount] = useState(0);
-  const [replayUrl, setReplayUrl] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState<ReplayOpen | null>(null);
 
   const reload = async () => {
     const id = own ? user?.id : sellerId;
@@ -295,11 +312,77 @@ export function ShopScreen({
   };
 
   const featured = useMemo(() => items.filter((p) => p.active).slice(0, 8), [items]);
-  const replays = useMemo(() => lives.filter(isReplayPlayable), [lives]);
   const orderedLives = useMemo(() => {
     const rank = (s: string) => (s === "live" ? 0 : s === "scheduled" ? 1 : 2);
-    return [...lives].sort((a, b) => rank(a.status) - rank(b.status));
+    return [...lives]
+      .filter((row) => sellerLiveStillListed(row))
+      .sort((a, b) => rank(a.status) - rank(b.status));
   }, [lives]);
+
+  useEffect(() => {
+    if (shopTab !== "lives") return;
+    const iv = setInterval(() => {
+      void reload();
+    }, 8000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopTab, user?.id, sellerId]);
+
+  const openReplayEntry = async (row: SellerLiveEntry) => {
+    if (row.status === "live") {
+      const stream = await fetchLiveById(row.id);
+      if (stream) {
+        closeOverlay();
+        openLive(stream);
+      }
+      return;
+    }
+    if (!own) {
+      flash(t("sellerProfile.livesOwnerOnly"));
+      return;
+    }
+    const kind = sellerReplayKind(row);
+    if (kind === "scheduled") {
+      flash(t("broadcast.replay.scheduled"));
+      return;
+    }
+    const url = await playableReplayUrl(row.id, { replay_url: row.replay_url });
+    if (url) {
+      setReplayOpen({ url, title: row.title, liveId: row.id });
+      return;
+    }
+    if (kind === "pending") flash(t("broadcast.replay.preparing"));
+    else if (kind === "expired") flash(t("broadcast.replay.expired"));
+    else if (kind === "failed") flash(t("broadcast.replay.unavailable"));
+    else flash(t("broadcast.replay.openFailed"));
+  };
+
+  const confirmDeleteReplay = (liveId: string) => {
+    Alert.alert(t("broadcast.replay.delete"), t("broadcast.replay.deleteConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("broadcast.replay.delete"),
+        style: "destructive",
+        onPress: () => {
+          void deleteLiveReplay(liveId).then((res) => {
+            if (!res.ok) {
+              flash(t("broadcast.replay.deleteFailed"));
+              return;
+            }
+            flash(t("broadcast.replay.deleted"));
+            if (replayOpen?.liveId === liveId) setReplayOpen(null);
+            setLives((prev) =>
+              prev.map((r) =>
+                r.id === liveId
+                  ? { ...r, replay_url: null, replay_status: "expired", replay_expires_at: null }
+                  : r,
+              ),
+            );
+          });
+        },
+      },
+    ]);
+  };
   const displayName = seller?.displayName || sellerName || user?.displayName || t("shop.title");
   const handle = seller?.handle || user?.handle || "";
   const avatar = seller?.avatarUrl || (own ? user?.avatarUrl : null);
@@ -588,23 +671,79 @@ export function ShopScreen({
         {!loading && shopTab === "lives" ? (
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {orderedLives.length === 0 ? (
-              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>{t("admin.lives.empty", { defaultValue: "Aucun live." })}</Text>
+              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
+                {t("shop.noReplays")}
+              </Text>
             ) : (
-              orderedLives.map((l) => (
-                <Glass key={l.id} tone="light" intensity={32} radius={16} elevated={false}>
-                  <View style={styles.liveRow}>
-                    {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                      <Text style={{ color: "#6B7289", marginTop: 2, fontSize: 12 }}>
-                        {l.status === "live" ? "EN DIRECT" : l.status === "scheduled" ? "Programmé" : "Terminé"}
-                        {l.viewer_count ? ` · ${l.viewer_count} viewers` : ""}
-                      </Text>
+              <>
+                {own ? <Text style={styles.hint}>{t("sellerProfile.replayHint")}</Text> : null}
+                {orderedLives.map((l) => {
+                  const kind = sellerReplayKind(l);
+                  const daysLeft = kind === "ready" ? replayDaysLeft(l.replay_expires_at) : null;
+                  const sub =
+                    kind === "live"
+                      ? t("seller.liveNow")
+                      : kind === "scheduled"
+                        ? t("broadcast.replay.scheduled")
+                        : kind === "ready"
+                          ? t("broadcast.replay.badgeDays", { days: daysLeft ?? 1 })
+                          : kind === "pending"
+                            ? t("broadcast.replay.preparing")
+                            : kind === "failed"
+                              ? t("broadcast.replay.unavailable")
+                              : kind === "expired"
+                                ? t("broadcast.replay.expired")
+                                : t("seller.ended");
+                  const clickable = kind === "live" || own;
+                  return (
+                    <View key={l.id} style={[styles.liveCard, kind !== "ready" && kind !== "live" ? { opacity: 0.78 } : null]}>
+                      <Press
+                        disabled={!clickable}
+                        onPress={() => void openReplayEntry(l)}
+                        style={styles.liveCardHit}
+                      >
+                        {l.cover_url ? (
+                          <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" />
+                        ) : (
+                          <View style={styles.liveCover} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text numberOfLines={1} style={{ fontWeight: "800", color: NAVY }}>
+                            {l.title}
+                          </Text>
+                          <Text
+                            style={{
+                              color: kind === "ready" ? GOLD : "#6B7289",
+                              marginTop: 2,
+                              fontSize: 12,
+                              fontWeight: kind === "ready" ? "700" : "500",
+                            }}
+                          >
+                            {sub}
+                          </Text>
+                        </View>
+                        {kind === "live" ? <Radio size={16} color="#E5393F" /> : null}
+                        {kind === "ready" ? (
+                          <View style={styles.playDisc}>
+                            <Play size={14} color="#fff" fill="#fff" />
+                          </View>
+                        ) : kind !== "live" ? (
+                          <Clapperboard size={16} color={GOLD} />
+                        ) : null}
+                      </Press>
+                      {own && kind === "ready" ? (
+                        <Press
+                          onPress={() => confirmDeleteReplay(l.id)}
+                          style={styles.trashBtn}
+                          accessibilityLabel={t("broadcast.replay.delete")}
+                        >
+                          <Trash2 size={14} color="#DC2626" />
+                        </Press>
+                      ) : null}
                     </View>
-                    {l.status === "live" ? <Radio size={16} color="#E5393F" /> : <Clapperboard size={16} color={GOLD} />}
-                  </View>
-                </Glass>
-              ))
+                  );
+                })}
+              </>
             )}
           </View>
         ) : null}
@@ -626,43 +765,6 @@ export function ShopScreen({
                     </Text>
                   </View>
                 </Glass>
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {!loading && shopTab === "replays" ? (
-          <View style={{ paddingHorizontal: 16, gap: 10 }}>
-            {replays.length === 0 ? (
-              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
-                {t("shop.noReplays", { defaultValue: "Aucun replay pour le moment." })}
-              </Text>
-            ) : (
-              replays.map((l) => (
-                <Press
-                  key={l.id}
-                  onPress={() => {
-                    void playableReplayUrl(l.id, {
-                      replay_status: (l.replay_status as "ready") ?? "ready",
-                      replay_url: l.replay_url,
-                      replay_expires_at: l.replay_expires_at,
-                    }).then((url) => {
-                      if (url) setReplayUrl(url);
-                    });
-                  }}
-                  style={{ alignItems: "stretch" }}
-                >
-                  <Glass tone="light" intensity={32} radius={16} elevated={false}>
-                    <View style={styles.liveRow}>
-                      {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                        <Text style={{ color: GOLD, marginTop: 2, fontWeight: "700", fontSize: 12 }}>Replay</Text>
-                      </View>
-                      <Video size={16} color={GOLD} />
-                    </View>
-                  </Glass>
-                </Press>
               ))
             )}
           </View>
@@ -692,7 +794,22 @@ export function ShopScreen({
           </View>
         ) : null}
       </ScrollView>
-      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+      <ReplayPlayerModal
+        replay={replayOpen}
+        onClose={() => setReplayOpen(null)}
+        onDownload={async () => {
+          if (!replayOpen) return;
+          try {
+            const mode = await downloadLiveReplay(replayOpen.url, replayOpen.title);
+            flash(
+              mode === "shared" ? t("broadcast.replay.downloadShared") : t("broadcast.replay.downloadOpened"),
+            );
+          } catch {
+            flash(t("broadcast.replay.downloadFailed"));
+          }
+        }}
+        onDelete={own && replayOpen ? () => confirmDeleteReplay(replayOpen.liveId) : undefined}
+      />
       <MockBanner text={toast} />
       {sellerId ? (
         <ReportSheet
@@ -731,29 +848,6 @@ function Stat({
       <Text style={styles.statN}>{value}</Text>
     </Press>
   );
-}
-
-function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  if (!url) return null;
-  return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <ReplayPlayer uri={url} />
-        <Press onPress={onClose} style={{ position: "absolute", top: 48, left: 16, minHeight: 40 }}>
-          <Text style={{ color: "#fff", fontWeight: "800" }}>Fermer</Text>
-        </Press>
-      </View>
-    </Modal>
-  );
-}
-
-function ReplayPlayer({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = false;
-    p.muted = false;
-    p.play();
-  });
-  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
 }
 
 const styles = StyleSheet.create({
@@ -869,8 +963,43 @@ const styles = StyleSheet.create({
   coverThumb: { width: 88, height: 88, borderRadius: 14, backgroundColor: "#E8EAF1" },
   coverEmpty: { height: 180, alignItems: "center", justifyContent: "center" },
   coverEmptySmall: { width: 88, height: 88, alignItems: "center", justifyContent: "center" },
+  hint: { color: "#6B7289", fontSize: 12, marginBottom: 4 },
   liveRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10 },
+  liveCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16,22,43,0.08)",
+    paddingRight: 6,
+  },
+  liveCardHit: {
+    flex: 1,
+    minHeight: 0,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+  },
   liveCover: { width: 56, height: 56, borderRadius: 12, backgroundColor: "#E8EAF1" },
+  playDisc: {
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    borderRadius: 16,
+    backgroundColor: NAVY,
+  },
+  trashBtn: {
+    width: 36,
+    height: 36,
+    minWidth: 36,
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(220,38,38,0.12)",
+  },
   vitrineGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 14, gap: 6 },
   vitrineCell: { width: "31.5%", aspectRatio: 0.75, borderRadius: 10, overflow: "hidden", backgroundColor: "#111" },
   vitrineImg: { width: "100%", height: "100%" },

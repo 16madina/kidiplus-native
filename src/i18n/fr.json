@@ -102,7 +102,9 @@
     "optionsHintEditShop": "Ajoute couleurs / tailles dans Ma boutique pour les retrouver ici.",
     "updated": "Article modifié",
     "imageOnly": "Image uniquement",
-    "imageTooBig": "Image trop lourde (max 5 Mo)"
+    "imageTooBig": "Image trop lourde (max 5 Mo)",
+    "noReplays": "Aucun replay pour le moment. Ils restent 7 jours après le live.",
+    "livesDone": "Lives réalisés"
   },
   "reviews": {
     "leave": "Laisser un avis",
@@ -121,7 +123,9 @@
     "vitrineEmpty": "Aucune publication dans ta vitrine.",
     "vitrineEmptyPublic": "Aucune publication pour le moment.",
     "vitrineHint": "Appuie sur la poubelle pour retirer une vidéo.",
-    "availableInLives": "Disponible pendant les lives"
+    "availableInLives": "Disponible pendant les lives",
+    "livesOwnerOnly": "Les replays sont privés — seuls toi peux les ouvrir depuis ta boutique.",
+    "replayHint": "Tes lives restent 7 jours. Appuie pour regarder ou télécharger."
   },
   "moderator": {
     "title": "Modérateurs",
@@ -585,7 +589,20 @@
     "replay": {
       "watch": "Revoir le live",
       "preparing": "Replay bientôt disponible…",
-      "openFailed": "Impossible d’ouvrir ce replay — réessaie dans un instant."
+      "openFailed": "Impossible d’ouvrir ce replay — réessaie dans un instant.",
+      "download": "Télécharger",
+      "downloadShared": "Enregistrement prêt à partager",
+      "downloadOpened": "Ouvre la vidéo puis enregistre-la sur ton téléphone",
+      "downloadFailed": "Impossible de télécharger — réessaie",
+      "delete": "Supprimer",
+      "deleteConfirm": "Supprimer ce replay définitivement ? Tu ne pourras plus le revoir.",
+      "deleteFailed": "Impossible de supprimer — réessaie",
+      "deleted": "Replay supprimé",
+      "unavailable": "Replay indisponible",
+      "expired": "Replay expiré (7 jours)",
+      "playerTitle": "Replay du live",
+      "badgeDays": "Replay · expire dans {{days}}j",
+      "scheduled": "Programmé"
     },
     "rtmp": {
       "toggleTitle": "Multi-plateformes (Restream / OBS)",

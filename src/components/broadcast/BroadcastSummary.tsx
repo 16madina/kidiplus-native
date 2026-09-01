@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { Home, Play, Share2 } from "lucide-react-native";
 import { Logo } from "../Logo";
 import { Press } from "../Press";
 import { MockBanner } from "../OverlayHeader";
+import { ReplayPlayerModal, type ReplayOpen } from "../live/ReplayPlayerModal";
+import { downloadLiveReplay } from "../../lib/live-replay-download";
 import {
   fetchLiveGiftsTotal,
   fetchLivePaidOrders,
@@ -45,7 +46,7 @@ export function BroadcastSummary({
   const [orders, setOrders] = useState<LivePaidOrder[]>([]);
   const [gifts, setGifts] = useState({ count: 0, sellerNet: 0 });
   const [replayMeta, setReplayMeta] = useState<LiveReplayMeta | null>(null);
-  const [replayUrl, setReplayUrl] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState<ReplayOpen | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const fmt = (n: number, cur: string = currency) => formatMoney(n, cur, i18n.language);
 
@@ -103,7 +104,7 @@ export function BroadcastSummary({
       setToast(t("broadcast.replay.openFailed"));
       return;
     }
-    setReplayUrl(url);
+    setReplayOpen({ url, title: heading, liveId });
   };
 
   const share = async () => {
@@ -213,7 +214,21 @@ export function BroadcastSummary({
         </View>
       </ScrollView>
       <MockBanner text={toast} />
-      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+      <ReplayPlayerModal
+        replay={replayOpen}
+        onClose={() => setReplayOpen(null)}
+        onDownload={async () => {
+          if (!replayOpen) return;
+          try {
+            const mode = await downloadLiveReplay(replayOpen.url, replayOpen.title);
+            setToast(
+              mode === "shared" ? t("broadcast.replay.downloadShared") : t("broadcast.replay.downloadOpened"),
+            );
+          } catch {
+            setToast(t("broadcast.replay.downloadFailed"));
+          }
+        }}
+      />
     </View>
   );
 }
@@ -225,30 +240,6 @@ function Tile({ label, value }: { label: string; value: string }) {
       <Text style={styles.tileValue}>{value}</Text>
     </View>
   );
-}
-
-function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  const { t } = useTranslation();
-  if (!url) return null;
-  return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={styles.replayRoot}>
-        <ReplayPlayer uri={url} />
-        <Press onPress={onClose} style={styles.replayClose}>
-          <Text style={styles.replayCloseTxt}>{t("common.close")}</Text>
-        </Press>
-      </View>
-    </Modal>
-  );
-}
-
-function ReplayPlayer({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = false;
-    p.muted = false;
-    p.play();
-  });
-  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
 }
 
 const MUTED = "#F2F3F7";
@@ -354,7 +345,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   homeTxt: { color: NAVY, fontWeight: "700", fontSize: 15 },
-  replayRoot: { flex: 1, backgroundColor: "#000" },
-  replayClose: { position: "absolute", top: 48, left: 16, minHeight: 40 },
-  replayCloseTxt: { color: "#fff", fontWeight: "800" },
 });
