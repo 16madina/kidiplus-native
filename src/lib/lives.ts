@@ -1,5 +1,6 @@
 import { type Category, type LiveStream } from "../mock/lives";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { notifyHostLiveEnded, notifyHostLiveStarted } from "./host-open-live";
 import { supabase } from "./supabase";
 import { retryAsync } from "./live-fx";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
@@ -148,9 +149,14 @@ async function rowToStream(row: LiveRow, scheduled = false): Promise<LiveStream>
   };
 }
 
-export async function fetchActiveLives(limit = 60): Promise<LiveStream[]> {
-  void notifyAbsentHostLivesInDb().catch(() => 0);
-  void expireAbandonedLivesInDb(null).catch(() => 0);
+export async function fetchActiveLives(
+  limit = 60,
+  opts?: { housekeep?: boolean },
+): Promise<LiveStream[]> {
+  if (opts?.housekeep) {
+    void notifyAbsentHostLivesInDb().catch(() => 0);
+    void expireAbandonedLivesInDb(null).catch(() => 0);
+  }
   const { data, error } = await supabase
     .from("lives")
     .select(LIVE_SELECT)
@@ -394,6 +400,7 @@ export async function createLiveInDb(input: {
     .select("id")
     .single();
   if (error || !live) throw error ?? new Error("Impossible de créer le live");
+  notifyHostLiveStarted(live.id as string);
   if (input.products.length > 0) {
     const rows = input.products.map((p, i) => ({
       live_id: live.id,
@@ -426,6 +433,7 @@ export async function endLiveInDb(liveId: string): Promise<{ ok: boolean; error?
     .eq("id", liveId)
     .eq("status", "live");
   if (error) return { ok: false, error: error.message };
+  notifyHostLiveEnded(liveId);
   return { ok: true };
 }
 
