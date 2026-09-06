@@ -51,12 +51,12 @@ public class KidiLivePipModule: Module {
       await MainActor.run {
         self.attachOnMain()
       }
-      await LivePipSession.shared.setEligible(
+      let connected = await LivePipSession.shared.setEligible(
         options.enabled,
         url: options.url,
         token: options.token
       )
-      return ["enabled": options.enabled]
+      return ["enabled": options.enabled, "connected": connected]
     }
 
     AsyncFunction("enter") { () -> Bool in
@@ -80,6 +80,12 @@ public class KidiLivePipModule: Module {
 
     Function("isInPip") {
       LivePipSession.shared.isInPip
+    }
+
+    AsyncFunction("getStatus") { () -> [String: Any] in
+      await MainActor.run {
+        LivePipSession.shared.statusSnapshot()
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import {
   liveViewerChromeHiddenForPip,
   liveEdgeShouldCatch,
   liveEdgeShouldMinimize,
+  liveListItemHeight,
   liveListItemLayout,
 } from "./live-pip-presentation.ts";
 import {
@@ -60,6 +61,8 @@ function run() {
   assert.deepEqual(liveListItemLayout(false, 2, 2, 800), { length: 800, offset: 1600, index: 2 });
   assert.deepEqual(liveListItemLayout(true, 2, 2, 800), { length: LIVE_PIP_MINI.height, offset: 0, index: 2 });
   assert.deepEqual(liveListItemLayout(true, 0, 2, 800), { length: 0, offset: 0, index: 0 });
+  assert.equal(liveListItemHeight(false, 800), 800);
+  assert.equal(liveListItemHeight(true, 800), LIVE_PIP_MINI.height);
   assert.ok(ANDROID_PIP_PREPARE_MS >= 120);
 
   assert.equal(viewerKeepsFullVideoQuality(false, false), false);
@@ -101,6 +104,10 @@ function run() {
   assert.match(pipHook, /displayNameRef/);
   assert.match(pipHook, /\[enabled, pipIdentity, roomName, sessionKey\]/);
   assert.doesNotMatch(pipHook, /\[displayName, enabled/);
+
+  const listViewer = readFileSync(new URL("../components/LiveListViewer.tsx", import.meta.url), "utf8");
+  assert.match(listViewer, /height: liveListItemHeight\(compact, screenH\)/);
+  assert.doesNotMatch(listViewer, /compactItem:\s*\{\s*flex:\s*1/);
 }
 
 run();

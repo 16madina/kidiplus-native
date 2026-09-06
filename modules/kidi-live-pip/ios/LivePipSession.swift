@@ -24,6 +24,8 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private var eligible = false
     private var connected = false
     private var connectInFlight = false
+    /// Invalidates any async connect that finishes after the live changed or closed.
+    private var sessionGeneration = 0
     /// Kept for silent-drop recovery: if the room disconnects while the user
     /// browses the app (mini player), we reconnect with the same session so
     /// leaving the app doesn't open a black, silent PiP bubble.
@@ -47,6 +49,26 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         AVPictureInPictureController.isPictureInPictureSupported()
     }
 
+    @MainActor
+    func statusSnapshot() -> [String: Any] {
+        let sourceVisible = hostView?.window != nil
+        let hasController = pipController != nil
+        let possible = pipController?.isPictureInPicturePossible ?? false
+        let ready = eligible && connected && hostTrack != nil && hasRenderedFrame && hasController && possible
+        return [
+            "supported": isSupported,
+            "eligible": eligible,
+            "connected": connected,
+            "hasVideoTrack": hostTrack != nil,
+            "hasVideoFrame": hasRenderedFrame,
+            "hasController": hasController,
+            "possible": possible,
+            "active": isInPip,
+            "sourceVisible": sourceVisible,
+            "ready": ready,
+        ]
+    }
+
     func setModeListener(_ listener: ((Bool) -> Void)?) {
         modeListener = listener
     }
@@ -60,36 +82,41 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         print("[KiDi+] LivePipSession attached (lazy), pipSupported=\(isSupported)")
     }
 
-    func setEligible(_ on: Bool, url: String?, token: String?) async {
+    @discardableResult
+    func setEligible(_ on: Bool, url: String?, token: String?) async -> Bool {
         print("[KiDi+] LivePipSession setEligible=\(on) url=\(url != nil) token=\(token != nil)")
         if !on {
+            sessionGeneration &+= 1
             eligible = false
             sessionUrl = nil
             sessionToken = nil
             await teardown()
-            return
+            return false
         }
         guard let url, let token, !url.isEmpty, !token.isEmpty else {
             // Never leave eligible=true without a real LiveKit session — that
             // caused empty PiP bubbles when leaving the app with no live open.
+            sessionGeneration &+= 1
             eligible = false
             sessionUrl = nil
             sessionToken = nil
             print("[KiDi+] LivePipSession enable ignored — missing url/token (publish web JS?)")
             await teardown()
-            return
+            return false
         }
         if eligible, connected, sessionUrl == url {
             print("[KiDi+] LivePipSession setEligible skipped — already connected")
-            return
+            return true
         }
+        sessionGeneration &+= 1
+        let generation = sessionGeneration
         eligible = true
         sessionUrl = url
         sessionToken = token
         await MainActor.run {
             self.ensureSourceViewsAttached()
         }
-        await connect(url: url, token: token)
+        return await connect(url: url, token: token, generation: generation)
     }
 
     func startPipIfPossible() {
@@ -154,6 +181,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         let wasPip = await MainActor.run {
             return self.stopPip()
         }
+        sessionGeneration &+= 1
         eligible = false
         backgroundAudioArmed = false
         await teardown()
@@ -254,8 +282,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private func reconnectIfNeeded(reason: String) {
         guard eligible, !connected, !connectInFlight else { return }
         guard let url = sessionUrl, let token = sessionToken else { return }
+        let generation = sessionGeneration
         print("[KiDi+] LivePipSession reconnecting (\(reason))")
-        Task { await self.connect(url: url, token: token) }
+        Task { _ = await self.connect(url: url, token: token, generation: generation) }
     }
 
     private func prepareForBackgroundPip(reason: String) {
@@ -272,8 +301,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         print("[KiDi+] prepareForBackgroundPip armed autoInline (\(reason)) controller=\(pipController != nil) frames=\(hasRenderedFrame) pipActive=\(isInPip)")
     }
 
-    private func connect(url: String, token: String) async {
-        if connectInFlight { return }
+    private func connect(url: String, token: String, generation: Int) async -> Bool {
+        guard eligible, generation == sessionGeneration else { return false }
+        if connectInFlight { return connected }
         connectInFlight = true
         defer { connectInFlight = false }
         if connected {
@@ -288,14 +318,22 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 token: token,
                 connectOptions: ConnectOptions(autoSubscribe: false)
             )
+            guard eligible, generation == sessionGeneration, sessionUrl == url else {
+                print("[KiDi+] LivePipSession discarding stale connect generation=\(generation)")
+                await room.disconnect()
+                connected = false
+                return false
+            }
             connected = true
             print("[KiDi+] LivePipSession connected, remotes=\(room.remoteParticipants.count)")
             await MainActor.run {
                 self.bindExistingRemoteTracks()
             }
+            return true
         } catch {
             print("[KiDi+] LivePipSession connect failed: \(error)")
             connected = false
+            return false
         }
     }
 
@@ -381,8 +419,16 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
         guard eligible, isSupported, pipController == nil else { return }
         ensureSourceViewsAttached()
+        guard let sourceView = hostView, sourceView.window != nil else {
+            print("[KiDi+] pipController skipped — visible root source unavailable")
+            return
+        }
         let source = AVPictureInPictureController.ContentSource(
-            activeVideoCallSourceView: previewController.view,
+            // Auto-inline only starts reliably from a source that is actually
+            // visible. The preview renderer sits behind React Native, so use
+            // the mounted root view for the transition and keep the dedicated
+            // videoCallController as the PiP video content.
+            activeVideoCallSourceView: sourceView,
             contentViewController: videoCallController
         )
         let controller = AVPictureInPictureController(contentSource: source)
@@ -392,7 +438,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         controller.delegate = self
         controller.setValue(1, forKey: "controlsStyle")
         pipController = controller
-        print("[KiDi+] pipController created, autoInline=\(hasRenderedFrame)")
+        print("[KiDi+] pipController created, autoInline=\(hasRenderedFrame) sourceWindow=true sourceBounds=\(sourceView.bounds)")
     }
 
     private func destroyPipController() {

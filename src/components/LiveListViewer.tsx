@@ -2,17 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { LiveViewerScreen } from "../screens/LiveViewerScreen";
 import { ScheduledLivePoster } from "./ScheduledLivePoster";
-import { liveListItemLayout } from "../lib/live-pip-presentation";
+import { liveListItemHeight, liveListItemLayout } from "../lib/live-pip-presentation";
 import type { LiveStream } from "../mock/lives";
 
 export function LiveListViewer({
   list,
   initialIndex,
   compact = false,
+  onActiveIndexChange,
 }: {
   list: LiveStream[];
   initialIndex: number;
   compact?: boolean;
+  onActiveIndexChange?: (index: number) => void;
 }) {
   const { height: screenH } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -28,6 +30,10 @@ export function LiveListViewer({
   );
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
+
+  useEffect(() => {
+    onActiveIndexChange?.(activeIndex);
+  }, [activeIndex, onActiveIndexChange]);
 
   useEffect(() => {
     if (compact) {
@@ -55,11 +61,11 @@ export function LiveListViewer({
         }
         return (
           <View
-            style={
-              compact
-                ? styles.compactItem
-                : { width: "100%", height: screenH }
-            }
+            style={{
+              width: "100%",
+              height: liveListItemHeight(compact, screenH),
+              flexShrink: 0,
+            }}
           >
             {item.scheduled ? (
               <ScheduledLivePoster stream={item} active={compact || isCurrent} />
@@ -84,6 +90,5 @@ export function LiveListViewer({
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  compactItem: { flex: 1, width: "100%" },
   hiddenItem: { height: 0, overflow: "hidden" },
 });

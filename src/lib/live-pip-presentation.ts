@@ -60,6 +60,15 @@ export function liveListItemLayout(
   return { length: 0, offset: h, index };
 }
 
+/**
+ * FlatList's vertical CellRenderer does not give `flex: 1` children a bounded
+ * height. The compact item therefore needs a real height or the native
+ * LiveKit video surface collapses to 0×0 while its audio keeps playing.
+ */
+export function liveListItemHeight(compact: boolean, screenH: number): number {
+  return compact ? LIVE_PIP_MINI.height : screenH;
+}
+
 export function liveViewerChromeHidden(mode: LivePipMode): boolean {
   return mode !== "full";
 }

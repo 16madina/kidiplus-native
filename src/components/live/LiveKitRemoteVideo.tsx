@@ -62,11 +62,23 @@ export function LiveKitRemoteVideo({
   const retriesRef = useRef(0);
 
   useEffect(() => {
+    let mounted = true;
+    void startViewerPlaybackAudioSession().catch((e) => {
+      if (!mounted) return;
+      setPhase("failed");
+      setError(e instanceof Error ? e.message : "Audio du live indisponible");
+    });
+    return () => {
+      mounted = false;
+      void stopViewerPlaybackAudioSession();
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         bootLiveKit();
-        await startViewerPlaybackAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "viewer");
         if (!cancelled) {
           setSession(s);
@@ -84,12 +96,6 @@ export function LiveKitRemoteVideo({
       cancelled = true;
     };
   }, [displayName, identity, roomName, roomKey, t]);
-
-  useEffect(() => {
-    return () => {
-      void stopViewerPlaybackAudioSession();
-    };
-  }, []);
 
   const retry = useCallback(() => {
     retriesRef.current += 1;

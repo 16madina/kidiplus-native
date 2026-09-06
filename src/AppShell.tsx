@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { BottomTabBar } from "./components/BottomTabBar";
@@ -111,7 +111,22 @@ export function AppShell() {
 
   const liveFullScreen = isOverlayOpen("live") && livePresentation === "full";
   const liveMinimized = isOverlayOpen("live") && livePresentation === "minimized";
-  const watchingStream = live.entry?.list[live.entry.index] ?? live.entry?.stream;
+  const liveSessionKey = live.entry
+    ? `${live.entry.stream.id}:${live.entry.index}:${live.entry.list.length}`
+    : null;
+  const [liveCursor, setLiveCursor] = useState<{ key: string; index: number } | null>(null);
+  const watchingIndex =
+    liveSessionKey && liveCursor?.key === liveSessionKey
+      ? liveCursor.index
+      : live.entry?.index;
+  const watchingStream =
+    (watchingIndex != null ? live.entry?.list[watchingIndex] : undefined) ?? live.entry?.stream;
+  const handleActiveLiveIndex = useCallback(
+    (index: number) => {
+      if (liveSessionKey) setLiveCursor({ key: liveSessionKey, index });
+    },
+    [liveSessionKey],
+  );
   const liveHasVideo =
     Boolean(live.open && watchingStream?.roomName && !watchingStream.fictitious) &&
     !isExpoGo();
@@ -278,6 +293,7 @@ export function AppShell() {
               list={live.entry.list}
               initialIndex={live.entry.index}
               compact={liveMinimized}
+              onActiveIndexChange={handleActiveLiveIndex}
             />
           </LivePipShell>
         </LiveSystemPipProvider>

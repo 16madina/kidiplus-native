@@ -94,7 +94,8 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
-  const liveVideo = Boolean(s.roomName && !s.fictitious) && !isExpoGo();
+  const activeLiveId = active ? liveId : undefined;
+  const liveVideo = active && Boolean(s.roomName && !s.fictitious) && !isExpoGo();
   const systemPip = useLiveSystemPipFlag();
   const chromeHidden = liveViewerChromeHiddenForPip(livePresentation, systemPip);
   const identity = useMemo(
@@ -105,12 +106,12 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
 
   const room = s.fictitious
     ? useDemoViewerSim(normalizeCurrency(s.currency))
-    : useViewerLiveRoom(liveId, {
+    : useViewerLiveRoom(activeLiveId, {
         displayName,
         userId: user?.id ?? null,
         identity,
       });
-  const battle = useBattleForLive(liveId ?? null);
+  const battle = useBattleForLive(activeLiveId ?? null);
   const battleActive = isBattleLiveActive(battle);
   const hostBattleLive =
     battle?.lives.find((l) => l.live_id === liveId) ??

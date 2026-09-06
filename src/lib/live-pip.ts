@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { AudioSession } from "@livekit/react-native";
-import { KidiLivePip, type PipEnableOptions } from "../../modules/kidi-live-pip/src";
+import {
+  KidiLivePip,
+  type PipEnableOptions,
+  type PipNativeStatus,
+} from "../../modules/kidi-live-pip/src";
 import { livePipViewerIdentity } from "./livekit-identity";
 import { fetchLiveKitSession } from "./livekit";
 import { liveSystemPipOn } from "./live-viewer-media";
@@ -27,12 +31,16 @@ export function androidLivePipAvailable(): boolean {
   return nativeLivePipAvailable();
 }
 
-export async function setNativeLivePipEnabled(options: PipEnableOptions): Promise<void> {
-  if (!KidiLivePip) return;
+export async function setNativeLivePipEnabled(options: PipEnableOptions): Promise<boolean> {
+  if (!KidiLivePip) return false;
   try {
-    await Promise.resolve(KidiLivePip.setEnabled(options));
-  } catch {
-    /* native module missing or rejected in this binary */
+    const result = await Promise.resolve(KidiLivePip.setEnabled(options));
+    if (!options.enabled) return true;
+    if (typeof result === "boolean") return result;
+    return result.connected ?? result.enabled;
+  } catch (error) {
+    console.warn("[pip] native setEnabled failed", error);
+    return false;
   }
 }
 
@@ -47,6 +55,15 @@ export async function enterNativeLivePip(): Promise<boolean> {
     return (await KidiLivePip?.enter()) ?? false;
   } catch {
     return false;
+  }
+}
+
+async function readNativeLivePipStatus(): Promise<PipNativeStatus | null> {
+  if (!KidiLivePip?.getStatus) return null;
+  try {
+    return await KidiLivePip.getStatus();
+  } catch {
+    return null;
   }
 }
 
@@ -165,8 +182,6 @@ export function useViewerSystemPip(
         await dismissNativeLivePip();
         if (cancelled) return;
       }
-      await new Promise((r) => setTimeout(r, 350));
-      if (cancelled) return;
       try {
         const lk = await fetchLiveKitSession(
           roomName!,
@@ -176,12 +191,37 @@ export function useViewerSystemPip(
         );
         if (cancelled) return;
         console.info("[pip] setEnabled once", { key: sessionKey });
-        await setNativeLivePipEnabled({
+        const connected = await setNativeLivePipEnabled({
           enabled: true,
           url: lk.url,
           token: lk.token,
         });
-        if (!cancelled) iosReadyRef.current = true;
+        if (!connected) {
+          if (!cancelled) iosReadyRef.current = false;
+          console.warn("[pip] iOS native room did not connect", { key: sessionKey });
+          return;
+        }
+        // Connection alone is not PiP readiness. Wait for the subscribed host
+        // track, the first decoded frame and AVKit's `possible` state.
+        for (let attempt = 0; attempt < 50 && !cancelled; attempt += 1) {
+          const status = await readNativeLivePipStatus();
+          if (status?.ready) {
+            iosReadyRef.current = true;
+            console.info("[pip] iOS native PiP ready", {
+              key: sessionKey,
+              possible: status.possible,
+              sourceVisible: status.sourceVisible,
+            });
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (!cancelled) {
+          iosReadyRef.current = false;
+          console.warn("[pip] iOS native PiP not ready after first-frame wait", {
+            key: sessionKey,
+          });
+        }
       } catch (e) {
         if (!cancelled) iosReadyRef.current = false;
         console.warn("[pip] iOS native token/connect failed", e);
@@ -200,29 +240,34 @@ export function useViewerSystemPip(
         startedRef.current = true;
         setActive(true);
         setPreparing(false);
+        void muteRnViewerAudio(true);
         return;
       }
       const had = startedRef.current;
       startedRef.current = false;
       setActive(false);
       setPreparing(false);
+      void muteRnViewerAudio(false);
       if (!had) return;
-      const appActive = AppState.currentState === "active";
-      if (!appActive) onDismissRef.current?.();
+      // `didBecomeActive` may stop native PiP a moment before React Native's
+      // AppState reaches "active". Recheck after the transition so a normal
+      // return to the app does not accidentally close the live.
+      setTimeout(() => {
+        if (startedRef.current) return;
+        if (AppState.currentState !== "active") onDismissRef.current?.();
+      }, 300);
     });
   }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
-    // iOS: native LivePipSession owns Home→PiP. Expanding the RN mini
-    // (the old iosPIP trick) is no longer needed and caused a black mini.
+    // iOS: native LivePipSession owns Home→PiP. Keep RN audio alive until
+    // native confirms `PiP did start`; otherwise a failed native connection
+    // would leave the user with neither a bubble nor sound.
     if (Platform.OS === "ios") {
       if (!KidiLivePip) return;
       const sub = AppState.addEventListener("change", (state) => {
-        if (!iosReadyRef.current) return;
-        if (state === "inactive" || state === "background") {
-          void muteRnViewerAudio(true);
-        } else if (state === "active") {
+        if (state === "active") {
           void muteRnViewerAudio(false);
         }
       });
