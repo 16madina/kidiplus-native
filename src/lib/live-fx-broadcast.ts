@@ -13,8 +13,9 @@ export type LiveFxHostTransport = {
 };
 
 function findSharedLiveChannel(liveId: string): RealtimeChannel | undefined {
-  const topicEnd = `live:${liveId}`;
-  return supabase.getChannels().find((ch) => ch.topic.endsWith(topicEnd));
+  return supabase
+    .getChannels()
+    .find((ch) => ch.topic === `realtime:live:${liveId}`);
 }
 
 /**
@@ -38,28 +39,36 @@ export function createLiveFxHostTransport(
       void channel.send({ type: "broadcast", event: LIVE_FX_EVENT, payload: latest });
     }
     const shared = findSharedLiveChannel(liveId);
-    if (shared) {
+    if (shared?.state === "joined") {
       void shared.send({ type: "broadcast", event: LIVE_FX_EVENT, payload: latest });
     }
   };
 
   if (liveId) {
-    channel = supabase
-      .channel(liveFxChannelName(liveId), {
+    void (async () => {
+      const channelName = liveFxChannelName(liveId);
+      const topic = `realtime:${channelName}`;
+      for (const previous of supabase
+        .getChannels()
+        .filter((candidate) => candidate.topic === topic)) {
+        await supabase.removeChannel(previous);
+      }
+      if (closed) return;
+
+      const ownChannel = supabase.channel(channelName, {
         config: { broadcast: { self: false, ack: true } },
-      })
-      .on("broadcast", { event: LIVE_FX_REQUEST_EVENT }, () => {
+      });
+      channel = ownChannel;
+      ownChannel.on("broadcast", { event: LIVE_FX_REQUEST_EVENT }, () => {
+        if (closed || channel !== ownChannel) return;
         onResyncRequest();
-      })
-      .subscribe((status) => {
+      });
+      ownChannel.subscribe((status) => {
+        if (closed || channel !== ownChannel) return;
         subscribed = status === "SUBSCRIBED";
         if (subscribed) publish();
       });
-
-    const shared = findSharedLiveChannel(liveId);
-    shared?.on("broadcast", { event: LIVE_FX_REQUEST_EVENT }, () => {
-      onResyncRequest();
-    });
+    })();
   }
 
   return {

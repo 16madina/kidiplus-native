@@ -89,6 +89,13 @@ export async function runFilteredPublish(
   deps.allowNativeLens(true);
   try {
     await deps.startPreview(args.facing);
+    // Camera Kit must apply the Snap lens before its first sample is handed to
+    // LiveKit. Applying it after publication makes viewers receive raw frames.
+    // Let a real lens error take the normal fallback path; do not claim a
+    // filtered publish when the native lens was rejected.
+    if (args.lens?.isSnapLens && args.lens.lensId !== "none") {
+      await deps.applyLens(args.lens);
+    }
     await deps.setPublish({
       enabled: true,
       roomUrl: args.url,
@@ -102,9 +109,6 @@ export async function runFilteredPublish(
     if (!kitPublishConfirmed(status)) {
       await deps.setPublish({ enabled: false }).catch(() => undefined);
       return { path: fallbackPath(deps.os) };
-    }
-    if (args.lens?.isSnapLens && args.lens.lensId !== "none") {
-      await deps.applyLens(args.lens).catch(() => undefined);
     }
     return { path: "kit_publish" };
   } catch {

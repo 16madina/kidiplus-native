@@ -125,8 +125,24 @@ async function main() {
 
   const withLens = fakeDeps();
   await runFilteredPublish(args, withLens);
-  assert.ok(withLens.calls.includes("lens:x"));
-  assert.ok(withLens.calls.includes("publish:wss://live.example:tok"));
+  const lensAt = withLens.calls.indexOf("lens:x");
+  const publishAt = withLens.calls.indexOf("publish:wss://live.example:tok");
+  assert.ok(lensAt >= 0);
+  assert.ok(publishAt >= 0);
+  assert.ok(lensAt < publishAt, "Snap lens must be active before native publish");
+
+  const rejectedLens = fakeDeps({
+    applyLens: async () => {
+      throw new Error("lens rejected");
+    },
+  });
+  const lensFailure = await runFilteredPublish(args, rejectedLens);
+  assert.equal(lensFailure.path, "web_overlay");
+  assert.equal(
+    rejectedLens.calls.includes("publish:wss://live.example:tok"),
+    false,
+    "do not publish a raw native track after the Snap lens fails",
+  );
 
   const stacked = fakeDeps();
   await runFilteredPublish({ ...args, hasEffects: true }, stacked);

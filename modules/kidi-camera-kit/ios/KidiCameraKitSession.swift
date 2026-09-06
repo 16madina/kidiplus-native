@@ -424,6 +424,24 @@ final class KidiCameraKitSession: NSObject {
         }
 
         attachFrameOutputIfNeeded()
+        // LiveKit must receive a Camera Kit sample before this track is
+        // published so BufferCapturer can establish its video dimensions.
+        // Do not use an old `didEmitFrame` value from before the capturer was
+        // installed: that publishes an empty/raw track on a quick re-entry.
+        let videoTrack = LocalVideoTrack.createBufferTrack(
+            name: "camera",
+            source: .camera,
+            options: BufferCaptureOptions()
+        )
+        liveKitVideoTrack = videoTrack
+        guard let capturer = videoTrack.capturer as? BufferCapturer else {
+            throw KidiCameraKitError.message("LiveKit BufferCapturer unavailable")
+        }
+        bufferCapturer = capturer
+
+        frameCount = 0
+        frameOutput?.onFirstFrame = nil
+        frameOutput?.resetFrameFlag()
 
         let room = liveKitRoom ?? Room()
         liveKitRoom = room
@@ -433,35 +451,29 @@ final class KidiCameraKitSession: NSObject {
             }
         }
 
-        let videoTrack = LocalVideoTrack.createBufferTrack(
-            name: "camera",
-            source: .camera,
-            options: BufferCaptureOptions()
-        )
-        liveKitVideoTrack = videoTrack
-        bufferCapturer = videoTrack.capturer as? BufferCapturer
-
         let gotFrame = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            var resumed = false
+            var settled = false
+            let settle: (Bool) -> Void = { value in
+                DispatchQueue.main.async {
+                    guard !settled else { return }
+                    settled = true
+                    self.frameOutput?.onFirstFrame = nil
+                    cont.resume(returning: value)
+                }
+            }
             frameOutput?.onFirstFrame = {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: true)
+                settle(true)
             }
             if frameOutput?.didEmitFrame == true {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: true)
+                settle(true)
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: false)
+                settle(false)
             }
         }
-        if !gotFrame && frameCount == 0 {
-            print("[KidiCameraKit] no Camera Kit frame yet — publishing anyway")
+        guard gotFrame, frameCount > 0 else {
+            throw KidiCameraKitError.message("Camera Kit produced no frame for LiveKit")
         }
 
         try await room.localParticipant.publish(videoTrack: videoTrack)

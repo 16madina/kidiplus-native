@@ -79,7 +79,7 @@ export function BroadcastSetupScreen({ mode }: { mode: "now" | "schedule" }) {
 function GoLiveSetup() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { closeOverlay, openOverlay } = useNav();
+  const { closeLive, closeOverlay, openOverlay } = useNav();
   const { user } = useAuth();
   const { tint, cameraKitReady } = useFilter();
   const { backgroundMode } = useLiveEffects();
@@ -223,6 +223,9 @@ function GoLiveSetup() {
   };
 
   const goLiveOverlay = async (liveId: string, roomName: string, liveTitle: string, useRtmp: boolean) => {
+    // A locally mounted viewer owns the same public realtime topic. Close it
+    // before the host studio subscribes so Supabase cannot reuse its channel.
+    closeLive();
     await new Promise((r) => setTimeout(r, 600));
     if (!user?.id) return;
     openOverlay({

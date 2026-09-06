@@ -553,6 +553,11 @@ export function useHostLiveSession(args: {
   }, [liveId]);
 
   useEffect(() => {
+    let active = true;
+    let subscribed = false;
+    let ch: RealtimeChannel | null = null;
+    let handle: ChannelHandle | null = null;
+
     const db = supabase
       .channel(`live-db:${liveId}:${uid()}`)
       .on(
@@ -637,83 +642,116 @@ export function useHostLiveSession(args: {
       )
       .subscribe();
 
-    const ch = supabase.channel(`live:${liveId}`, {
-      config: {
-        broadcast: { self: false, ack: true },
-        presence: { key: identity },
-      },
-    });
-    channelRef.current = ch;
-    handleRef.current = {
-      send: (event, payload) => {
-        void ch.send({ type: "broadcast", event, payload });
-      },
-    };
-
-    ch.on("broadcast", { event: "chat" }, ({ payload }) => {
-      const p = payload as HostChatMsg;
-      if (!p?.id || !p.text) return;
-      pushChat(p);
-    });
-    ch.on("broadcast", { event: "gift" }, ({ payload }) => {
-      const p = payload as {
-        id?: string;
-        giftKey?: string;
-        senderId?: string;
-        senderName?: string;
-        fromName?: string;
-        ts?: number;
-      };
-      const giftKey = String(p?.giftKey ?? "");
-      if (!giftKey) return;
-      ingestGiftRef.current({
-        id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
-        giftKey,
-        senderId: p.senderId,
-        senderName: String(p.senderName ?? p.fromName ?? "Viewer"),
-        at: Number(p.ts ?? Date.now()),
-      });
-    });
-    ch.on("broadcast", { event: "auction:extend" }, ({ payload }) => {
-      const evt = payload as { productId?: string; deadlineMs?: number; ts?: number };
-      if (!evt?.productId || !evt.deadlineMs) return;
-      setAuction((cur) =>
-        cur && cur.productId === evt.productId ? { ...cur, deadlineMs: Number(evt.deadlineMs) } : cur,
-      );
-      setLastExtensionTs(Number(evt.ts ?? Date.now()));
-      setSuddenDeathTick((n) => n + 1);
-    });
-    ch.on("presence", { event: "sync" }, () => {
-      const state = ch.presenceState() as Record<
-        string,
-        Array<{ identity?: string; name?: string; host?: boolean }>
-      >;
-      const keys = Object.keys(state);
-      setPresenceCount(Math.max(1, keys.length));
-      const people: HostPresenceViewer[] = [];
-      for (const [key, metas] of Object.entries(state)) {
-        const m = metas?.[0];
-        if (m?.host) continue;
-        const id = String(m?.identity ?? key);
-        people.push({ identity: id, name: String(m?.name ?? "").trim() || id.slice(0, 8) });
+    void (async () => {
+      // Supabase reuses channels by exact topic. React Strict Mode (or a
+      // viewer still closing) can otherwise hand us a joining channel, where
+      // adding the presence callback throws before the host renders.
+      const topic = `realtime:live:${liveId}`;
+      const previousChannels = supabase
+        .getChannels()
+        .filter((candidate) => candidate.topic === topic);
+      for (const previous of previousChannels) {
+        await supabase.removeChannel(previous);
       }
-      setPresentViewers(people);
-    });
-    void ch.subscribe(async (status) => {
-      if (status !== "SUBSCRIBED") return;
-      await ch.track({
-        identity,
-        name: displayName,
-        host: true,
-        joined_at: Date.now(),
+      if (!active) return;
+
+      const ownCh = supabase.channel(`live:${liveId}`, {
+        config: {
+          broadcast: { self: false, ack: true },
+          presence: { key: identity },
+        },
       });
-    });
+      ch = ownCh;
+      channelRef.current = ownCh;
+      handle = {
+        send: (event, payload) => {
+          if (!active || !subscribed || ch !== ownCh) return;
+          void ownCh.send({ type: "broadcast", event, payload });
+        },
+      };
+      handleRef.current = handle;
+
+      ownCh.on("broadcast", { event: "chat" }, ({ payload }) => {
+        const p = payload as HostChatMsg;
+        if (!p?.id || !p.text) return;
+        pushChat(p);
+      });
+      ownCh.on("broadcast", { event: "gift" }, ({ payload }) => {
+        const p = payload as {
+          id?: string;
+          giftKey?: string;
+          senderId?: string;
+          senderName?: string;
+          fromName?: string;
+          ts?: number;
+        };
+        const giftKey = String(p?.giftKey ?? "");
+        if (!giftKey) return;
+        ingestGiftRef.current({
+          id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
+          giftKey,
+          senderId: p.senderId,
+          senderName: String(p.senderName ?? p.fromName ?? "Viewer"),
+          at: Number(p.ts ?? Date.now()),
+        });
+      });
+      ownCh.on("broadcast", { event: "auction:extend" }, ({ payload }) => {
+        const evt = payload as { productId?: string; deadlineMs?: number; ts?: number };
+        if (!evt?.productId || !evt.deadlineMs) return;
+        setAuction((cur) =>
+          cur && cur.productId === evt.productId
+            ? { ...cur, deadlineMs: Number(evt.deadlineMs) }
+            : cur,
+        );
+        setLastExtensionTs(Number(evt.ts ?? Date.now()));
+        setSuddenDeathTick((n) => n + 1);
+      });
+      ownCh.on("presence", { event: "sync" }, () => {
+        const state = ownCh.presenceState() as Record<
+          string,
+          Array<{ identity?: string; name?: string; host?: boolean }>
+        >;
+        const keys = Object.keys(state);
+        setPresenceCount(Math.max(1, keys.length));
+        const people: HostPresenceViewer[] = [];
+        for (const [key, metas] of Object.entries(state)) {
+          const m = metas?.[0];
+          if (m?.host) continue;
+          const id = String(m?.identity ?? key);
+          people.push({
+            identity: id,
+            name: String(m?.name ?? "").trim() || id.slice(0, 8),
+          });
+        }
+        setPresentViewers(people);
+      });
+      void ownCh.subscribe(async (status) => {
+        if (!active || ch !== ownCh) return;
+        if (status !== "SUBSCRIBED") {
+          subscribed = false;
+          return;
+        }
+        subscribed = true;
+        await ownCh.track({
+          identity,
+          name: displayName,
+          host: true,
+          joined_at: Date.now(),
+        });
+      });
+    })();
 
     return () => {
-      handleRef.current = null;
-      channelRef.current = null;
+      active = false;
+      subscribed = false;
+      const ownCh = ch;
+      const ownHandle = handle;
+      ch = null;
+      handle = null;
+      if (handleRef.current === ownHandle) handleRef.current = null;
+      if (channelRef.current === ownCh) channelRef.current = null;
       void supabase.removeChannel(db);
-      void supabase.removeChannel(ch);
+      if (ownCh) void supabase.removeChannel(ownCh);
     };
   }, [liveId, identity, displayName, pushChat]);
 

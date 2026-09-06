@@ -95,6 +95,7 @@ export function useViewerLiveRoom(
   const [nowMs, setNowMs] = useState(Date.now());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const channelSubscribedRef = useRef(false);
   const displayNameRef = useRef(opts.displayName);
   displayNameRef.current = opts.displayName;
   const seenGiftIdsRef = useRef<Set<string>>(new Set());
@@ -237,269 +238,328 @@ export function useViewerLiveRoom(
   useEffect(() => {
     if (!liveId) return;
 
-    const channel = supabase.channel(`live:${liveId}`, {
-      config: {
-        broadcast: { self: false },
-        presence: { key: opts.identity },
-      },
-    });
-    channelRef.current = channel;
+    let active = true;
+    let subscribed = false;
+    let channel: RealtimeChannel | null = null;
+    let fxCh: RealtimeChannel | null = null;
+    let productsCh: RealtimeChannel | null = null;
+    let liveCh: RealtimeChannel | null = null;
+    let giftsCh: RealtimeChannel | null = null;
 
-    channel
-      .on("broadcast", { event: "chat" }, ({ payload }) => {
-        const p = payload as HostChatMsg;
-        if (!p?.id || !p.text) return;
-        pushChat(p);
-      })
-      .on("broadcast", { event: "heart" }, () => {
-        setHeartPulse((n) => n + 1);
-      })
-      .on("broadcast", { event: "join" }, ({ payload }) => {
-        const p = payload as { name?: string };
-        if (!p?.name) return;
-        pushChat({
-          id: `join-${uid()}`,
-          user: "",
-          text: `${p.name} a rejoint`,
-          system: true,
-        });
-      })
-      .on("broadcast", { event: "gift" }, ({ payload }) => {
-        const p = payload as {
-          id?: string;
-          giftKey?: string;
-          senderName?: string;
-          fromName?: string;
-          ts?: number;
-        };
-        const giftKey = String(p?.giftKey ?? "") as GiftKey;
-        if (!giftKey) return;
-        const fromName = String(p.senderName ?? p.fromName ?? "Viewer");
-        ingestGiftRef.current({
-          id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
-          giftKey,
-          fromName,
-          at: Number(p.ts ?? Date.now()),
-        });
-      })
-      .on("broadcast", { event: "auction:start" }, ({ payload }) => {
-        const p = payload as AuctionStartEvt;
-        if (!p?.productId || !p.deadlineMs) return;
-        setAuction({
-          productId: String(p.productId),
-          deadlineMs: Number(p.deadlineMs),
-          timerSec: Number(p.timerSec ?? 30),
-          ...(p.auctionRound != null ? { auctionRound: Number(p.auctionRound) } : {}),
-        });
-        setFeaturedId(String(p.productId));
-        setLastBid(null);
-        setSuddenDeathTick(0);
-        void refreshProducts();
-      })
-      .on("broadcast", { event: "auction:extend" }, ({ payload }) => {
-        const p = payload as { productId?: string; deadlineMs?: number };
-        if (!p?.productId || !p.deadlineMs) return;
-        setAuction((cur) =>
-          cur && cur.productId === p.productId ? { ...cur, deadlineMs: Number(p.deadlineMs) } : cur,
-        );
-        setSuddenDeathTick((n) => n + 1);
-      })
-      .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
-        setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
-      })
-      .on("broadcast", { event: "auction:end" }, ({ payload }) => {
-        const p = payload as {
-          productId?: string;
-          winnerId?: string | null;
-          winnerName?: string | null;
-          endId?: string;
-          productName?: string | null;
-          auctionRound?: number;
-        };
-        if (!p?.productId) return;
-        setLastReveal({
-          endId: String(p.endId ?? `end-${p.productId}-${Date.now()}`),
-          productId: String(p.productId),
-          productName: p.productName ?? null,
-          winnerId: p.winnerId != null ? String(p.winnerId) : null,
-          winnerName: p.winnerName != null ? String(p.winnerName) : null,
-        });
-        setAuction((cur) => (cur && cur.productId === p.productId ? null : cur));
-        void refreshProducts();
-      })
-      .on("broadcast", { event: "sim:viewers" }, ({ payload }) => {
-        const n = Number((payload as { count?: number })?.count);
-        if (Number.isFinite(n) && n >= 0) setViewers(n);
-      })
-      .on("broadcast", { event: "sim:bid" }, ({ payload }) => {
-        const p = payload as LastBidEvt;
-        if (p?.productId && p.amount != null) {
-          setLastBid({
-            productId: String(p.productId),
-            bidderId: String(p.bidderId ?? "sim"),
-            bidderName: String(p.bidderName ?? "Sim"),
-            amount: Number(p.amount),
-            ts: Number(p.ts ?? Date.now()),
-            auctionRound: Number(p.auctionRound ?? 1),
-          });
-          setProducts((prev) =>
-            prev.map((row) => (row.id === p.productId ? { ...row, price: Number(p.amount) } : row)),
-          );
-        }
-        void refreshProducts();
-      })
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const n = Object.keys(state).length;
-        if (n > 0) setViewers(n);
-      })
-      .subscribe(async (status) => {
-        if (status !== "SUBSCRIBED") return;
-        await channel.track({
-          identity: opts.identity,
-          name: displayNameRef.current || "Viewer",
-          host: false,
-          joined_at: Date.now(),
-        });
-        void channel.send({
-          type: "broadcast",
-          event: "join",
-          payload: { name: displayNameRef.current || "Viewer", at: Date.now() },
-        });
-        void channel.send({
-          type: "broadcast",
-          event: LIVE_FX_REQUEST_EVENT,
-          payload: { identity: opts.identity, at: Date.now() },
-        });
-      });
+    void (async () => {
+      const mainTopic = `realtime:live:${liveId}`;
+      const fxTopic = `realtime:${liveFxChannelName(liveId)}`;
+      const previousChannels = supabase
+        .getChannels()
+        .filter((candidate) => candidate.topic === mainTopic || candidate.topic === fxTopic);
+      for (const previous of previousChannels) {
+        await supabase.removeChannel(previous);
+      }
+      if (!active) return;
 
-    const fxCh = supabase
-      .channel(liveFxChannelName(liveId), {
-        config: { broadcast: { self: false } },
-      })
-      .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
-        setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
-      })
-      .subscribe((status) => {
-        if (status !== "SUBSCRIBED") return;
-        void fxCh.send({
-          type: "broadcast",
-          event: LIVE_FX_REQUEST_EVENT,
-          payload: { identity: opts.identity, at: Date.now() },
-        });
-      });
-
-    const productsCh = supabase
-      .channel(`viewer-products-${liveId}-${uid()}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "live_products", filter: `live_id=eq.${liveId}` },
-        () => {
-          void refreshProducts();
+      const ownChannel = supabase.channel(`live:${liveId}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: opts.identity },
         },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "live_bids", filter: `live_id=eq.${liveId}` },
-        (payload) => {
-          const row = payload.new as {
-            product_id: string;
-            bidder_id: string;
-            bidder_name: string;
-            amount: number;
-            auction_round?: number;
-          };
-          if (!row?.product_id) {
-            void refreshProducts();
-            return;
-          }
-          const amount = Number(row.amount);
-          setLastBid({
-            productId: row.product_id,
-            bidderId: row.bidder_id,
-            bidderName: row.bidder_name,
-            amount,
-            ts: Date.now(),
-            auctionRound: Number(row.auction_round ?? 1),
-          });
-          setProducts((prev) =>
-            prev.map((p) => (p.id === row.product_id ? { ...p, price: amount } : p)),
-          );
+      });
+      channel = ownChannel;
+      channelRef.current = ownChannel;
+      channelSubscribedRef.current = false;
+
+      ownChannel
+        .on("broadcast", { event: "chat" }, ({ payload }) => {
+          const p = payload as HostChatMsg;
+          if (!p?.id || !p.text) return;
+          pushChat(p);
+        })
+        .on("broadcast", { event: "heart" }, () => {
+          setHeartPulse((n) => n + 1);
+        })
+        .on("broadcast", { event: "join" }, ({ payload }) => {
+          const p = payload as { name?: string };
+          if (!p?.name) return;
           pushChat({
-            id: uid(),
+            id: `join-${uid()}`,
             user: "",
-            text: `🔨 ${row.bidder_name} · ${amount}`,
+            text: `${p.name} a rejoint`,
             system: true,
           });
-        },
-      )
-      .subscribe();
-
-    const liveCh = supabase
-      .channel(`viewer-live-row-${liveId}-${uid()}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "lives", filter: `id=eq.${liveId}` },
-        (payload) => {
-          const row = payload.new as { status?: string; current_viewers?: number; currency?: string };
-          const st = String(row.status ?? "");
-          if (st === "ended" || st === "live" || st === "scheduled") setLiveStatus(st);
-          if (typeof row.current_viewers === "number") setViewers(row.current_viewers);
-          if (row.currency) setCurrency(normalizeCurrency(row.currency));
-        },
-      )
-      .subscribe();
-
-    // Durable backup if ephemeral broadcast is dropped (same as web / host).
-    const giftsCh = supabase
-      .channel(`viewer-gifts-${liveId}-${uid()}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "live_gifts", filter: `live_id=eq.${liveId}` },
-        (payload) => {
-          const row = payload.new as {
+        })
+        .on("broadcast", { event: "gift" }, ({ payload }) => {
+          const p = payload as {
             id?: string;
-            sender_id?: string;
-            gift_key?: string;
-            created_at?: string | null;
+            giftKey?: string;
+            senderName?: string;
+            fromName?: string;
+            ts?: number;
           };
-          if (!row?.id || !row.gift_key) return;
-          void (async () => {
-            let fromName = "Viewer";
-            if (row.sender_id) {
-              try {
-                const { data } = await supabase
-                  .from("profiles")
-                  .select("display_name, handle")
-                  .eq("id", row.sender_id)
-                  .maybeSingle();
-                fromName =
-                  (data as { display_name?: string | null; handle?: string | null } | null)?.display_name?.trim() ||
-                  (data as { handle?: string | null } | null)?.handle?.trim() ||
-                  fromName;
-              } catch {
-                /* best-effort */
-              }
-            }
-            ingestGiftRef.current({
-              id: row.id!,
-              giftKey: row.gift_key as GiftKey,
-              fromName,
-              at: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          const giftKey = String(p?.giftKey ?? "") as GiftKey;
+          if (!giftKey) return;
+          const fromName = String(p.senderName ?? p.fromName ?? "Viewer");
+          ingestGiftRef.current({
+            id: String(p.id ?? `${giftKey}-${p.ts ?? Date.now()}`),
+            giftKey,
+            fromName,
+            at: Number(p.ts ?? Date.now()),
+          });
+        })
+        .on("broadcast", { event: "auction:start" }, ({ payload }) => {
+          const p = payload as AuctionStartEvt;
+          if (!p?.productId || !p.deadlineMs) return;
+          setAuction({
+            productId: String(p.productId),
+            deadlineMs: Number(p.deadlineMs),
+            timerSec: Number(p.timerSec ?? 30),
+            ...(p.auctionRound != null ? { auctionRound: Number(p.auctionRound) } : {}),
+          });
+          setFeaturedId(String(p.productId));
+          setLastBid(null);
+          setSuddenDeathTick(0);
+          void refreshProducts();
+        })
+        .on("broadcast", { event: "auction:extend" }, ({ payload }) => {
+          const p = payload as { productId?: string; deadlineMs?: number };
+          if (!p?.productId || !p.deadlineMs) return;
+          setAuction((cur) =>
+            cur && cur.productId === p.productId
+              ? { ...cur, deadlineMs: Number(p.deadlineMs) }
+              : cur,
+          );
+          setSuddenDeathTick((n) => n + 1);
+        })
+        .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
+          setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
+        })
+        .on("broadcast", { event: "auction:end" }, ({ payload }) => {
+          const p = payload as {
+            productId?: string;
+            winnerId?: string | null;
+            winnerName?: string | null;
+            endId?: string;
+            productName?: string | null;
+            auctionRound?: number;
+          };
+          if (!p?.productId) return;
+          setLastReveal({
+            endId: String(p.endId ?? `end-${p.productId}-${Date.now()}`),
+            productId: String(p.productId),
+            productName: p.productName ?? null,
+            winnerId: p.winnerId != null ? String(p.winnerId) : null,
+            winnerName: p.winnerName != null ? String(p.winnerName) : null,
+          });
+          setAuction((cur) => (cur && cur.productId === p.productId ? null : cur));
+          void refreshProducts();
+        })
+        .on("broadcast", { event: "sim:viewers" }, ({ payload }) => {
+          const n = Number((payload as { count?: number })?.count);
+          if (Number.isFinite(n) && n >= 0) setViewers(n);
+        })
+        .on("broadcast", { event: "sim:bid" }, ({ payload }) => {
+          const p = payload as LastBidEvt;
+          if (p?.productId && p.amount != null) {
+            setLastBid({
+              productId: String(p.productId),
+              bidderId: String(p.bidderId ?? "sim"),
+              bidderName: String(p.bidderName ?? "Sim"),
+              amount: Number(p.amount),
+              ts: Number(p.ts ?? Date.now()),
+              auctionRound: Number(p.auctionRound ?? 1),
             });
-          })();
-        },
-      )
-      .subscribe();
+            setProducts((prev) =>
+              prev.map((row) =>
+                row.id === p.productId ? { ...row, price: Number(p.amount) } : row,
+              ),
+            );
+          }
+          void refreshProducts();
+        })
+        .on("presence", { event: "sync" }, () => {
+          const state = ownChannel.presenceState();
+          const n = Object.keys(state).length;
+          if (n > 0) setViewers(n);
+        })
+        .subscribe(async (status) => {
+          if (!active || channel !== ownChannel) return;
+          if (status !== "SUBSCRIBED") {
+            subscribed = false;
+            channelSubscribedRef.current = false;
+            return;
+          }
+          subscribed = true;
+          channelSubscribedRef.current = true;
+          await ownChannel.track({
+            identity: opts.identity,
+            name: displayNameRef.current || "Viewer",
+            host: false,
+            joined_at: Date.now(),
+          });
+          if (!active || !subscribed || channel !== ownChannel) return;
+          void ownChannel.send({
+            type: "broadcast",
+            event: "join",
+            payload: { name: displayNameRef.current || "Viewer", at: Date.now() },
+          });
+          void ownChannel.send({
+            type: "broadcast",
+            event: LIVE_FX_REQUEST_EVENT,
+            payload: { identity: opts.identity, at: Date.now() },
+          });
+        });
+
+      const ownFxCh = supabase
+        .channel(liveFxChannelName(liveId), {
+          config: { broadcast: { self: false } },
+        })
+        .on("broadcast", { event: LIVE_FX_EVENT }, ({ payload }) => {
+          if (!active) return;
+          setFx(sanitizeLiveFx(payload as Partial<LiveFxPayload>));
+        });
+      fxCh = ownFxCh;
+      ownFxCh.subscribe((status) => {
+        if (!active || fxCh !== ownFxCh || status !== "SUBSCRIBED") return;
+        void ownFxCh.send({
+          type: "broadcast",
+          event: LIVE_FX_REQUEST_EVENT,
+          payload: { identity: opts.identity, at: Date.now() },
+        });
+      });
+
+      productsCh = supabase
+        .channel(`viewer-products-${liveId}-${uid()}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "live_products", filter: `live_id=eq.${liveId}` },
+          () => {
+            void refreshProducts();
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "live_bids", filter: `live_id=eq.${liveId}` },
+          (payload) => {
+            const row = payload.new as {
+              product_id: string;
+              bidder_id: string;
+              bidder_name: string;
+              amount: number;
+              auction_round?: number;
+            };
+            if (!row?.product_id) {
+              void refreshProducts();
+              return;
+            }
+            const amount = Number(row.amount);
+            setLastBid({
+              productId: row.product_id,
+              bidderId: row.bidder_id,
+              bidderName: row.bidder_name,
+              amount,
+              ts: Date.now(),
+              auctionRound: Number(row.auction_round ?? 1),
+            });
+            setProducts((prev) =>
+              prev.map((p) => (p.id === row.product_id ? { ...p, price: amount } : p)),
+            );
+            pushChat({
+              id: uid(),
+              user: "",
+              text: `🔨 ${row.bidder_name} · ${amount}`,
+              system: true,
+            });
+          },
+        )
+        .subscribe();
+
+      liveCh = supabase
+        .channel(`viewer-live-row-${liveId}-${uid()}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "lives", filter: `id=eq.${liveId}` },
+          (payload) => {
+            const row = payload.new as {
+              status?: string;
+              current_viewers?: number;
+              currency?: string;
+            };
+            const st = String(row.status ?? "");
+            if (st === "ended" || st === "live" || st === "scheduled") setLiveStatus(st);
+            if (typeof row.current_viewers === "number") setViewers(row.current_viewers);
+            if (row.currency) setCurrency(normalizeCurrency(row.currency));
+          },
+        )
+        .subscribe();
+
+      // Durable backup if ephemeral broadcast is dropped (same as web / host).
+      giftsCh = supabase
+        .channel(`viewer-gifts-${liveId}-${uid()}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "live_gifts", filter: `live_id=eq.${liveId}` },
+          (payload) => {
+            const row = payload.new as {
+              id?: string;
+              sender_id?: string;
+              gift_key?: string;
+              created_at?: string | null;
+            };
+            if (!row?.id || !row.gift_key) return;
+            void (async () => {
+              let fromName = "Viewer";
+              if (row.sender_id) {
+                try {
+                  const { data } = await supabase
+                    .from("profiles")
+                    .select("display_name, handle")
+                    .eq("id", row.sender_id)
+                    .maybeSingle();
+                  fromName =
+                    (
+                      data as {
+                        display_name?: string | null;
+                        handle?: string | null;
+                      } | null
+                    )?.display_name?.trim() ||
+                    (data as { handle?: string | null } | null)?.handle?.trim() ||
+                    fromName;
+                } catch {
+                  /* best-effort */
+                }
+              }
+              ingestGiftRef.current({
+                id: row.id!,
+                giftKey: row.gift_key as GiftKey,
+                fromName,
+                at: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+              });
+            })();
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
-      void channel.untrack();
-      void supabase.removeChannel(channel);
-      void supabase.removeChannel(productsCh);
-      void supabase.removeChannel(liveCh);
-      void supabase.removeChannel(giftsCh);
-      void supabase.removeChannel(fxCh);
-      channelRef.current = null;
+      active = false;
+      subscribed = false;
+      const ownChannel = channel;
+      const ownFxCh = fxCh;
+      const ownProductsCh = productsCh;
+      const ownLiveCh = liveCh;
+      const ownGiftsCh = giftsCh;
+      channel = null;
+      fxCh = null;
+      productsCh = null;
+      liveCh = null;
+      giftsCh = null;
+      if (channelRef.current === ownChannel) {
+        channelRef.current = null;
+        channelSubscribedRef.current = false;
+      }
+      if (ownChannel) void supabase.removeChannel(ownChannel);
+      if (ownProductsCh) void supabase.removeChannel(ownProductsCh);
+      if (ownLiveCh) void supabase.removeChannel(ownLiveCh);
+      if (ownGiftsCh) void supabase.removeChannel(ownGiftsCh);
+      if (ownFxCh) void supabase.removeChannel(ownFxCh);
     };
   }, [liveId, opts.identity, pushChat, refreshProducts]);
 
@@ -512,19 +572,22 @@ export function useViewerLiveRoom(
 
   const sendChat = useCallback(async (text: string) => {
     const t = text.trim();
-    if (!t || !channelRef.current) return;
+    const channel = channelRef.current;
+    if (!t || !channel || !channelSubscribedRef.current) return;
     const msg: HostChatMsg = {
       id: uid(),
       user: displayNameRef.current || "Viewer",
       text: t.slice(0, 200),
     };
     pushChat(msg);
-    await channelRef.current.send({ type: "broadcast", event: "chat", payload: msg });
+    await channel.send({ type: "broadcast", event: "chat", payload: msg });
   }, [pushChat]);
 
   const sendHeart = useCallback(() => {
     setHeartPulse((n) => n + 1);
-    void channelRef.current?.send({
+    const channel = channelRef.current;
+    if (!channel || !channelSubscribedRef.current) return;
+    void channel.send({
       type: "broadcast",
       event: "heart",
       payload: { at: Date.now() },
@@ -608,17 +671,20 @@ export function useViewerLiveRoom(
         fromName,
         at,
       });
-      void channelRef.current?.send({
-        type: "broadcast",
-        event: "gift",
-        payload: {
-          id: res.giftId,
-          giftKey,
-          senderId: opts.userId,
-          senderName: fromName,
-          ts: at,
-        },
-      });
+      const channel = channelRef.current;
+      if (channel && channelSubscribedRef.current) {
+        void channel.send({
+          type: "broadcast",
+          event: "gift",
+          payload: {
+            id: res.giftId,
+            giftKey,
+            senderId: opts.userId,
+            senderName: fromName,
+            ts: at,
+          },
+        });
+      }
       return { ok: true as const };
     },
     [liveId, opts.userId],
