@@ -1,6 +1,6 @@
 import { bootLiveKit } from "../../lib/livekit-boot";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
   LiveKitRoom,
@@ -9,11 +9,13 @@ import {
   useRoomContext,
   useTracks,
 } from "@livekit/react-native";
-import { RoomEvent, Track } from "livekit-client";
+import { RemoteAudioTrack, RoomEvent, Track, type RemoteTrack } from "livekit-client";
 import { Press } from "../Press";
 import { BattleSplitStage, type BattleSplitFighter } from "../battle/BattleSplitStage";
 import { isBattleGuestIdentity } from "../../lib/battles";
 import {
+  restartViewerPlayoutAfterBackground,
+  resumeViewerPlaybackAudioSession,
   startViewerPlaybackAudioSession,
   stopViewerPlaybackAudioSession,
 } from "../../lib/live-audio-session";
@@ -75,6 +77,27 @@ export function LiveKitRemoteVideo({
   }, []);
 
   useEffect(() => {
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const restartPlayout = () => {
+      void restartViewerPlayoutAfterBackground().catch((error) => {
+        console.warn("[KiDi+ audio] foreground playout restart failed", error);
+      });
+    };
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        // Native PiP releases its audio track during the same foreground
+        // transition. Wait for that unsubscribe, then cycle the RN output
+        // engine; merely reactivating AVAudioSession does not resume playout.
+        timers.add(setTimeout(restartPlayout, 300));
+      }
+    });
+    return () => {
+      sub.remove();
+      timers.forEach(clearTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -115,6 +138,12 @@ export function LiveKitRemoteVideo({
     setPhase("reconnecting");
     setTimeout(retry, 900);
   }, [liveEnded, retry, t]);
+
+  const handleConnected = useCallback(() => {
+    retriesRef.current = 0;
+    setPhase("ok");
+    void resumeViewerPlaybackAudioSession();
+  }, []);
 
   const handleRoomError = useCallback(
     (e: Error) => {
@@ -170,9 +199,11 @@ export function LiveKitRemoteVideo({
         // so iOS/Android PiP would open on a black surface.
         options={VIEWER_ROOM_OPTIONS}
         connectOptions={VIEWER_CONNECT_OPTIONS}
+        onConnected={handleConnected}
         onDisconnected={handleDisconnected}
         onError={handleRoomError}
       >
+        <ViewerAudioRecovery />
         <RemoteCamera
           battleActive={battleActive}
           hostFighter={hostFighter}
@@ -183,6 +214,43 @@ export function LiveKitRemoteVideo({
       </LiveKitRoom>
     </View>
   );
+}
+
+function ViewerAudioRecovery() {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    const restoreTrack = (track: RemoteTrack, reason: string) => {
+      if (!(track instanceof RemoteAudioTrack)) return;
+      // setDefaultRemoteAudioTrackVolume only applies to future tracks. This
+      // covers a track that won the connection race before the default was set.
+      track.setVolume(1);
+      console.log(`[KiDi+ audio] remote track volume=1 (${reason}) sid=${track.sid}`);
+      void resumeViewerPlaybackAudioSession();
+    };
+    const restoreExistingTracks = (reason: string) => {
+      room.remoteParticipants.forEach((participant) => {
+        participant.audioTrackPublications.forEach((publication) => {
+          if (publication.track) restoreTrack(publication.track, reason);
+        });
+      });
+    };
+    const onTrackSubscribed = (track: RemoteTrack) => restoreTrack(track, "subscribed");
+    const onAudioPlaybackChanged = (playing: boolean) => {
+      console.log(`[KiDi+ audio] playback=${playing}`);
+      if (!playing) restoreExistingTracks("playback-stopped");
+    };
+
+    room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+    room.on(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackChanged);
+    restoreExistingTracks("room-mounted");
+    return () => {
+      room.off(RoomEvent.TrackSubscribed, onTrackSubscribed);
+      room.off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackChanged);
+    };
+  }, [room]);
+
+  return null;
 }
 
 function RemoteCamera({

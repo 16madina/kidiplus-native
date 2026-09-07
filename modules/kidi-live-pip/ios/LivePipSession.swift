@@ -33,6 +33,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private var sessionToken: String?
     private var hostTrack: VideoTrack?
     private var hasRenderedFrame = false
+    private var renderGeneration = 0
     private var resignObserver: NSObjectProtocol?
     private var backgroundObserver: NSObjectProtocol?
     private var activeObserver: NSObjectProtocol?
@@ -40,6 +41,17 @@ final class LivePipSession: NSObject, @unchecked Sendable {
     private var previewConstraints: [NSLayoutConstraint] = []
     /// Cached on the main thread — LiveKit delegates must not read UIApplication.
     private var cachedAppIsActive = true
+
+    private override init() {
+        super.init()
+        // The React Native and native PiP LiveKit SDKs use different WebRTC
+        // engines but share the process-wide AVAudioSession. If the PiP engine
+        // automatically deactivates that session when its audio track is
+        // unsubscribed, the visible RN live becomes silent until it remounts.
+        // PiP activates AVAudioSession explicitly only while backgrounded.
+        AudioManager.shared.audioSession.isAutomaticConfigurationEnabled = false
+        AudioManager.shared.audioSession.isAutomaticDeactivationEnabled = false
+    }
 
     var isInPip: Bool {
         pipController?.isPictureInPictureActive ?? false
@@ -110,6 +122,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
         sessionGeneration &+= 1
         let generation = sessionGeneration
+        renderGeneration = generation
         eligible = true
         sessionUrl = url
         sessionToken = token
@@ -252,6 +265,12 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
     }
 
+    private func releaseForegroundAudio(reason: String) {
+        backgroundAudioArmed = false
+        setRemoteAudioSubscribed(false, reason: reason)
+        print("[KiDi+] foreground audio released to RN (\(reason))")
+    }
+
     /// Video-only — safe in the foreground (does not steal the RN audio session).
     private func ensureRemoteVideoSubscribed(reason: String) {
         print("[KiDi+] ensureRemoteVideoSubscribed (\(reason)) remotes=\(room.remoteParticipants.count)")
@@ -309,8 +328,9 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         if connected {
             await teardownRoomOnly()
         }
-        // Video-only subscribe. Do not disable the shared WebRTC audio engine.
-        ensureSharedAudioEngineDefault(reason: "connect-foreground")
+        // Video-only subscribe. Do not activate/deactivate AVAudioSession here:
+        // React Native LiveKit owns foreground audio and a second native room
+        // must not steal or reset it.
         room.add(delegate: self)
         do {
             try await room.connect(
@@ -325,6 +345,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 return false
             }
             connected = true
+            releaseForegroundAudio(reason: "connect-foreground")
             print("[KiDi+] LivePipSession connected, remotes=\(room.remoteParticipants.count)")
             await MainActor.run {
                 self.bindExistingRemoteTracks()
@@ -346,8 +367,11 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 track.remove(videoRenderer: self.videoCallController)
                 self.hostTrack = nil
             }
+            self.renderGeneration = self.sessionGeneration
             self.detachSourceViews()
             self.hasRenderedFrame = false
+            self.previewController.resetForSession(generation: self.sessionGeneration)
+            self.videoCallController.resetForSession(generation: self.sessionGeneration)
         }
         await teardownRoomOnly()
     }
@@ -376,7 +400,10 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         }
         hostTrack = track
         hasRenderedFrame = false
+        renderGeneration = sessionGeneration
         ensureSourceViewsAttached()
+        previewController.resetForSession(generation: renderGeneration)
+        videoCallController.resetForSession(generation: renderGeneration)
         track.add(videoRenderer: previewController)
         track.add(videoRenderer: videoCallController)
         ensurePipController(forceRebuild: pipController == nil)
@@ -431,6 +458,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             activeVideoCallSourceView: sourceView,
             contentViewController: videoCallController
         )
+        videoCallController.prepareForPipLayout()
         let controller = AVPictureInPictureController(contentSource: source)
         // When a live is ready, let iOS auto-start PiP on Home (TikTok-style).
         // Controller is only created while eligible, so this won't fire empty bubbles.
@@ -452,7 +480,12 @@ final class LivePipSession: NSObject, @unchecked Sendable {
         pipController = nil
     }
 
-    fileprivate func noteFrameRendered() {
+    fileprivate func shouldRenderFrame(generation: Int) -> Bool {
+        eligible && generation == renderGeneration && generation == sessionGeneration && hostTrack != nil
+    }
+
+    fileprivate func noteFrameRendered(generation: Int) {
+        guard shouldRenderFrame(generation: generation) else { return }
         let first = !hasRenderedFrame
         hasRenderedFrame = true
         if first {
@@ -497,9 +530,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
             ) { [weak self] _ in
                 guard let self else { return }
                 self.cachedAppIsActive = true
-                self.backgroundAudioArmed = false
-                self.setRemoteAudioSubscribed(false, reason: "didBecomeActive")
-                self.ensureSharedAudioEngineDefault(reason: "didBecomeActive")
+                self.releaseForegroundAudio(reason: "didBecomeActive")
                 if self.isInPip {
                     self.stopPip()
                 }
@@ -507,6 +538,7 @@ final class LivePipSession: NSObject, @unchecked Sendable {
                 // Home gesture can auto-start PiP. Hiding it makes auto-inline
                 // report isPictureInPicturePossible=false.
                 self.ensureSourceViewsAttached()
+                self.ensurePipController(forceRebuild: true)
             }
         }
     }
@@ -597,6 +629,12 @@ extension LivePipSession: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         print("[KiDi+] PiP did stop")
         emitMode(false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard self.eligible, self.connected, self.hostTrack != nil, self.hasRenderedFrame else { return }
+            self.ensureSourceViewsAttached()
+            self.ensurePipController(forceRebuild: true)
+            print("[KiDi+] pipController rebuilt after stop")
+        }
     }
 
     func pictureInPictureController(
@@ -655,6 +693,7 @@ private final class LivePipSampleView: UIView {
 
 private final class LivePipPreviewController: UIViewController, VideoRenderer, @unchecked Sendable {
     private lazy var renderingView = LivePipSampleView()
+    private var generation = 0
 
     override func loadView() {
         renderingView.sampleBufferDisplayLayer.videoGravity = .resizeAspectFill
@@ -664,7 +703,8 @@ private final class LivePipPreviewController: UIViewController, VideoRenderer, @
         view = renderingView
     }
 
-    func flushForPipHandoff() {
+    func resetForSession(generation: Int) {
+        self.generation = generation
         renderingView.flushForPipHandoff()
     }
 
@@ -674,17 +714,20 @@ private final class LivePipPreviewController: UIViewController, VideoRenderer, @
     var adaptiveStreamSize: CGSize { CGSize(width: 270, height: 480) }
 
     func render(frame: VideoFrame) {
+        let frameGeneration = generation
         guard let sampleBuffer = frame.toCMSampleBuffer() else { return }
         Task { @MainActor in
+            guard LivePipSession.shared.shouldRenderFrame(generation: frameGeneration) else { return }
             renderingView.applyRotationIfNeeded(frame.rotation)
             renderingView.enqueue(sampleBuffer)
-            LivePipSession.shared.noteFrameRendered()
+            LivePipSession.shared.noteFrameRendered(generation: frameGeneration)
         }
     }
 }
 
 private final class LivePipVideoCallController: AVPictureInPictureVideoCallViewController, VideoRenderer, @unchecked Sendable {
     private lazy var renderingView = LivePipSampleView()
+    private var generation = 0
 
     override func loadView() {
         renderingView.sampleBufferDisplayLayer.videoGravity = .resizeAspectFill
@@ -696,20 +739,31 @@ private final class LivePipVideoCallController: AVPictureInPictureVideoCallViewC
         preferredContentSize = CGSize(width: 270, height: 480)
     }
 
-    func flushForPipHandoff() {
+    func resetForSession(generation: Int) {
+        self.generation = generation
         renderingView.flushForPipHandoff()
+    }
+
+    func prepareForPipLayout() {
+        let size = CGSize(width: 270, height: 480)
+        preferredContentSize = size
+        view.bounds = CGRect(origin: .zero, size: size)
+        renderingView.frame = view.bounds
+        renderingView.layoutIfNeeded()
     }
 
     var isAdaptiveStreamEnabled: Bool { false }
     var adaptiveStreamSize: CGSize { CGSize(width: 270, height: 480) }
 
     func render(frame: VideoFrame) {
+        let frameGeneration = generation
         guard let sampleBuffer = frame.toCMSampleBuffer() else { return }
         Task { @MainActor in
+            guard LivePipSession.shared.shouldRenderFrame(generation: frameGeneration) else { return }
             renderingView.applyRotationIfNeeded(frame.rotation)
             renderingView.enqueue(sampleBuffer)
             preferredContentSize = frame.rotatedSize
-            LivePipSession.shared.noteFrameRendered()
+            LivePipSession.shared.noteFrameRendered(generation: frameGeneration)
         }
     }
 }

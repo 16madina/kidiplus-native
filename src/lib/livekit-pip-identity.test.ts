@@ -30,12 +30,16 @@ function run() {
   assert.match(session, /willResignActiveNotification/);
   assert.match(session, /backgroundAudioArmed/);
   assert.match(session, /cachedAppIsActive/);
-  assert.match(session, /setRemoteAudioSubscribed\(false, reason: "didBecomeActive"\)/);
+  assert.match(session, /releaseForegroundAudio\(reason: "didBecomeActive"\)/);
+  assert.match(session, /setRemoteAudioSubscribed\(false, reason: reason\)/);
+  assert.match(session, /isAutomaticConfigurationEnabled = false/);
+  assert.match(session, /isAutomaticDeactivationEnabled = false/);
+  assert.match(session, /foreground audio released to RN/);
   assert.match(session, /ConnectOptions\(autoSubscribe: false\)/);
   assert.match(session, /setEngineAvailability\(\.default\)/);
   assert.doesNotMatch(session, /setEngineAvailability\(\.none\)/);
   assert.match(session, /connect-foreground/);
-  assert.match(session, /ensureSharedAudioEngineDefault\(reason: "didBecomeActive"\)/);
+  assert.doesNotMatch(session, /releaseForegroundAudio[\s\S]*?ensureSharedAudioEngineDefault\(reason: reason\)/);
   assert.match(session, /ensureRemoteVideoSubscribed/);
   assert.match(session, /already connected/);
   assert.match(session, /prepareForBackgroundPip skipped/);
@@ -66,8 +70,27 @@ function run() {
   assert.match(js, /livePipViewerIdentity/);
   assert.match(js, /url: lk\.url/);
   assert.match(js, /token: lk\.token/);
-  assert.match(js, /muteRnViewerAudio/);
+  assert.doesNotMatch(js, /setDefaultRemoteAudioTrackVolume\(0\)/);
   assert.match(js, /iosReadyRef/);
+  assert.match(video, /resumeViewerPlaybackAudioSession/);
+  assert.match(video, /RemoteAudioTrack/);
+  assert.match(video, /track\.setVolume\(1\)/);
+  assert.match(video, /AppState\.addEventListener\("change"/);
+
+  const audio = readFileSync(new URL("./live-audio-session.ts", import.meta.url), "utf8");
+  assert.match(audio, /Platform\.OS === "ios"/);
+  assert.match(audio, /iOS playout armed; activation delegated to LiveKit automatic audio management/);
+  const iosStart = audio.slice(
+    audio.indexOf('if (Platform.OS === "ios") {', audio.indexOf("startViewerPlaybackAudioSession")),
+    audio.indexOf("return;", audio.indexOf('if (Platform.OS === "ios") {', audio.indexOf("startViewerPlaybackAudioSession"))),
+  );
+  assert.match(iosStart, /setEngineAvailability\(AudioEngineAvailability\.default\)/);
+  assert.match(iosStart, /setDefaultRemoteAudioTrackVolume\(1\)/);
+  assert.doesNotMatch(iosStart, /startAudioSession\(\)/);
+  assert.match(audio, /restartViewerPlayoutAfterBackground/);
+  assert.match(audio, /AudioEngineAvailability\.none/);
+  assert.match(audio, /AudioEngineAvailability\.default/);
+  assert.doesNotMatch(audio, /AudioDeviceModule\.startPlayout\(\)/);
 
   const plugin = readFileSync(new URL("../../plugins/withLiveKitIos.js", import.meta.url), "utf8");
   assert.match(plugin, /KidiLivePip/);

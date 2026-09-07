@@ -140,6 +140,7 @@ export function AppShell() {
         }
       : null,
     closeLive,
+    expandLive,
   );
   const systemPip = pip.systemPip;
   const hideTabs =

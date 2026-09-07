@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
-import { AudioSession } from "@livekit/react-native";
 import {
   KidiLivePip,
   type PipEnableOptions,
@@ -9,7 +8,6 @@ import {
 import { livePipViewerIdentity } from "./livekit-identity";
 import { fetchLiveKitSession } from "./livekit";
 import { liveSystemPipOn } from "./live-viewer-media";
-import { resumeViewerPlaybackAudioSession } from "./live-audio-session";
 
 export type ViewerSystemPipSession = {
   roomName: string;
@@ -105,24 +103,6 @@ export function subscribeAndroidLivePipPrepare(cb: () => void): () => void {
   return () => sub.remove();
 }
 
-async function muteRnViewerAudio(mute: boolean): Promise<void> {
-  try {
-    if (mute) {
-      await AudioSession.setDefaultRemoteAudioTrackVolume(0);
-      return;
-    }
-    await resumeViewerPlaybackAudioSession();
-  } catch {
-    /* audio session not started yet */
-  }
-}
-
-function resumeRnViewerAudioAfterPip(): void {
-  void muteRnViewerAudio(false);
-  setTimeout(() => void muteRnViewerAudio(false), 250);
-  setTimeout(() => void muteRnViewerAudio(false), 750);
-}
-
 /**
  * Enable system PiP while a real live is on screen.
  *
@@ -137,6 +117,7 @@ export function useViewerSystemPip(
   enabled: boolean,
   session: ViewerSystemPipSession | null,
   onDismiss?: () => void,
+  onRestore?: () => void,
 ) {
   const [active, setActive] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -144,6 +125,8 @@ export function useViewerSystemPip(
   const iosReadyRef = useRef(false);
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  const onRestoreRef = useRef(onRestore);
+  onRestoreRef.current = onRestore;
   const guestPipIdRef = useRef(livePipViewerIdentity(null));
   const displayNameRef = useRef(session?.displayName ?? "Invité");
   displayNameRef.current = session?.displayName ?? "Invité";
@@ -251,21 +234,23 @@ export function useViewerSystemPip(
         startedRef.current = true;
         setActive(true);
         setPreparing(false);
-        void muteRnViewerAudio(true);
         return;
       }
       const had = startedRef.current;
       startedRef.current = false;
       setActive(false);
       setPreparing(false);
-      resumeRnViewerAudioAfterPip();
       if (!had) return;
       // `didBecomeActive` may stop native PiP a moment before React Native's
       // AppState reaches "active". Recheck after the transition so a normal
       // return to the app does not accidentally close the live.
       setTimeout(() => {
         if (startedRef.current) return;
-        if (AppState.currentState !== "active") onDismissRef.current?.();
+        if (AppState.currentState === "active") {
+          onRestoreRef.current?.();
+        } else {
+          onDismissRef.current?.();
+        }
       }, 300);
     });
   }, [enabled]);
@@ -279,12 +264,17 @@ export function useViewerSystemPip(
       if (!KidiLivePip) return;
       const sub = AppState.addEventListener("change", (state) => {
         if (state === "active") {
-          resumeRnViewerAudioAfterPip();
+          if (startedRef.current) {
+            startedRef.current = false;
+            setActive(false);
+            setPreparing(false);
+            onRestoreRef.current?.();
+            return;
+          }
         }
       });
       return () => {
         sub.remove();
-        resumeRnViewerAudioAfterPip();
       };
     }
     const prepare = () => setPreparing(true);
