@@ -27,11 +27,12 @@ export function WelcomeScreen() {
   const { setView, enterGuestMode, authOverlay, closeAuth } = useAuth();
   const bg = useMemo(() => BGS[Math.floor(Math.random() * BGS.length)], []);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [confirmAge, setConfirmAge] = useState(false);
   const [legal, setLegal] = useState<null | "terms" | "privacy">(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const requireTerms = (fn: () => void) => {
-    if (!acceptTerms) {
+    if (!acceptTerms || !confirmAge) {
       setToast(t("consent.required"));
       setTimeout(() => setToast(null), 2800);
       return;
@@ -89,9 +90,17 @@ export function WelcomeScreen() {
             </Text>
           </Text>
         </Press>
+        <Press onPress={() => setConfirmAge((v) => !v)} style={styles.consent} haptic="none">
+          <Glass tone="dark" intensity={28} radius={5} elevated={false}>
+            <View style={[styles.checkbox, confirmAge && styles.checkboxOn]}>
+              {confirmAge ? <Text style={styles.checkMark}>✓</Text> : null}
+            </View>
+          </Glass>
+          <Text style={styles.consentText}>{t("consent.ageCheckbox")}</Text>
+        </Press>
         <GoldButton
           label={t("auth.welcome.signUp")}
-          disabled={!acceptTerms}
+          disabled={!acceptTerms || !confirmAge}
           onPress={() => requireTerms(() => setView("signup"))}
         />
         <View style={{ height: 8 }} />

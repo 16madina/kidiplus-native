@@ -49,6 +49,7 @@ import { type LiveDraftProduct } from "../lib/broadcast-products";
 import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
 import { makeRoomName } from "../lib/livekit";
 import { createLiveInDb, uploadLiveCover, uploadLiveProductImage } from "../lib/lives";
+import { isContentBlockedError } from "../lib/content-moderation";
 import { createLiveIngress, type RtmpCredentials } from "../lib/livekit-ingress";
 import {
   connectFacebook,
@@ -307,7 +308,13 @@ function GoLiveSetup() {
       }
       await goLiveOverlay(liveId, roomName, title.trim(), rtmp);
     } catch (e) {
-      flash(e instanceof Error ? e.message : "Impossible de lancer le live.");
+      flash(
+        isContentBlockedError(e)
+          ? t("moderation.preventive.blocked")
+          : e instanceof Error
+            ? e.message
+            : "Impossible de lancer le live.",
+      );
     } finally {
       setBusy(false);
     }

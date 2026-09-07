@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { requireOptionalNativeModule } from "expo-modules-core";
 import "./src/i18n";
 import { LanguageProvider } from "./src/context/language";
 import { ThemeProvider } from "./src/context/theme";
@@ -20,25 +19,10 @@ import { AppShell } from "./src/AppShell";
 import { authenticateWithBiometric, isBiometricEnabled } from "./src/lib/biometric";
 import { NAVY } from "./src/theme";
 
-function useTrackingTransparency() {
-  useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    (async () => {
-      try {
-        const mod: any = requireOptionalNativeModule("ExpoTrackingTransparency");
-        if (!mod) return;
-        await mod.requestPermissionsAsync();
-      } catch {}
-    })();
-  }, []);
-}
-
 function Root() {
   const [splashDone, setSplashDone] = useState(false);
   const [biometricPassed, setBiometricPassed] = useState(false);
   const { user, guestMode, loading } = useAuth();
-
-  useTrackingTransparency();
 
   useEffect(() => {
     if (!splashDone) return;

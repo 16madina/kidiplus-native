@@ -337,6 +337,69 @@ final class KidiCameraKitSession: NSObject {
         #endif
     }
 
+    /// Mute/unmute the already-published Camera Kit track without tearing down
+    /// the LiveKit room. Camera controls must never reconnect the publisher:
+    /// doing so can invalidate the current host session and stall the UI.
+    func setCameraEnabled(
+        enabled: Bool,
+        completion: @escaping (Result<Bool, Error>) -> Void
+    ) {
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        Task { @MainActor in
+            guard publishEnabled,
+                  liveKitRoom?.connectionState == .connected,
+                  let publication = liveKitRoom?.localParticipant.trackPublications.values
+                    .compactMap({ $0 as? LocalTrackPublication })
+                    .first(where: { $0.source == .camera })
+            else {
+                completion(.failure(KidiCameraKitError.message("LiveKit camera publication is not connected")))
+                return
+            }
+            do {
+                if enabled {
+                    try await publication.unmute()
+                } else {
+                    try await publication.mute()
+                }
+                print("[KidiCameraKit] camera enabled=\(enabled)")
+                completion(.success(enabled))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+        #else
+        completion(.failure(KidiCameraKitError.message("LiveKit Swift not linked — rebuild iOS")))
+        #endif
+    }
+
+    /// Keep the native microphone control in sync with the HUD. Previously the
+    /// button only changed React state and did not affect the published audio.
+    func setMicrophoneEnabled(
+        enabled: Bool,
+        completion: @escaping (Result<Bool, Error>) -> Void
+    ) {
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        Task { @MainActor in
+            guard publishEnabled,
+                  liveKitRoom?.connectionState == .connected,
+                  let room = liveKitRoom
+            else {
+                completion(.failure(KidiCameraKitError.message("LiveKit microphone publication is not connected")))
+                return
+            }
+            do {
+                _ = try await room.localParticipant.setMicrophone(enabled: enabled)
+                print("[KidiCameraKit] microphone enabled=\(enabled)")
+                completion(.success(enabled))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+        #else
+        completion(.failure(KidiCameraKitError.message("LiveKit Swift not linked — rebuild iOS")))
+        #endif
+    }
+
     func setBattleGuestPublishEnabled(
         enabled: Bool,
         roomUrl: String?,

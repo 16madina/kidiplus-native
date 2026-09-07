@@ -101,7 +101,7 @@ export function SignUpScreen() {
     <AuthScreenShell title={t("auth.welcome.signUp")} onBack={() => setView("welcome")}>
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.title")}</Text>
       <Text style={{ fontSize: 14, color: colors.mutedForeground, marginBottom: 4 }}>{t("auth.signUp.subtitle")}</Text>
-      <SocialLoginButtons />
+      <SocialLoginButtons disabled={!acceptTerms || !confirmAge} mode="signup" />
       <AuthInput label={t("auth.signUp.firstName")} value={firstName} onChangeText={setFirstName} placeholder={t("auth.signUp.firstNamePlaceholder")} maxLength={40} />
       <AuthInput label={t("auth.signUp.lastName")} value={lastName} onChangeText={setLastName} placeholder={t("auth.signUp.lastNamePlaceholder")} maxLength={40} />
       <AuthInput

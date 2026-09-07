@@ -33,6 +33,7 @@ import {
   updateShopProduct,
   uploadShopProductImage,
 } from "../lib/shop";
+import { isContentBlockedError } from "../lib/content-moderation";
 import { countSellerLives, fetchSellerLives, isReplayPlayable, type SellerLiveEntry } from "../lib/lives";
 import { countVitrinePostsByUser, fetchVitrinePostsByUser, looksLikeVideo, type VitrineFeedPost } from "../lib/vitrine";
 import { fetchSellerPublic, uploadBanner, type SellerPublic } from "../lib/seller";
@@ -259,6 +260,10 @@ export function ShopScreen({
       setLoading(true);
       await reload();
     } catch (err) {
+      if (isContentBlockedError(err)) {
+        flash(t("moderation.preventive.blocked"));
+        return;
+      }
       const msg = formatShopError(err);
       flash(msg === "image_too_big" ? t("shop.imageTooBig") : msg);
     } finally {

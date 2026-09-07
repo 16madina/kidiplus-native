@@ -32,6 +32,7 @@
     "expo-build-properties": "~57.0.15",
     "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.15",
+    "expo-crypto": "~57.0.2",
     "expo-dev-client": "~57.0.16",
     "expo-device": "~57.0.1",
     "expo-haptics": "~57.0.2",
@@ -44,7 +45,6 @@
     "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.3",
-    "expo-tracking-transparency": "*",
     "expo-video": "~57.0.3",
     "expo-web-browser": "~57.0.2",
     "i18next": "^26.4.0",
@@ -62,7 +62,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "^0.21.2"
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.10.4"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

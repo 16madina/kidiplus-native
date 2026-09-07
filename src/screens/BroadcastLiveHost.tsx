@@ -36,7 +36,8 @@ import {
 } from "../lib/battles";
 import {
   flipBridgeCamera,
-  setBridgePublishEnabled,
+  setBridgeCameraEnabled,
+  setBridgeMicrophoneEnabled,
   setNativeLensApplyAllowed,
   stopBridgePreview,
 } from "../lib/filters/camera-kit-bridge";
@@ -204,7 +205,6 @@ export function BroadcastLiveHost({
         identity={identity}
         displayName={displayName}
         facing={facing}
-        session={session}
         endingRef={endingRef}
         onEnded={setSummary}
         rtmpMode={rtmpMode}
@@ -431,7 +431,6 @@ function HostKitStage({
   identity,
   displayName,
   facing: initialFacing,
-  session,
   endingRef,
   onEnded,
   rtmpMode = false,
@@ -441,7 +440,6 @@ function HostKitStage({
   identity: string;
   displayName: string;
   facing: CameraType;
-  session: { url: string; token: string };
   endingRef: MutableRefObject<boolean>;
   onEnded: (stats: LiveSummaryStats) => void;
   rtmpMode?: boolean;
@@ -455,6 +453,7 @@ function HostKitStage({
   const [micOn, setMicOn] = useState(true);
   const [hudSession, setHudSession] = useState<{ url: string; token: string } | null>(null);
   const camBusyRef = useRef(false);
+  const micBusyRef = useRef(false);
 
   const remoteBattleStatus = useBattleGuestPublish({
     enabled: extras.battleActive,
@@ -547,16 +546,17 @@ function HostKitStage({
       facing={facing}
       rtmpMode={rtmpMode}
       hostVideo={
-        camOn ? (
-          <View style={FILL}>
-            <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
-            <HostComposedPreview />
-          </View>
-        ) : (
-          <View style={[FILL, styles.center]}>
-            <Text style={styles.wait}>Caméra coupée</Text>
-          </View>
-        )
+        <View style={FILL}>
+          {/* Keep the native preview mounted. Recreating its AVCapture input
+              during a live can stall Camera Kit when the camera is restored. */}
+          <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+          <HostComposedPreview />
+          {!camOn ? (
+            <View style={[FILL, styles.center]}>
+              <Text style={styles.wait}>Caméra coupée</Text>
+            </View>
+          ) : null}
+        </View>
       }
       guestVideo={
         extras.battleActive && hudSession ? (
@@ -583,18 +583,24 @@ function HostKitStage({
       micOn={micOn}
       camOn={camOn}
       busy={busy}
-      onToggleMic={() => setMicOn((v) => !v)}
+      onToggleMic={() => {
+        if (micBusyRef.current) return;
+        const next = !micOn;
+        micBusyRef.current = true;
+        void setBridgeMicrophoneEnabled(next)
+          .then(() => setMicOn(next))
+          .catch(() => Alert.alert("Microphone", t("broadcast.microphone.toggleFailed")))
+          .finally(() => {
+            micBusyRef.current = false;
+          });
+      }}
       onToggleCam={() => {
         if (camBusyRef.current) return;
         const next = !camOn;
-        setCamOn(next);
         camBusyRef.current = true;
-        void setBridgePublishEnabled(
-          next
-            ? { enabled: true, roomUrl: session.url, token: session.token }
-            : { enabled: false },
-        )
-          .catch(() => setCamOn(!next))
+        void setBridgeCameraEnabled(next)
+          .then(() => setCamOn(next))
+          .catch(() => Alert.alert(t("broadcast.camera.unavailable"), t("broadcast.camera.toggleFailed")))
           .finally(() => {
             camBusyRef.current = false;
           });

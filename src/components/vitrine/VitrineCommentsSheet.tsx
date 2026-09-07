@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Keyboard,
@@ -75,7 +76,12 @@ export function VitrineCommentsSheet({
     setSending(true);
     const res = await addVitrineComment(postId, text, replyTo?.id);
     setSending(false);
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.error === "content_blocked") {
+        Alert.alert("KiDi+", t("moderation.preventive.blocked"));
+      }
+      return;
+    }
     setBody("");
     setReplyTo(null);
     Keyboard.dismiss();

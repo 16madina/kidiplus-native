@@ -8,6 +8,7 @@ import { formatMoney, normalizeCurrency } from "./money";
 import { assertImageSize, type PickedImage } from "./pick-image";
 import { resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
+import { assertUserTextAllowed } from "./content-moderation";
 
 export type ShopProductRow = {
   id: string;
@@ -173,6 +174,7 @@ export async function uploadShopProductImage(userId: string, picked: PickedImage
 }
 
 export async function createShopProduct(sellerId: string, input: ShopProductInput): Promise<ShopItem> {
+  assertUserTextAllowed(input.name, input.description, input.brand);
   const images = (input.imagePaths ?? []).slice(0, 5);
   const cover = images[0] ?? null;
   const { data, error } = await supabase
@@ -202,6 +204,7 @@ export async function updateShopProduct(
   id: string,
   patch: Partial<ShopProductInput> & { active?: boolean },
 ): Promise<void> {
+  assertUserTextAllowed(patch.name, patch.description, patch.brand);
   const dbPatch: Record<string, unknown> = {};
   if (patch.name !== undefined) dbPatch.name = patch.name.trim();
   if (patch.description !== undefined) dbPatch.description = patch.description?.trim() || null;

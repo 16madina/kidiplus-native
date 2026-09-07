@@ -44,6 +44,7 @@ import {
 import { type LiveDraftProduct } from "../lib/broadcast-products";
 import { pickImageFromLibrary, type PickedImage } from "../lib/pick-image";
 import { createScheduledLiveInDb, uploadLiveCover } from "../lib/lives";
+import { isContentBlockedError } from "../lib/content-moderation";
 import { GOLD, GOLD_GO_LIVE } from "../theme";
 
 const GOLD_DIM = "rgba(232,185,59,0.32)";
@@ -205,7 +206,13 @@ export function ScheduleLiveScreen() {
       });
       flash(t("schedule.savedToast"), true);
     } catch (e) {
-      flash(e instanceof Error ? e.message : "Programmation impossible.");
+      flash(
+        isContentBlockedError(e)
+          ? t("moderation.preventive.blocked")
+          : e instanceof Error
+            ? e.message
+            : "Programmation impossible.",
+      );
     } finally {
       setBusy(false);
     }

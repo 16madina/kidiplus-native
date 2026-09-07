@@ -1,6 +1,7 @@
 import { type Category, type LiveStream } from "../mock/lives";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
+import { assertUserTextAllowed } from "./content-moderation";
 import { retryAsync } from "./live-fx";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { minutesUntil } from "./time";
@@ -377,6 +378,7 @@ export async function createLiveInDb(input: {
     sizes?: string[];
   }>;
 }): Promise<string> {
+  assertUserTextAllowed(input.title, ...input.products.flatMap((p) => [p.name, p.brand]));
   const { data: live, error } = await supabase
     .from("lives")
     .insert({
@@ -523,6 +525,7 @@ export async function createScheduledLiveInDb(input: {
     timerSeconds?: number;
   }>;
 }): Promise<string> {
+  assertUserTextAllowed(input.title, input.description, ...input.products.map((p) => p.name));
   const roomName = `kidi-${input.sellerId.slice(0, 8)}-${Date.now()}`;
   const { data: live, error } = await supabase
     .from("lives")

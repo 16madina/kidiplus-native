@@ -450,6 +450,35 @@ class KidiCameraKitSession(
         }
     }
 
+    /** Mute/unmute the existing custom Camera Kit track; never reconnect the room. */
+    suspend fun setCameraEnabled(enabled: Boolean): Map<String, Any?> {
+        val room = liveKitRoom
+            ?: throw IllegalStateException("LiveKit camera publication is not connected")
+        if (!publishEnabled) {
+            throw IllegalStateException("LiveKit camera publication is not connected")
+        }
+        val changed = room.localParticipant.setCameraEnabled(enabled)
+        if (!changed) {
+            throw IllegalStateException("LiveKit camera state could not be changed")
+        }
+        Log.i(TAG, "camera enabled=$enabled")
+        return mapOf("enabled" to enabled)
+    }
+
+    suspend fun setMicrophoneEnabled(enabled: Boolean): Map<String, Any?> {
+        val room = liveKitRoom
+            ?: throw IllegalStateException("LiveKit microphone publication is not connected")
+        if (!publishEnabled) {
+            throw IllegalStateException("LiveKit microphone publication is not connected")
+        }
+        val changed = room.localParticipant.setMicrophoneEnabled(enabled)
+        if (!changed) {
+            throw IllegalStateException("LiveKit microphone state could not be changed")
+        }
+        Log.i(TAG, "microphone enabled=$enabled")
+        return mapOf("enabled" to enabled)
+    }
+
     suspend fun setBattleGuestPublishEnabled(enabled: Boolean, roomUrl: String?, token: String?): Map<String, Any?> {
         if (!enabled) {
             stopBattleGuestPublishing()

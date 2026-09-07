@@ -98,6 +98,8 @@ export function DmChatScreen({ target, onClose }: { target: DmChatTarget; onClos
       const msg =
         res.error === "blocked"
           ? t("dm.errors.blocked", { defaultValue: "Tu ne peux pas écrire à cet utilisateur." })
+          : res.error === "content_blocked"
+            ? t("moderation.preventive.blocked")
           : res.error === "suspended"
             ? t("dm.errors.suspended", { defaultValue: "Compte suspendu." })
             : t("dm.errors.send", { defaultValue: "Envoi impossible." });

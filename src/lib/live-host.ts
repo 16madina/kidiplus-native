@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import { resolveStoredImage } from "./storage";
 import { uploadLiveProductImage } from "./lives";
 import { isSimBidderId } from "./prelaunch-live-sim";
+import { assertUserTextAllowed, moderateUserText } from "./content-moderation";
 import type { LiveDraftProduct } from "./broadcast-products";
 import type { GiftKey } from "./gifts";
 import {
@@ -277,6 +278,11 @@ export async function createLiveProductFromDraft(args: {
   userId: string;
   draft: LiveDraftProduct;
 }): Promise<{ ok: boolean; error?: string }> {
+  try {
+    assertUserTextAllowed(args.draft.name, args.draft.description, args.draft.brand);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "content_blocked" };
+  }
   let imagePath = args.draft.imagePath ?? null;
   try {
     if (!imagePath && args.draft.picked) {
@@ -920,7 +926,7 @@ export function useHostLiveSession(args: {
   const sendChat = useCallback(
     (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed || !moderateUserText(trimmed).allowed) return;
       const evt: HostChatMsg = {
         id: uid(),
         user: displayName,
@@ -936,7 +942,7 @@ export function useHostLiveSession(args: {
 
   const ingestExternalChat = useCallback(
     (evt: HostChatMsg) => {
-      if (!evt?.id || !evt.text?.trim()) return;
+      if (!evt?.id || !evt.text?.trim() || !moderateUserText(evt.text).allowed) return;
       pushChat(evt);
       sendBroadcast("chat", evt as unknown as Record<string, unknown>);
     },

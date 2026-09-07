@@ -481,7 +481,11 @@
       "connectFailed": "Connection failed",
       "preview": "Camera preview",
       "configMissing": "Configuration required: camera permissions missing from build",
+      "toggleFailed": "Couldn’t change the camera. Try again.",
       "retry": "Retry"
+    },
+    "microphone": {
+      "toggleFailed": "Couldn’t change the microphone. Try again."
     },
     "effects": {
       "title": "Background & poster",
@@ -1741,6 +1745,9 @@
     }
   },
   "moderation": {
+    "preventive": {
+      "blocked": "This content appears to violate the Community Guidelines. Edit it before posting."
+    },
     "reason": "Reason",
     "suspendedUntil": "Account suspended until {{date}}",
     "suspendedIndefinite": "Account suspended",
@@ -1961,6 +1968,13 @@
       "confirmBtn": "Permanently delete my account",
       "unauthorized": "Session expired. Sign in again.",
       "hasBlockers": "Deletion blocked: see the conditions.",
+      "checkFailed": "Verification unavailable",
+      "checkFailedBody": "We must verify the wallet, orders, payouts and active lives before allowing deletion.",
+      "contactSupport": "Contact support",
+      "apple": {
+        "reauthCanceled": "Apple confirmation was canceled. Your account was not deleted.",
+        "revokeFailed": "Sign in with Apple could not be revoked. Your account was not deleted; please try again shortly."
+      },
       "failed": "Deletion failed. Try again.",
       "done": "Account deleted."
     }

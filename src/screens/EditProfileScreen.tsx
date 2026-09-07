@@ -24,6 +24,7 @@ import { pickImageFromLibrary } from "../lib/pick-image";
 import { supabase } from "../lib/supabase";
 import { isHttpUrl } from "../lib/storage";
 import { GOLD, initials } from "../theme";
+import { isContentBlockedError } from "../lib/content-moderation";
 
 export function EditProfileScreen() {
   const { t, i18n } = useTranslation();
@@ -109,6 +110,10 @@ export function EditProfileScreen() {
       flash(t("profile.updated", { defaultValue: "Profil mis à jour" }));
       setTimeout(closeOverlay, 700);
     } catch (e) {
+      if (isContentBlockedError(e)) {
+        setError(t("moderation.preventive.blocked"));
+        return;
+      }
       const msg = e instanceof Error ? e.message : "";
       setError(
         /duplicate|unique/i.test(msg)

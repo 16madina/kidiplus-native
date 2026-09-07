@@ -18,7 +18,9 @@ export async function accountDeletionCheck(): Promise<AccountDeletionCheck> {
 }
 
 /** Permanently delete the signed-in account (same API as kidiplus.com). */
-export async function deleteMyAccount(): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function deleteMyAccount(options?: {
+  appleAuthorizationCode?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) return { ok: false, error: "unauthorized" };
@@ -30,7 +32,13 @@ export async function deleteMyAccount(): Promise<{ ok: true } | { ok: false; err
         Authorization: `Bearer ${token}`,
         Origin: "https://kidiplus.com",
       },
-      body: JSON.stringify({ confirm: "DELETE" }),
+      body: JSON.stringify({
+        confirm: "DELETE",
+        client: "ios_native",
+        ...(options?.appleAuthorizationCode
+          ? { appleAuthorizationCode: options.appleAuthorizationCode }
+          : {}),
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {

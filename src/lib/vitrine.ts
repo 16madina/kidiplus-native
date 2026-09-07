@@ -3,6 +3,7 @@ import { isVideoMediaUrl, parseVideoClipCaption, type VideoClip } from "./publis
 import { MUSIC_COLUMNS, musicFromRow, musicToRow, type VitrineMusic } from "./vitrine-music";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
+import { CONTENT_BLOCKED_ERROR, moderateUserText } from "./content-moderation";
 
 export type VitrineMediaType = "image" | "video" | "carousel";
 
@@ -340,6 +341,7 @@ export async function addVitrineComment(
   if (!uid) return { ok: false, error: "unauthorized" };
   const trimmed = body.trim();
   if (!trimmed) return { ok: false, error: "empty" };
+  if (!moderateUserText(trimmed).allowed) return { ok: false, error: CONTENT_BLOCKED_ERROR };
   const { data, error } = await supabase
     .from("vitrine_comments")
     .insert({
@@ -408,6 +410,9 @@ export async function createVitrinePost(input: {
   if (!uid) return { ok: false, error: "unauthorized" };
   if (input.mediaUrls.length === 0 && !input.liveId) {
     return { ok: false, error: "no_media" };
+  }
+  if (!moderateUserText(input.caption).allowed) {
+    return { ok: false, error: CONTENT_BLOCKED_ERROR };
   }
   const { data, error } = await supabase
     .from("vitrine_posts")

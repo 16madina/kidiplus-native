@@ -4,14 +4,18 @@ import { accountLivemode, isStripeConfigError, stripeClient } from "../_shared/s
 import { connectReadyPatch } from "../_shared/connect-profile.ts";
 
 Deno.serve(async (req) => {
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const signature = req.headers.get("stripe-signature");
   const secret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  if (!secret) {
+    console.error("connect-webhook: STRIPE_WEBHOOK_SECRET is not configured");
+    return json({ error: "webhook_not_configured" }, 503);
+  }
+  if (!signature) return json({ error: "missing_stripe_signature" }, 400);
   const raw = await req.text();
   try {
     const stripe = stripeClient();
-    const event = secret && signature
-      ? stripe.webhooks.constructEvent(raw, signature, secret)
-      : (JSON.parse(raw) as Stripe.Event);
+    const event = stripe.webhooks.constructEvent(raw, signature, secret);
     if (event.type !== "account.updated") return json({ ok: true, ignored: true });
 
     const account = event.data.object as Stripe.Account;
@@ -22,10 +26,15 @@ Deno.serve(async (req) => {
     const userId = account.metadata?.kidi_user_id ?? account.metadata?.kidiplus_user_id;
     const patch = connectReadyPatch(account, accountLivemode(account));
     if (userId) {
-      await supabase.from("profiles").update(patch).eq("id", userId);
+      const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
+      if (error) throw error;
     } else {
-      await supabase.from("profiles").update(patch).eq("stripe_account_id", account.id);
-      await supabase.from("profiles").update(patch).eq("stripe_connect_id", account.id);
+      const [{ error: accountError }, { error: connectError }] = await Promise.all([
+        supabase.from("profiles").update(patch).eq("stripe_account_id", account.id),
+        supabase.from("profiles").update(patch).eq("stripe_connect_id", account.id),
+      ]);
+      if (accountError) throw accountError;
+      if (connectError) throw connectError;
     }
     return json({ ok: true });
   } catch (e) {

@@ -24,6 +24,8 @@ export type KidiCameraKitNativeModule = {
     roomUrl: string | null,
     token: string | null,
   ): Promise<{ enabled: boolean }>;
+  setCameraEnabled(enabled: boolean): Promise<{ enabled: boolean }>;
+  setMicrophoneEnabled(enabled: boolean): Promise<{ enabled: boolean }>;
   setBattleGuestPublishEnabled?(
     enabled: boolean,
     roomUrl: string | null,

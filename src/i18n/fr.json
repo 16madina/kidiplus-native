@@ -481,7 +481,11 @@
       "connectFailed": "Connexion impossible",
       "preview": "Aperçu caméra",
       "configMissing": "Configuration requise : permissions caméra manquantes dans le build",
+      "toggleFailed": "Impossible de modifier la caméra. Réessaie.",
       "retry": "Réessayer"
+    },
+    "microphone": {
+      "toggleFailed": "Impossible de modifier le microphone. Réessaie."
     },
     "effects": {
       "title": "Fond & poster",
@@ -1742,6 +1746,9 @@
     }
   },
   "moderation": {
+    "preventive": {
+      "blocked": "Ce contenu semble enfreindre les règles de la communauté. Modifie-le avant de publier."
+    },
     "reason": "Motif",
     "suspendedUntil": "Compte suspendu jusqu'au {{date}}",
     "suspendedIndefinite": "Compte suspendu",
@@ -1962,6 +1969,13 @@
       "confirmBtn": "Supprimer définitivement mon compte",
       "unauthorized": "Session expirée. Reconnecte-toi.",
       "hasBlockers": "Suppression bloquée : voir les conditions.",
+      "checkFailed": "Vérification impossible",
+      "checkFailedBody": "Nous devons vérifier le portefeuille, les commandes, les retraits et les lives avant d’autoriser la suppression.",
+      "contactSupport": "Contacter le support",
+      "apple": {
+        "reauthCanceled": "La confirmation Apple a été annulée. Ton compte n'a pas été supprimé.",
+        "revokeFailed": "La connexion Apple n'a pas pu être révoquée. Ton compte n'a pas été supprimé; réessaie dans un instant."
+      },
       "failed": "La suppression a échoué. Réessaie.",
       "done": "Compte supprimé."
     }

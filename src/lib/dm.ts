@@ -1,6 +1,7 @@
 // Direct-messaging — same RPCs as kidiplus.com (dm_threads / dm_messages).
 
 import { supabase } from "./supabase";
+import { moderateUserText } from "./content-moderation";
 
 export type DmThreadRow = {
   id: string;
@@ -68,9 +69,10 @@ export async function findDmThread(otherId: string): Promise<string | null> {
 
 export type SendDmResult =
   | { ok: true; threadId: string; message: DmMessageRow }
-  | { ok: false; error: "blocked" | "suspended" | "unknown" };
+  | { ok: false; error: "blocked" | "content_blocked" | "suspended" | "unknown" };
 
 export async function sendDm(toUserId: string, body: string): Promise<SendDmResult> {
+  if (!moderateUserText(body).allowed) return { ok: false, error: "content_blocked" };
   const { data, error } = await supabase.rpc("send_dm", {
     _to: toUserId,
     _body: body,
@@ -78,6 +80,7 @@ export async function sendDm(toUserId: string, body: string): Promise<SendDmResu
   if (error || !data) {
     const msg = String(error?.message ?? "");
     if (msg.includes("blocked")) return { ok: false, error: "blocked" };
+    if (msg.includes("content_blocked")) return { ok: false, error: "content_blocked" };
     if (msg.includes("account_banned") || msg.includes("account_suspended")) {
       return { ok: false, error: "suspended" };
     }

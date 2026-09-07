@@ -85,7 +85,7 @@ export function SignInScreen() {
     <AuthScreenShell title={t("auth.welcome.signIn")} onBack={() => setView("welcome")}>
       <Text style={[styles.h2, { color: colors.foreground }]}>{t("auth.signIn.title")}</Text>
       <Text style={[styles.sub, { color: colors.mutedForeground }]}>{t("auth.signIn.subtitle")}</Text>
-      <SocialLoginButtons />
+      <SocialLoginButtons disabled={!acceptTerms} mode="signin" />
       <AuthInput
         label={t("auth.signIn.email")}
         autoCapitalize="none"

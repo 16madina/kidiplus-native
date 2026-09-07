@@ -11,6 +11,7 @@ const CONNECT_CURRENCIES = new Set(["EUR", "CAD", "USD", "GBP"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabase = createClient(
@@ -84,13 +85,27 @@ Deno.serve(async (req) => {
     const account = await stripe.accounts.retrieve(accountId);
     const live = accountLivemode(account);
     if (!live) {
-      await refundPayout(supabase, payoutId, userId, "Compte Stripe test — virement réel impossible. Gains recrédités.");
-      return json({ error: "connect_test_mode", refunded: true }, 409);
+      const refund = await refundPayout(
+        supabase,
+        payoutId,
+        userId,
+        "Compte Stripe test — virement réel impossible. Gains recrédités.",
+      );
+      return refund.ok
+        ? json({ error: "connect_test_mode", refunded: true }, 409)
+        : json({ error: "refund_failed", detail: refund.error }, 500);
     }
     const status = connectStatusFromAccount({ ...account, livemode: live });
     if (status !== "active") {
-      await refundPayout(supabase, payoutId, userId, "Compte Stripe pas prêt. Gains recrédités.");
-      return json({ error: "connect_not_ready", refunded: true, status }, 409);
+      const refund = await refundPayout(
+        supabase,
+        payoutId,
+        userId,
+        "Compte Stripe pas prêt. Gains recrédités.",
+      );
+      return refund.ok
+        ? json({ error: "connect_not_ready", refunded: true, status }, 409)
+        : json({ error: "refund_failed", detail: refund.error, status }, 500);
     }
 
     const amountMinor = toStripeAmount(Number(row.amount), currency);
@@ -109,7 +124,7 @@ Deno.serve(async (req) => {
         },
         { idempotencyKey: `kidi-payout-${payoutId}` },
       );
-      await supabase
+      const { error: updateError } = await supabase
         .from("payouts")
         .update({
           stripe_transfer_id: transfer.id,
@@ -119,13 +134,26 @@ Deno.serve(async (req) => {
           admin_note: "Stripe Connect (automatique)",
         })
         .eq("id", payoutId);
+      if (updateError) {
+        // The Stripe transfer already exists. Never refund here: a retry with
+        // the same idempotency key returns the same transfer and can persist it.
+        console.error("connect-payout transfer persistence", updateError);
+        return json(
+          { error: "payout_persistence_failed", transferred: true, transferId: transfer.id },
+          500,
+        );
+      }
       return json({ ok: true, transferId: transfer.id });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("connect-payout transfer", msg);
-      await supabase.from("payouts").update({ stripe_error: msg.slice(0, 400) }).eq("id", payoutId);
+      const { error: stripeErrorUpdate } = await supabase
+        .from("payouts")
+        .update({ stripe_error: msg.slice(0, 400) })
+        .eq("id", payoutId);
+      if (stripeErrorUpdate) console.error("connect-payout stripe error persistence", stripeErrorUpdate);
       const platformEmpty = /insufficient funds/i.test(msg);
-      await refundPayout(
+      const refund = await refundPayout(
         supabase,
         payoutId,
         userId,
@@ -136,10 +164,11 @@ Deno.serve(async (req) => {
       return json(
         {
           error: platformEmpty ? "platform_funds" : "transfer_failed",
-          refunded: true,
+          refunded: refund.ok,
+          refundError: refund.ok ? undefined : refund.error,
           message: msg,
         },
-        502,
+        refund.ok ? 502 : 500,
       );
     }
   } catch (e) {
@@ -157,46 +186,14 @@ async function refundPayout(
   userId: string,
   note: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { data: locked, error: lockErr } = await supabase
-    .from("payouts")
-    .update({
-      status: "rejected",
-      processed_at: new Date().toISOString(),
-      admin_note: note,
-    })
-    .eq("id", payoutId)
-    .eq("seller_id", userId)
-    .in("status", ["requested", "processing"])
-    .is("stripe_transfer_id", null)
-    .select("amount, source")
-    .maybeSingle();
-  if (lockErr) return { ok: false, error: lockErr.message };
-  if (!locked) return { ok: false, error: "already_processed" };
-  const amount = Number((locked as { amount?: number }).amount);
-  const source = String((locked as { source?: string }).source ?? "seller");
-  const now = new Date().toISOString();
-  if (source === "wallet") {
-    const { data: w } = await supabase.from("wallets").select("balance").eq("user_id", userId).maybeSingle();
-    const next = Number((w as { balance?: number } | null)?.balance ?? 0) + amount;
-    await supabase.from("wallets").update({ balance: next, updated_at: now }).eq("user_id", userId);
-  } else if (source === "referral") {
-    const { data: r } = await supabase
-      .from("referral_balances")
-      .select("available")
-      .eq("owner_id", userId)
-      .maybeSingle();
-    const next = Number((r as { available?: number } | null)?.available ?? 0) + amount;
-    await supabase.from("referral_balances").update({ available: next, updated_at: now }).eq("owner_id", userId);
-  } else {
-    const { data: b } = await supabase
-      .from("seller_balances")
-      .select("available")
-      .eq("seller_id", userId)
-      .maybeSingle();
-    const next = Number((b as { available?: number } | null)?.available ?? 0) + amount;
-    await supabase.from("seller_balances").update({ available: next, updated_at: now }).eq("seller_id", userId);
-  }
-  return { ok: true };
+  const { data, error } = await supabase.rpc("reject_payout_and_refund", {
+    _payout_id: payoutId,
+    _seller_id: userId,
+    _note: note,
+  });
+  if (error) return { ok: false, error: error.message };
+  const result = (data ?? {}) as { ok?: boolean; error?: string };
+  return result.ok ? { ok: true } : { ok: false, error: result.error ?? "refund_failed" };
 }
 
 function toStripeAmount(amount: number, currency: string): number {

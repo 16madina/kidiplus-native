@@ -16,6 +16,7 @@ import { resolveAvatarUrl } from "../lib/storage";
 import { fetchMyWallet } from "../lib/wallet";
 import { applyPromoCodeWithRetry } from "../lib/referrals";
 import { normalizeCurrency, type Currency } from "../lib/money";
+import { assertUserTextAllowed } from "../lib/content-moderation";
 
 const GUEST_KEY = "kidiplus.guestMode";
 const PENDING_PROMO_KEY = "kidiplus.pendingPromo";
@@ -301,6 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: string;
       promoCode?: string;
     }) => {
+      assertUserTextAllowed(input.displayName, input.handle);
       const { data, error } = await supabase.auth.signUp({
         email: input.email,
         password: input.password,
@@ -389,6 +391,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }) => {
       const id = user?.id;
       if (!id) return;
+      assertUserTextAllowed(patch.display_name, patch.handle, patch.bio);
       const { error } = await supabase.from("profiles").update(patch).eq("id", id);
       if (error) throw new Error(error.message);
       await refreshUser();

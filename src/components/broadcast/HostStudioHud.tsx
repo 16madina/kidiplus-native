@@ -77,6 +77,7 @@ import { pickBattleFeatured } from "../../lib/battle-featured";
 import { useBattlePeerProducts } from "../../lib/use-battle-peer-products";
 import { isDefiPlusIntroActive, resolveDefiPlusIntroStart } from "../../lib/defi-plus";
 import { useHostPrelaunchSim } from "../../lib/use-prelaunch-live-sim";
+import { moderateUserText } from "../../lib/content-moderation";
 import { formatMoney } from "../../lib/money";
 import type { LiveDraftProduct } from "../../lib/broadcast-products";
 import { useLayout } from "../../lib/layout";
@@ -172,6 +173,20 @@ export function HostStudioHud({
   const peerProducts = useBattlePeerProducts(battleActive ? fighters?.right.liveId ?? null : null);
   const peerFeatured = pickBattleFeatured(peerProducts);
   const restream = useHostRestream(liveId, rtmpMode);
+  const sendHostChat = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (!moderateUserText(trimmed).allowed) {
+      setToast(t("moderation.preventive.blocked"));
+      return;
+    }
+    session.sendChat(trimmed);
+    if (restream.ytOn || restream.fbOn) {
+      void replyOnSocialPlatforms({ liveId, text: trimmed }).catch(() => undefined);
+    }
+    setDraft("");
+    Keyboard.dismiss();
+  };
   useSocialChatBridge({
     liveId,
     enabledYoutube: restream.ytOn,
@@ -323,7 +338,11 @@ export function HostStudioHud({
     for (const item of items) {
       const res = await session.addDraft(item, user.id);
       if (!res.ok) {
-        setToast(res.error ?? t("common.error", "Une erreur est survenue"));
+        setToast(
+          res.error?.includes("content_blocked")
+            ? t("moderation.preventive.blocked")
+            : res.error ?? t("common.error", "Une erreur est survenue"),
+        );
         return;
       }
     }
@@ -652,24 +671,12 @@ export function HostStudioHud({
               style={styles.input}
               returnKeyType="send"
               onSubmitEditing={() => {
-                const text = draft;
-                session.sendChat(text);
-                if (text.trim() && (restream.ytOn || restream.fbOn)) {
-                  void replyOnSocialPlatforms({ liveId, text: text.trim() }).catch(() => undefined);
-                }
-                setDraft("");
-                Keyboard.dismiss();
+                sendHostChat(draft);
               }}
             />
             <Press
               onPress={() => {
-                const text = draft;
-                session.sendChat(text);
-                if (text.trim() && (restream.ytOn || restream.fbOn)) {
-                  void replyOnSocialPlatforms({ liveId, text: text.trim() }).catch(() => undefined);
-                }
-                setDraft("");
-                Keyboard.dismiss();
+                sendHostChat(draft);
               }}
               style={styles.sendBtn}
               accessibilityLabel={t("live.sendMessage")}

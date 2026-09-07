@@ -134,6 +134,14 @@ class KidiCameraKitModule : Module() {
             requireSession().setPublishEnabled(enabled, roomUrl, token)
         }
 
+        AsyncFunction("setCameraEnabled") Coroutine { enabled: Boolean ->
+            requireSession().setCameraEnabled(enabled)
+        }
+
+        AsyncFunction("setMicrophoneEnabled") Coroutine { enabled: Boolean ->
+            requireSession().setMicrophoneEnabled(enabled)
+        }
+
         AsyncFunction("setBattleGuestPublishEnabled") Coroutine { enabled: Boolean, roomUrl: String?, token: String? ->
             requireSession().setBattleGuestPublishEnabled(enabled, roomUrl, token)
         }

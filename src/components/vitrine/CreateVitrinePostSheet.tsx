@@ -18,6 +18,7 @@ import { Press } from "../Press";
 import { useAppTheme } from "../../context/theme";
 import { pickImageFromLibrary, type PickedImage } from "../../lib/pick-image";
 import { createVitrinePost, uploadVitrineMedia } from "../../lib/vitrine";
+import { moderateUserText } from "../../lib/content-moderation";
 import { GOLD, NAVY } from "../../theme";
 
 export function CreateVitrinePostSheet({
@@ -44,6 +45,10 @@ export function CreateVitrinePostSheet({
 
   const publish = async () => {
     if (!picked || busy) return;
+    if (!moderateUserText(caption).allowed) {
+      Alert.alert("KiDi+", t("moderation.preventive.blocked"));
+      return;
+    }
     setBusy(true);
     const url = await uploadVitrineMedia(picked);
     if (!url) {
@@ -58,7 +63,10 @@ export function CreateVitrinePostSheet({
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("KiDi+", res.error);
+      Alert.alert(
+        "KiDi+",
+        res.error === "content_blocked" ? t("moderation.preventive.blocked") : res.error,
+      );
       return;
     }
     setCaption("");

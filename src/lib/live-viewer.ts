@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { moderateUserText } from "./content-moderation";
 import {
   fetchLiveProducts,
   pickFeatured,
@@ -573,7 +574,7 @@ export function useViewerLiveRoom(
   const sendChat = useCallback(async (text: string) => {
     const t = text.trim();
     const channel = channelRef.current;
-    if (!t || !channel || !channelSubscribedRef.current) return;
+    if (!t || !moderateUserText(t).allowed || !channel || !channelSubscribedRef.current) return;
     const msg: HostChatMsg = {
       id: uid(),
       user: displayNameRef.current || "Viewer",

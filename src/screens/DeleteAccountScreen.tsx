@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,13 @@ import { useAuth } from "../context/auth";
 import { useAppTheme } from "../context/theme";
 import { accountDeletionCheck, deleteMyAccount, type AccountDeletionCheck } from "../lib/account";
 import { formatMoney, normalizeCurrency } from "../lib/money";
+import { supabase } from "../lib/supabase";
+import {
+  getAppleRevokeAuthorizationCode,
+  isAppleAuthCancellation,
+} from "../lib/apple-auth";
+
+const SUPPORT_EMAIL = "support@kidiplus.com";
 
 export function DeleteAccountScreen() {
   const { t, i18n } = useTranslation();
@@ -27,26 +35,60 @@ export function DeleteAccountScreen() {
   const [check, setCheck] = useState<AccountDeletionCheck | null>(null);
   const [loadingCheck, setLoadingCheck] = useState(true);
 
-  useEffect(() => {
+  const loadCheck = useCallback(() => {
     setLoadingCheck(true);
+    setCheck(null);
     void accountDeletionCheck().then((r) => {
       setCheck(r);
       setLoadingCheck(false);
     });
   }, []);
 
+  useEffect(() => {
+    loadCheck();
+  }, [loadCheck]);
+
   const hasBlockers = !!check && check.ok && check.has_blockers;
-  const canConfirm = confirmText.trim() === "DELETE" && !hasBlockers && !busy;
+  const checkPassed = !!check && check.ok && !check.has_blockers;
+  const canConfirm =
+    confirmText.trim() === "DELETE" && checkPassed && !loadingCheck && !busy;
 
   const doDelete = async () => {
     if (!canConfirm) return;
     setBusy(true);
     setError(null);
-    const res = await deleteMyAccount();
+    const { data: authData } = await supabase.auth.getUser();
+    const appleIdentity = authData.user?.identities?.find((identity) => identity.provider === "apple");
+    let appleAuthorizationCode: string | undefined;
+    if (appleIdentity) {
+      const metadataAppleId = authData.user?.user_metadata?.apple_user_id;
+      const identityAppleId = appleIdentity.identity_data?.sub ?? appleIdentity.id;
+      const appleUserId =
+        typeof metadataAppleId === "string"
+          ? metadataAppleId
+          : typeof identityAppleId === "string"
+            ? identityAppleId
+            : null;
+      try {
+        const credential = await getAppleRevokeAuthorizationCode(appleUserId);
+        appleAuthorizationCode = credential.authorizationCode;
+      } catch (appleError) {
+        setBusy(false);
+        setError(
+          isAppleAuthCancellation(appleError)
+            ? t("account.delete.apple.reauthCanceled")
+            : t("account.delete.apple.revokeFailed"),
+        );
+        return;
+      }
+    }
+
+    const res = await deleteMyAccount({ appleAuthorizationCode });
     if (!res.ok) {
       setBusy(false);
       if (res.error === "has_blockers") setError(t("account.delete.hasBlockers"));
       else if (res.error === "unauthorized") setError(t("account.delete.unauthorized"));
+      else if (res.error.startsWith("apple_")) setError(t("account.delete.apple.revokeFailed"));
       else setError(t("account.delete.failed"));
       return;
     }
@@ -87,6 +129,12 @@ export function DeleteAccountScreen() {
 
         {loadingCheck ? (
           <ActivityIndicator color={colors.foreground} style={{ marginVertical: 16 }} />
+        ) : check && !check.ok ? (
+          <View style={styles.checkError}>
+            <Text style={styles.checkErrorTitle}>{t("account.delete.checkFailed")}</Text>
+            <Text style={styles.checkErrorBody}>{t("account.delete.checkFailedBody")}</Text>
+            <GoldButton label={t("common.retry")} onPress={loadCheck} />
+          </View>
         ) : hasBlockers && check && check.ok ? (
           <View style={styles.blockers}>
             <Text style={styles.blockersTitle}>{t("account.delete.blockersTitle")}</Text>
@@ -107,6 +155,17 @@ export function DeleteAccountScreen() {
             {Number(check.live_now) > 0 ? (
               <Text style={styles.blockerLine}>• {t("account.delete.blockers.live")}</Text>
             ) : null}
+            <Text
+              accessibilityRole="link"
+              onPress={() =>
+                void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Suppression%20de%20compte`).catch(
+                  () => undefined,
+                )
+              }
+              style={styles.supportLink}
+            >
+              {t("account.delete.contactSupport")}
+            </Text>
           </View>
         ) : null}
 
@@ -165,6 +224,23 @@ const styles = StyleSheet.create({
   },
   blockersTitle: { fontWeight: "900", color: "#92400E", marginBottom: 6 },
   blockerLine: { color: "#78350F", fontSize: 12.5, lineHeight: 18 },
+  supportLink: {
+    color: "#78350F",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 10,
+    textDecorationLine: "underline",
+  },
+  checkError: {
+    backgroundColor: "#FDE8E8",
+    borderRadius: 16,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(155,28,28,0.25)",
+  },
+  checkErrorTitle: { color: "#9B1C1C", fontWeight: "900", fontSize: 14 },
+  checkErrorBody: { color: "#7F1D1D", fontSize: 12.5, lineHeight: 18 },
   label: { fontSize: 12, fontWeight: "700" },
   input: {
     borderWidth: 1,

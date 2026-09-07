@@ -53,6 +53,7 @@ import { pickBattleFeatured } from "../lib/battle-featured";
 import { useBattlePeerProducts } from "../lib/use-battle-peer-products";
 import { isDefiPlusIntroActive, resolveDefiPlusIntroStart } from "../lib/defi-plus";
 import { guestLiveKitIdentity } from "../lib/livekit";
+import { moderateUserText } from "../lib/content-moderation";
 import { useViewerLiveRoom } from "../lib/live-viewer";
 import { useDemoViewerSim } from "../lib/use-demo-viewer-sim";
 import { blockUserAndNotify, useBlockedIds } from "../lib/moderation";
@@ -526,6 +527,10 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     if (!text) return;
     if (!user) {
       requireAccount();
+      return;
+    }
+    if (!moderateUserText(text).allowed) {
+      setToast(t("moderation.preventive.blocked"));
       return;
     }
     setDraft("");

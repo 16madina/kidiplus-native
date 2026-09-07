@@ -138,6 +138,18 @@ export async function setBridgePublishEnabled(opts: {
   await mod.setPublishEnabled(opts.enabled, opts.roomUrl ?? null, opts.token ?? null);
 }
 
+/** Mute/unmute video while keeping the native LiveKit publisher connected. */
+export async function setBridgeCameraEnabled(enabled: boolean): Promise<void> {
+  const mod = await ensureInitialized();
+  await mod.setCameraEnabled(enabled);
+}
+
+/** Mute/unmute the microphone on the existing native LiveKit publisher. */
+export async function setBridgeMicrophoneEnabled(enabled: boolean): Promise<void> {
+  const mod = await ensureInitialized();
+  await mod.setMicrophoneEnabled(enabled);
+}
+
 export function canUseNativeBattleGuestPublish(): boolean {
   return typeof KidiCameraKit?.setBattleGuestPublishEnabled === "function";
 }
