@@ -16,11 +16,17 @@ function makeBus() {
 }
 
 const resumeBus = makeBus();
+const startedBus = makeBus();
 const endedBus = makeBus();
 
 /** Home / Live-tab banner or a push tap → reopen the host studio. */
 export function requestResumeHostLive(liveId?: string | null) {
   resumeBus.emit(liveId ?? null);
+}
+
+/** Home feed: a live row just became `status=live`. */
+export function notifyHostLiveStarted(liveId?: string | null) {
+  startedBus.emit(liveId ?? null);
 }
 
 /** Hide dangling banners immediately after a proper Finish. */
@@ -30,6 +36,10 @@ export function notifyHostLiveEnded(liveId?: string | null) {
 
 export function subscribeResumeHostLive(cb: LiveIdCb) {
   return resumeBus.subscribe(cb);
+}
+
+export function subscribeHostLiveStarted(cb: LiveIdCb) {
+  return startedBus.subscribe(cb);
 }
 
 export function subscribeHostLiveEnded(cb: LiveIdCb) {
