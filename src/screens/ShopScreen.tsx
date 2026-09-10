@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -47,8 +48,16 @@ import { ProductOptionsFields } from "../components/shop/ProductOptionsFields";
 import type { ProductCondition } from "../lib/live-product-options";
 import { playableReplayUrl } from "../lib/live-replay";
 import { ReplayModal } from "../components/broadcast/ReplayModal";
+import { supabase } from "../lib/supabase";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+function replayDaysLeft(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  const timestamp = Date.parse(expiresAt);
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.ceil((timestamp - Date.now()) / 86_400_000));
+}
 
 type FormPhoto = { uri: string; path?: string | null; picked?: PickedImage | null };
 
@@ -99,7 +108,7 @@ export function ShopScreen({
   const own = !sellerId || sellerId === user?.id;
   const followTargetId = !own && sellerId ? sellerId : null;
   const follow = useFollow(followTargetId);
-  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "replays" | "vitrine" | "avis">("boutique");
+  const [shopTab, setShopTab] = useState<"boutique" | "lives" | "vitrine" | "avis">("boutique");
   const [seller, setSeller] = useState<SellerPublic | null>(null);
   const [reviews, setReviews] = useState<SellerReview[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
@@ -109,6 +118,8 @@ export function ShopScreen({
   const [vitrineCount, setVitrineCount] = useState(0);
   const [replayUrl, setReplayUrl] = useState<string | null>(null);
   const [replayTitle, setReplayTitle] = useState<string | null>(null);
+  const [replayShareUrl, setReplayShareUrl] = useState<string | null>(null);
+  const shopSellerId = own ? user?.id : sellerId;
 
   const reload = async () => {
     const id = own ? user?.id : sellerId;
@@ -140,6 +151,60 @@ export function ShopScreen({
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, sellerId, own]);
+
+  const refreshLives = useCallback(async () => {
+    if (!shopSellerId) return;
+    try {
+      const [rows, count] = await Promise.all([
+        fetchSellerLives(shopSellerId),
+        countSellerLives(shopSellerId),
+      ]);
+      setLives(rows);
+      setLivesCount(count);
+    } catch (error) {
+      console.warn("[shop/lives] refresh failed", error);
+    }
+  }, [shopSellerId]);
+
+  useEffect(() => {
+    if (!shopSellerId) return;
+
+    let active = true;
+    const load = async () => {
+      if (!active) return;
+      try {
+        const [rows, count] = await Promise.all([
+          fetchSellerLives(shopSellerId),
+          countSellerLives(shopSellerId),
+        ]);
+        if (!active) return;
+        setLives(rows);
+        setLivesCount(count);
+      } catch (error) {
+        console.warn("[shop/lives] realtime refresh failed", error);
+      }
+    };
+
+    const channel = supabase
+      .channel(`seller-lives-replays:${shopSellerId}:${Math.random().toString(36).slice(2, 10)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lives", filter: `seller_id=eq.${shopSellerId}` },
+        () => void load(),
+      )
+      .subscribe();
+    const interval = setInterval(() => void load(), 8_000);
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") void load();
+    });
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      appState.remove();
+      void supabase.removeChannel(channel);
+    };
+  }, [shopSellerId]);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -300,7 +365,6 @@ export function ShopScreen({
   };
 
   const featured = useMemo(() => items.filter((p) => p.active).slice(0, 8), [items]);
-  const replays = useMemo(() => lives.filter(isReplayPlayable), [lives]);
   const orderedLives = useMemo(() => {
     const rank = (s: string) => (s === "live" ? 0 : s === "scheduled" ? 1 : 2);
     return [...lives].sort((a, b) => rank(a.status) - rank(b.status));
@@ -323,6 +387,7 @@ export function ShopScreen({
       return;
     }
     setReplayTitle(live.title);
+    setReplayShareUrl(`https://kidiplus.com/live/${live.id}`);
     setReplayUrl(url);
   };
 
@@ -526,14 +591,20 @@ export function ShopScreen({
             [
               ["boutique", t("sellerProfile.shop", { defaultValue: "Boutique" })],
               ["lives", t("sellerProfile.lives", { defaultValue: "Lives" })],
-              ["replays", t("broadcast.replay.tab")],
               ["avis", "Avis"],
               ["vitrine", t("vitrine.title", { defaultValue: "Vitrine" })],
             ] as const
           )
             .filter(([k]) => own || k === "boutique" || k === "lives" || k === "avis")
             .map(([k, label]) => (
-              <Press key={k} onPress={() => setShopTab(k)} style={styles.tabBtn}>
+              <Press
+                key={k}
+                onPress={() => {
+                  setShopTab(k);
+                  if (k === "lives") void refreshLives();
+                }}
+                style={styles.tabBtn}
+              >
                 <Text style={[styles.tabTxt, shopTab === k && styles.tabTxtOn]}>{label}</Text>
                 {shopTab === k ? <View style={styles.tabUnderline} /> : null}
               </Press>
@@ -612,6 +683,9 @@ export function ShopScreen({
             ) : (
               orderedLives.map((l) => {
                 const canReplay = isReplayPlayable(l);
+                const daysLeft = replayDaysLeft(l.replay_expires_at);
+                const replayPending = l.status === "ended" && l.replay_status === "processing";
+                const replayFailed = l.status === "ended" && l.replay_status === "failed";
                 return (
                   <Press
                     key={l.id}
@@ -626,12 +700,20 @@ export function ShopScreen({
                           <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
                           <Text style={{ color: canReplay ? GOLD : "#6B7289", marginTop: 2, fontSize: 12, fontWeight: canReplay ? "700" : "400" }}>
                             {canReplay
-                              ? t("broadcast.replay.watch")
+                              ? `${t("broadcast.replay.watch")} · ${
+                                  daysLeft == null
+                                    ? t("broadcast.replay.availableSevenDays")
+                                    : t("broadcast.replay.expiresInDays", { count: daysLeft })
+                                }`
                               : l.status === "live"
                                 ? "EN DIRECT"
                                 : l.status === "scheduled"
                                   ? "Programmé"
-                                  : "Terminé"}
+                                  : replayPending
+                                    ? t("broadcast.replay.preparing")
+                                    : replayFailed
+                                      ? t("broadcast.replay.failed")
+                                      : "Terminé"}
                             {l.viewer_count ? ` · ${l.viewer_count} viewers` : ""}
                           </Text>
                         </View>
@@ -673,35 +755,6 @@ export function ShopScreen({
           </View>
         ) : null}
 
-        {!loading && shopTab === "replays" ? (
-          <View style={{ paddingHorizontal: 16, gap: 10 }}>
-            {replays.length === 0 ? (
-              <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>
-                {t("shop.noReplays", { defaultValue: "Aucun replay pour le moment." })}
-              </Text>
-            ) : (
-              replays.map((l) => (
-                <Press
-                  key={l.id}
-                  onPress={() => void openReplay(l)}
-                  style={{ alignItems: "stretch" }}
-                >
-                  <Glass tone="light" intensity={32} radius={16} elevated={false}>
-                    <View style={styles.liveRow}>
-                      {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                        <Text style={{ color: GOLD, marginTop: 2, fontWeight: "700", fontSize: 12 }}>Replay</Text>
-                      </View>
-                      <Video size={16} color={GOLD} />
-                    </View>
-                  </Glass>
-                </Press>
-              ))
-            )}
-          </View>
-        ) : null}
-
         {!loading && shopTab === "vitrine" ? (
           <View style={styles.vitrineGrid}>
             {vitrinePosts.length === 0 ? (
@@ -729,9 +782,11 @@ export function ShopScreen({
       <ReplayModal
         url={replayUrl}
         title={replayTitle}
+        shareUrl={replayShareUrl}
         onClose={() => {
           setReplayUrl(null);
           setReplayTitle(null);
+          setReplayShareUrl(null);
         }}
         onMessage={flash}
       />

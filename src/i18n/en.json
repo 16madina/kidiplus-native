@@ -591,11 +591,15 @@
       "watch": "Watch replay",
       "preparing": "Replay coming soon…",
       "openFailed": "Couldn't open this replay — try again in a moment.",
-      "saveVideo": "Save video",
+      "saveVideo": "Download",
       "downloading": "Downloading…",
       "saveFailed": "Couldn't download the video.",
       "shareLink": "Share link",
-      "shareFailed": "Couldn't share the link."
+      "shareFailed": "Couldn't share the link.",
+      "availableSevenDays": "available for 7 days",
+      "expiresInDays_one": "expires in {{count}} day",
+      "expiresInDays_other": "expires in {{count}} days",
+      "failed": "Replay unavailable"
     },
     "rtmp": {
       "toggleTitle": "Multi-platform (Restream / OBS)",

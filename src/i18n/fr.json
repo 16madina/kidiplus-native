@@ -591,11 +591,15 @@
       "watch": "Revoir le live",
       "preparing": "Replay bientôt disponible…",
       "openFailed": "Impossible d’ouvrir ce replay — réessaie dans un instant.",
-      "saveVideo": "Enregistrer la vidéo",
+      "saveVideo": "Télécharger",
       "downloading": "Téléchargement…",
       "saveFailed": "Impossible de télécharger la vidéo.",
       "shareLink": "Partager le lien",
-      "shareFailed": "Impossible de partager le lien."
+      "shareFailed": "Impossible de partager le lien.",
+      "availableSevenDays": "disponible 7 jours",
+      "expiresInDays_one": "expire dans {{count}} jour",
+      "expiresInDays_other": "expire dans {{count}} jours",
+      "failed": "Replay indisponible"
     },
     "rtmp": {
       "toggleTitle": "Multi-plateformes (Restream / OBS)",

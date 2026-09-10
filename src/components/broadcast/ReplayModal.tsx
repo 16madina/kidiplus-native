@@ -18,11 +18,13 @@ import { Press } from "../Press";
 export function ReplayModal({
   url,
   title,
+  shareUrl,
   onClose,
   onMessage,
 }: {
   url: string | null;
   title?: string | null;
+  shareUrl?: string | null;
   onClose: () => void;
   onMessage?: (message: string) => void;
 }) {
@@ -46,11 +48,12 @@ export function ReplayModal({
   };
 
   const shareLink = async () => {
+    const publicUrl = shareUrl || url;
     try {
       await Share.share({
         title: title || "Replay KiDi+",
-        message: `${title || "Replay KiDi+"}\n${url}`,
-        url,
+        message: `${title || "Replay KiDi+"}\n${publicUrl}`,
+        url: publicUrl,
       });
     } catch (error) {
       console.warn("[live-replay] share link failed", error);
@@ -122,6 +125,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: "rgba(16,22,43,0.78)",
+    zIndex: 2,
   },
   actions: {
     position: "absolute",
@@ -133,6 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     backgroundColor: "rgba(0,0,0,0.72)",
+    zIndex: 2,
   },
   primary: {
     flex: 1,

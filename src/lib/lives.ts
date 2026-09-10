@@ -198,7 +198,7 @@ export type SellerLiveEntry = {
 };
 
 export async function fetchSellerLives(sellerId: string, limit = 40): Promise<SellerLiveEntry[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("lives")
     .select(
       "id, title, status, cover_url, started_at, scheduled_at, ended_at, viewer_count, replay_url, replay_status, replay_expires_at",
@@ -206,6 +206,7 @@ export async function fetchSellerLives(sellerId: string, limit = 40): Promise<Se
     .eq("seller_id", sellerId)
     .order("ended_at", { ascending: false, nullsFirst: false })
     .limit(limit);
+  if (error) throw error;
   const rows = (data as SellerLiveEntry[] | null) ?? [];
   return Promise.all(
     rows.map(async (r) => ({
