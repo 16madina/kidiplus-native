@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable as NativePressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -85,7 +93,11 @@ export function SignInScreen() {
     <AuthScreenShell title={t("auth.welcome.signIn")} onBack={() => setView("welcome")}>
       <Text style={[styles.h2, { color: colors.foreground }]}>{t("auth.signIn.title")}</Text>
       <Text style={[styles.sub, { color: colors.mutedForeground }]}>{t("auth.signIn.subtitle")}</Text>
-      <SocialLoginButtons disabled={!acceptTerms} mode="signin" />
+      <SocialLoginButtons
+        disabled={!acceptTerms}
+        mode="signin"
+        recordTermsAcceptance
+      />
       <AuthInput
         label={t("auth.signIn.email")}
         autoCapitalize="none"
@@ -114,12 +126,19 @@ export function SignInScreen() {
       <Press onPress={() => setView("forgot")} style={styles.forgot}>
         <Text style={[styles.forgotText, { color: colors.mutedForeground }]}>{t("auth.signIn.forgot")}</Text>
       </Press>
-      <Press onPress={() => setAcceptTerms((v) => !v)} style={styles.consent} haptic="none">
-        <View style={[styles.box, acceptTerms && { backgroundColor: colors.foreground }]} />
-        <Text style={[styles.consentText, { color: colors.foreground }]}>
+      <View style={styles.consent}>
+        <NativePressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptTerms }}
+            onPress={() => setAcceptTerms((v) => !v)}
+            style={styles.checkboxTap}
+          >
+            <View pointerEvents="none" style={[styles.box, acceptTerms && { backgroundColor: colors.foreground }]} />
+          </NativePressable>
+        <Text onPress={() => setAcceptTerms((v) => !v)} style={[styles.consentText, { color: colors.foreground }]}>
           {t("consent.checkbox").replace(/<[^>]+>/g, "")}
         </Text>
-      </Press>
+      </View>
       <RedButton
         label={loading ? t("auth.signIn.submitting") : t("auth.signIn.submit")}
         disabled={loading || !acceptTerms}
@@ -157,6 +176,15 @@ const styles = StyleSheet.create({
   forgot: { alignSelf: "flex-end", minHeight: 0 },
   forgotText: { fontSize: 13, fontWeight: "700" },
   consent: { flexDirection: "row", alignItems: "flex-start", gap: 8, minHeight: 0 },
+  checkboxTap: {
+    width: 32,
+    height: 32,
+    marginTop: -6,
+    marginRight: -16,
+    marginBottom: -10,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
   box: { width: 16, height: 16, marginTop: 2, borderRadius: 3, borderWidth: 1.5, borderColor: "#10162B" },
   consentText: { flex: 1, fontSize: 12.5, lineHeight: 17 },
   footer: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 8 },

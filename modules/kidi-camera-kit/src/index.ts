@@ -4,6 +4,10 @@ import type { ViewProps } from "react-native";
 import { Platform } from "react-native";
 
 export type KidiCameraKitNativeModule = {
+  addListener?(
+    event: string,
+    listener: (payload: Record<string, unknown>) => void,
+  ): { remove(): void };
   initialize(apiToken: string, groupIds: string[]): Promise<{ initialized: boolean }>;
   loadLenses(groupIds: string[]): Promise<{
     lenses: Array<{

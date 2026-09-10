@@ -38,12 +38,15 @@ export function HostLiveFxSync({
   userId,
   liveKit,
   bakedBackground = false,
+  bakedPoster = false,
 }: {
   liveId: string;
   userId: string;
   liveKit?: LiveKitPublisher | null;
-  /** Green screen already in the published pixels — poster stays an overlay. */
+  /** Green screen already in the published pixels. */
   bakedBackground?: boolean;
+  /** Poster already in the published pixels — never draw it a second time. */
+  bakedPoster?: boolean;
 }) {
   const effects = useLiveEffects();
   const { activeLens } = useFilter();
@@ -138,10 +141,12 @@ export function HostLiveFxSync({
   }, [effects.backgroundUrl, effects.backgroundMode, userId]);
 
   useEffect(() => {
-    const poster = overlayPosterForViewers({
-      posterMode: effects.posterMode,
-      remoteUrl: posterRemote,
-    });
+    const poster = bakedPoster
+      ? { posterUrl: null, posterMode: "off" as const }
+      : overlayPosterForViewers({
+          posterMode: effects.posterMode,
+          remoteUrl: posterRemote,
+        });
     const payload = sanitizeLiveFx({
       posterUrl: poster.posterUrl,
       posterMode: poster.posterMode,
@@ -196,6 +201,7 @@ export function HostLiveFxSync({
     activeLens.tint,
     activeLens.isSnapLens,
     bakedBackground,
+    bakedPoster,
   ]);
 
   return null;

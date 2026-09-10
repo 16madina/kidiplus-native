@@ -58,6 +58,12 @@ final class KidiCameraKitSession: NSObject {
     private var liveKitRoom: Room?
     private var liveKitVideoTrack: LocalVideoTrack?
     private var bufferCapturer: BufferCapturer?
+    /// LiveKit's own renderer for the exact local frame sent to viewers.
+    /// It replaces the UIImage overlay, which could become an opaque black
+    /// surface above Camera Kit even while the published frame was correct.
+    private var publishedPreviewView: VideoView?
+    private var publishedPreviewDelegate: KidiPublishedPreviewDelegate?
+    private var publishedPreviewActive = false
     private var battleRoom: Room?
     private var battleVideoTrack: LocalVideoTrack?
     private var battleBufferCapturer: BufferCapturer?
@@ -441,14 +447,17 @@ final class KidiCameraKitSession: NSObject {
             guard let self else { return }
             self.frameCount += 1
             var outgoing = sample
+            var didCompose = false
             #if canImport(KidiLiveEffects)
             if let composed = KidiPublishedCompose.process(sample) {
                 outgoing = composed
+                didCompose = true
             }
             #endif
             #if canImport(LiveKit) || canImport(LiveKitClient)
             self.bufferCapturer?.capture(outgoing)
             self.battleBufferCapturer?.capture(outgoing)
+            self.setPublishedPreviewActive(didCompose)
             #endif
         }
         cameraKit.add(output: output)
@@ -497,6 +506,7 @@ final class KidiCameraKitSession: NSObject {
             options: BufferCaptureOptions()
         )
         liveKitVideoTrack = videoTrack
+        attachPublishedPreview(to: videoTrack)
         guard let capturer = videoTrack.capturer as? BufferCapturer else {
             throw KidiCameraKitError.message("LiveKit BufferCapturer unavailable")
         }
@@ -622,6 +632,9 @@ final class KidiCameraKitSession: NSObject {
     @MainActor
     private func stopPublishing() async {
         publishEnabled = false
+        publishedPreviewActive = false
+        publishedPreviewView?.alpha = 0
+        publishedPreviewView?.track = nil
         bufferCapturer = nil
         if let publication = liveKitRoom?.localParticipant.trackPublications.values
             .compactMap({ $0 as? LocalTrackPublication })
@@ -678,16 +691,25 @@ extension KidiCameraKitSession {
         if let preview = previewView {
             attachPreview(preview)
         }
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        attachPublishedPreviewViewIfNeeded()
+        #endif
     }
 
     func unregisterPreviewHost(_ host: UIView) {
         guard previewHost === host else { return }
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        publishedPreviewView?.removeFromSuperview()
+        #endif
         previewHost = nil
         previewView?.removeFromSuperview()
     }
 
     func layoutPreview(in bounds: CGRect) {
         previewView?.frame = bounds
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        publishedPreviewView?.frame = bounds
+        #endif
     }
 }
 
@@ -877,7 +899,76 @@ private extension KidiCameraKitSession {
         } else {
             preview.frame = host.bounds
         }
+        #if canImport(LiveKit) || canImport(LiveKitClient)
+        attachPublishedPreviewViewIfNeeded()
+        #endif
     }
+
+    #if canImport(LiveKit) || canImport(LiveKitClient)
+    /// Attach LiveKit's hardware video renderer above Camera Kit. The view is
+    /// transparent until LiveKit confirms that it has rendered a real frame.
+    func attachPublishedPreview(to track: LocalVideoTrack) {
+        let view: VideoView
+        if let existing = publishedPreviewView {
+            view = existing
+        } else {
+            let created = VideoView()
+            created.layoutMode = .fill
+            created.mirrorMode = cameraPosition == .front ? .mirror : .off
+            created.renderMode = .metal
+            created.backgroundColor = .clear
+            created.isOpaque = false
+            created.isUserInteractionEnabled = false
+            created.alpha = 0
+            let delegate = KidiPublishedPreviewDelegate(session: self)
+            created.add(delegate: delegate)
+            publishedPreviewDelegate = delegate
+            publishedPreviewView = created
+            view = created
+        }
+        view.mirrorMode = cameraPosition == .front ? .mirror : .off
+        view.track = track
+        attachPublishedPreviewViewIfNeeded()
+        print("[KidiCameraKit] local published preview attached")
+    }
+
+    func attachPublishedPreviewViewIfNeeded() {
+        guard let host = previewHost ?? Self.keyWindowRootView(),
+              let view = publishedPreviewView
+        else { return }
+        if view.superview !== host {
+            view.removeFromSuperview()
+            view.frame = host.bounds
+            view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            host.addSubview(view)
+        } else {
+            view.frame = host.bounds
+            host.bringSubviewToFront(view)
+        }
+    }
+
+    /// Called from Camera Kit's serial frame output. Dispatch only when the
+    /// effect state changes, so the main thread is never flooded at 30 fps.
+    func setPublishedPreviewActive(_ active: Bool) {
+        guard active != publishedPreviewActive else { return }
+        publishedPreviewActive = active
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let view = self.publishedPreviewView else { return }
+            let visible = active && view.didRenderFirstFrame && view.isRendering
+            view.alpha = visible ? 1 : 0
+            if visible { self.attachPublishedPreviewViewIfNeeded() }
+            print("[KidiCameraKit] local composed preview active=\(active) visible=\(visible)")
+        }
+    }
+
+    func publishedPreviewRenderingChanged(_ view: VideoView, isRendering: Bool) {
+        guard view === publishedPreviewView else { return }
+        let visible = publishedPreviewActive && isRendering && view.didRenderFirstFrame
+        view.alpha = visible ? 1 : 0
+        if visible { attachPublishedPreviewViewIfNeeded() }
+        print("[KidiCameraKit] local preview rendering=\(isRendering) visible=\(visible)")
+    }
+    #endif
 
     static func keyWindowRootView() -> UIView? {
         let windowScenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
@@ -936,6 +1027,10 @@ extension KidiCameraKitSession: LensRepositoryGroupObserver {
             self.storeObserverLenses(lenses, groupID: groupID)
             _ = self.cameraKit?.lenses.prefetcher.prefetch(lenses: lenses, completion: nil)
             print("[KidiCameraKit] group \(groupID) observer lenses=\(lenses.count)")
+            self.emitStatus(
+                "lensesUpdated",
+                extra: ["lenses": self.cachedLenses.map { $0.toDictionary() }]
+            )
 
             guard self.pendingLoadCompletion != nil else { return }
             self.receivedLoadGroups.insert(groupID)
@@ -1045,6 +1140,24 @@ extension KidiCameraKitSession: LensRepositoryGroupObserver {
 }
 
 // MARK: - Helpers
+
+#if canImport(LiveKit) || canImport(LiveKitClient)
+private final class KidiPublishedPreviewDelegate: NSObject, VideoViewDelegate, @unchecked Sendable {
+    private weak var session: KidiCameraKitSession?
+
+    init(session: KidiCameraKitSession) {
+        self.session = session
+        super.init()
+    }
+
+    nonisolated func videoView(_ videoView: VideoView, didUpdate isRendering: Bool) {
+        DispatchQueue.main.async { [weak self, weak videoView] in
+            guard let videoView else { return }
+            self?.session?.publishedPreviewRenderingChanged(videoView, isRendering: isRendering)
+        }
+    }
+}
+#endif
 
 struct BridgeLens {
     let id: String

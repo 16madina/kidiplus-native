@@ -27,10 +27,12 @@ export function BottomTabBar({
   active,
   onChange,
   hidden,
+  immersive,
 }: {
   active: TabKey;
   onChange: (k: TabKey) => void;
   hidden?: boolean;
+  immersive?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -61,13 +63,15 @@ export function BottomTabBar({
         styles.wrap,
         {
           paddingBottom: Math.max(insets.bottom, 8),
-          backgroundColor: dark ? "#0C1122" : "#F8F9FC",
+          backgroundColor: immersive ? "transparent" : dark ? "#0C1122" : "#F8F9FC",
         },
       ]}
     >
       <LinearGradient
         colors={
-          dark
+          immersive
+            ? ["rgba(2,8,24,0)", "rgba(2,8,24,0.62)"]
+            : dark
             ? ["rgba(12,17,34,0.0)", "rgba(12,17,34,1)"]
             : ["rgba(248,249,252,0.0)", "rgba(248,249,252,1)"]
         }

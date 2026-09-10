@@ -1,5 +1,6 @@
 import { type Category, type LiveStream } from "../mock/lives";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 import { assertUserTextAllowed } from "./content-moderation";
 import { retryAsync } from "./live-fx";
@@ -297,6 +298,18 @@ export type OverlayUploadSource = {
   preview?: string;
 };
 
+function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("overlay_blob_read_failed"));
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) resolve(reader.result);
+      else reject(new Error("overlay_blob_read_failed"));
+    };
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
 async function blobForOverlayUpload(uri: string): Promise<OverlayUploadSource> {
   const res = await fetch(uri);
   if (!res.ok && res.status !== 0) throw new Error(`overlay_fetch_failed:${res.status}`);
@@ -314,11 +327,20 @@ export async function uploadLiveOverlayImage(
   already?: OverlayUploadSource,
 ): Promise<string> {
   const picked = already ?? (await blobForOverlayUpload(uri));
-  const path = await uploadLiveCover(userId, {
-    blob: picked.blob,
-    ext: picked.ext,
-    contentType: picked.contentType,
+  const rand = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${userId}/${rand}.${picked.ext}`;
+  // Supabase's React Native transport is reliable with ArrayBuffer; Blob
+  // uploads may resolve locally while sending an empty body on iOS/Android.
+  // React Native's Blob intentionally has no blob.arrayBuffer(), so use its
+  // supported FileReader implementation instead.
+  const body: Blob | ArrayBuffer =
+    Platform.OS === "web" ? picked.blob : await readBlobAsArrayBuffer(picked.blob);
+  const { error } = await supabase.storage.from("live-covers").upload(path, body, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: picked.contentType || undefined,
   });
+  if (error) throw error;
   const url = await resolveStoredImage("live-covers", path);
   if (!url) {
     const { data } = supabase.storage.from("live-covers").getPublicUrl(path);
@@ -570,7 +592,10 @@ export async function createScheduledLiveInDb(input: {
 }
 
 export function isReplayPlayable(row: SellerLiveEntry): boolean {
-  if (row.replay_status !== "ready") return false;
+  const finalized =
+    row.replay_status === "ready" ||
+    (row.replay_status === "processing" && Boolean(row.replay_url));
+  if (!finalized) return false;
   if (!row.replay_expires_at) return true;
   return Date.parse(row.replay_expires_at) > Date.now();
 }

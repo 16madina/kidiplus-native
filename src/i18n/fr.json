@@ -587,9 +587,15 @@
       "close": "Fermer"
     },
     "replay": {
+      "tab": "Replays",
       "watch": "Revoir le live",
       "preparing": "Replay bientôt disponible…",
-      "openFailed": "Impossible d’ouvrir ce replay — réessaie dans un instant."
+      "openFailed": "Impossible d’ouvrir ce replay — réessaie dans un instant.",
+      "saveVideo": "Enregistrer la vidéo",
+      "downloading": "Téléchargement…",
+      "saveFailed": "Impossible de télécharger la vidéo.",
+      "shareLink": "Partager le lien",
+      "shareFailed": "Impossible de partager le lien."
     },
     "rtmp": {
       "toggleTitle": "Multi-plateformes (Restream / OBS)",
@@ -1074,6 +1080,7 @@
       "or": "OU",
       "signIn": "Se connecter",
       "signUp": "Créer un compte",
+      "signUpEmail": "Créer un compte avec un courriel",
       "continueAsGuest": "Continuer en tant qu'invité"
     },
     "signIn": {
@@ -1191,6 +1198,8 @@
     "social": {
       "continueWith": "Continuer avec {{provider}}",
       "signUpWith": "S'inscrire avec {{provider}}",
+      "signInGoogle": "Se connecter avec Google",
+      "signUpGoogle": "S'inscrire avec Google",
       "notConfigured": "Ce mode de connexion sera bientôt disponible.",
       "failed": "Connexion impossible. Réessaie."
     }

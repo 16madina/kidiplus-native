@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { ImageBackground, StyleSheet, Text, View } from "react-native";
+import { ImageBackground, Pressable as NativePressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { AuthLanguageToggle } from "../components/AuthLanguageToggle";
-import { GoldButton, OutlineButton } from "../components/Buttons";
+import { GoldButton } from "../components/Buttons";
 import { Glass, GlassIconButton } from "../components/Glass";
 import { Press } from "../components/Press";
 import { X } from "lucide-react-native";
@@ -12,6 +12,7 @@ import { GOLD_WELCOME, WELCOME_BG } from "../theme";
 import { useAuth } from "../context/auth";
 import { PushScreen } from "../components/PushScreen";
 import { LegalScreen } from "./LegalScreen";
+import { SocialLoginButtons } from "../components/auth/SocialLoginButtons";
 
 const BGS = [
   require("../../assets/welcome/auth-bg-1.jpg"),
@@ -51,7 +52,14 @@ export function WelcomeScreen() {
         colors={["rgba(11,20,54,0)", "rgba(11,20,54,0.6)", WELCOME_BG]}
         style={styles.bottomFade}
       />
-      <View style={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 10 }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 10 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.topRow}>
           <AuthLanguageToggle variant="dark" />
           {authOverlay ? (
@@ -72,46 +80,101 @@ export function WelcomeScreen() {
           <Text style={{ color: GOLD_WELCOME, fontWeight: "700" }}>{t("auth.welcome.taglineAccent")}</Text>
         </Text>
         <View style={{ flex: 1, minHeight: 8 }} />
-        <Press onPress={() => setAcceptTerms((v) => !v)} style={styles.consent} haptic="none">
-          <Glass tone="dark" intensity={28} radius={5} elevated={false}>
-            <View style={[styles.checkbox, acceptTerms && styles.checkboxOn]}>
-              {acceptTerms ? <Text style={styles.checkMark}>✓</Text> : null}
+        <View style={styles.consent}>
+          <NativePressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptTerms }}
+            onPress={() => setAcceptTerms((v) => !v)}
+            style={styles.checkboxTap}
+          >
+            <View pointerEvents="none">
+              <Glass tone="dark" intensity={28} radius={5} elevated={false}>
+                <View style={[styles.checkbox, acceptTerms && styles.checkboxOn]}>
+                  {acceptTerms ? <Text style={styles.checkMark}>✓</Text> : null}
+                </View>
+              </Glass>
             </View>
-          </Glass>
-          <Text style={styles.consentText}>
+          </NativePressable>
+          <Text onPress={() => setAcceptTerms((v) => !v)} style={styles.consentText}>
             {t("consent.checkbox").split("<t>")[0]}
-            <Text style={styles.link} onPress={() => setLegal("terms")}>
+            <Text
+              style={styles.link}
+              onPress={(event) => {
+                event.stopPropagation();
+                setLegal("terms");
+              }}
+            >
               {t("common.and") === "et" ? "Conditions d'utilisation" : "Terms of Use"}
             </Text>
             {" "}
             {t("common.and")}{" "}
-            <Text style={styles.link} onPress={() => setLegal("privacy")}>
+            <Text
+              style={styles.link}
+              onPress={(event) => {
+                event.stopPropagation();
+                setLegal("privacy");
+              }}
+            >
               {t("common.and") === "et" ? "Politique de confidentialité" : "Privacy Policy"}
             </Text>
           </Text>
-        </Press>
-        <Press onPress={() => setConfirmAge((v) => !v)} style={styles.consent} haptic="none">
-          <Glass tone="dark" intensity={28} radius={5} elevated={false}>
-            <View style={[styles.checkbox, confirmAge && styles.checkboxOn]}>
-              {confirmAge ? <Text style={styles.checkMark}>✓</Text> : null}
+        </View>
+        <View style={styles.consent}>
+          <NativePressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmAge }}
+            onPress={() => setConfirmAge((v) => !v)}
+            style={styles.checkboxTap}
+          >
+            <View pointerEvents="none">
+              <Glass tone="dark" intensity={28} radius={5} elevated={false}>
+                <View style={[styles.checkbox, confirmAge && styles.checkboxOn]}>
+                  {confirmAge ? <Text style={styles.checkMark}>✓</Text> : null}
+                </View>
+              </Glass>
             </View>
-          </Glass>
-          <Text style={styles.consentText}>{t("consent.ageCheckbox")}</Text>
-        </Press>
-        <GoldButton
-          label={t("auth.welcome.signUp")}
+          </NativePressable>
+          <Text onPress={() => setConfirmAge((v) => !v)} style={styles.consentText}>
+            {t("consent.ageCheckbox")}
+          </Text>
+        </View>
+        <SocialLoginButtons
           disabled={!acceptTerms || !confirmAge}
-          onPress={() => requireTerms(() => setView("signup"))}
+          layout="row"
+          mode="continue"
+          recordTermsAcceptance
+          recordAgeConfirmation
         />
-        <View style={{ height: 8 }} />
-        <OutlineButton label={t("auth.welcome.signIn")} onPress={() => requireTerms(() => setView("signin"))} />
         <View style={styles.orRow}>
           <View style={styles.orLine} />
           <Text style={styles.or}>{t("auth.welcome.or")}</Text>
           <View style={styles.orLine} />
         </View>
-        <OutlineButton label={t("auth.welcome.continueAsGuest")} onPress={() => requireTerms(enterGuestMode)} />
-      </View>
+        <View style={styles.authActions}>
+          <GoldButton
+            label={t("auth.welcome.signUpEmail")}
+            disabled={!acceptTerms || !confirmAge}
+            onPress={() => requireTerms(() => setView("signup"))}
+          />
+          <View style={styles.signInRow}>
+            <Text style={styles.secondaryText}>{t("auth.signUp.haveAccount")} </Text>
+            <Press
+              haptic="none"
+              onPress={() => requireTerms(() => setView("signin"))}
+              style={styles.textAction}
+            >
+              <Text style={styles.textActionLabel}>{t("auth.welcome.signIn")}</Text>
+            </Press>
+          </View>
+          <Press
+            haptic="none"
+            onPress={() => requireTerms(enterGuestMode)}
+            style={styles.guestAction}
+          >
+            <Text style={styles.guestActionLabel}>{t("auth.welcome.continueAsGuest")}</Text>
+          </Press>
+        </View>
+      </ScrollView>
       {toast ? (
         <View style={[styles.toast, { bottom: insets.bottom + 16 }]}>
           <Glass tone="dark" intensity={48} radius={16} padded>
@@ -128,9 +191,10 @@ export function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: WELCOME_BG },
+  scroll: { flex: 1 },
   topFade: { position: "absolute", left: 0, right: 0, top: 0, height: "32%" },
   bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "22%" },
-  content: { flex: 1, alignItems: "center", paddingHorizontal: 24 },
+  content: { flexGrow: 1, alignItems: "center", paddingHorizontal: 24 },
   topRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   badge: {
     width: 92,
@@ -167,6 +231,15 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 10,
   },
+  checkboxTap: {
+    width: 32,
+    height: 32,
+    marginTop: -8,
+    marginRight: -16,
+    marginBottom: -8,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
   checkbox: {
     width: 16,
     height: 16,
@@ -178,6 +251,13 @@ const styles = StyleSheet.create({
   checkMark: { color: WELCOME_BG, fontSize: 11, fontWeight: "900", lineHeight: 12 },
   consentText: { flex: 1, color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 16 },
   link: { fontWeight: "800", textDecorationLine: "underline" },
+  authActions: { width: "100%", maxWidth: 375, gap: 10 },
+  signInRow: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
+  secondaryText: { color: "rgba(255,255,255,0.78)", fontSize: 13 },
+  textAction: { minHeight: 32, minWidth: 0, paddingHorizontal: 2 },
+  textActionLabel: { color: "#fff", fontSize: 13, fontWeight: "800", textDecorationLine: "underline" },
+  guestAction: { alignSelf: "center", minHeight: 36, paddingHorizontal: 8 },
+  guestActionLabel: { color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "700" },
   orRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10, width: "100%" },
   orLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
   or: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },

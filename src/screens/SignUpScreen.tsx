@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable as NativePressable, StyleSheet, Text, View } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { AuthInput } from "../components/AuthInput";
@@ -101,7 +101,12 @@ export function SignUpScreen() {
     <AuthScreenShell title={t("auth.welcome.signUp")} onBack={() => setView("welcome")}>
       <Text style={{ fontSize: 26, fontWeight: "800", color: colors.foreground }}>{t("auth.signUp.title")}</Text>
       <Text style={{ fontSize: 14, color: colors.mutedForeground, marginBottom: 4 }}>{t("auth.signUp.subtitle")}</Text>
-      <SocialLoginButtons disabled={!acceptTerms || !confirmAge} mode="signup" />
+      <SocialLoginButtons
+        disabled={!acceptTerms || !confirmAge}
+        mode="signup"
+        recordTermsAcceptance
+        recordAgeConfirmation
+      />
       <AuthInput label={t("auth.signUp.firstName")} value={firstName} onChangeText={setFirstName} placeholder={t("auth.signUp.firstNamePlaceholder")} maxLength={40} />
       <AuthInput label={t("auth.signUp.lastName")} value={lastName} onChangeText={setLastName} placeholder={t("auth.signUp.lastNamePlaceholder")} maxLength={40} />
       <AuthInput
@@ -150,29 +155,54 @@ export function SignUpScreen() {
           <Text style={{ color: "#9B1C1C", fontSize: 13, fontWeight: "600" }}>{error}</Text>
         </View>
       ) : null}
-      <Press onPress={() => setAcceptTerms((v) => !v)} style={styles.row} haptic="none">
-        <View style={[styles.box, acceptTerms && { backgroundColor: GOLD }]} />
-        <Text style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}>
+      <View style={styles.row}>
+        <NativePressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptTerms }}
+          onPress={() => setAcceptTerms((v) => !v)}
+          style={styles.checkboxTap}
+        >
+          <View pointerEvents="none" style={[styles.box, acceptTerms && { backgroundColor: GOLD }]} />
+        </NativePressable>
+        <Text onPress={() => setAcceptTerms((v) => !v)} style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}>
           {t("consent.checkboxPrefix", { defaultValue: "J'ai lu et j'accepte les " })}
           <Text
-            onPress={() => setLegal("terms")}
+            onPress={(event) => {
+              event.stopPropagation();
+              setLegal("terms");
+            }}
             style={{ color: GOLD, fontWeight: "800", textDecorationLine: "underline" }}
           >
             {t("legal.terms")}
           </Text>
           {t("consent.checkboxMid", { defaultValue: " et la " })}
           <Text
-            onPress={() => setLegal("privacy")}
+            onPress={(event) => {
+              event.stopPropagation();
+              setLegal("privacy");
+            }}
             style={{ color: GOLD, fontWeight: "800", textDecorationLine: "underline" }}
           >
             {t("legal.privacy")}
           </Text>
         </Text>
-      </Press>
-      <Press onPress={() => setConfirmAge((v) => !v)} style={styles.row} haptic="none">
-        <View style={[styles.box, confirmAge && { backgroundColor: GOLD }]} />
-        <Text style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}>{t("consent.ageCheckbox")}</Text>
-      </Press>
+      </View>
+      <View style={styles.row}>
+        <NativePressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: confirmAge }}
+          onPress={() => setConfirmAge((v) => !v)}
+          style={styles.checkboxTap}
+        >
+          <View pointerEvents="none" style={[styles.box, confirmAge && { backgroundColor: GOLD }]} />
+        </NativePressable>
+        <Text
+          onPress={() => setConfirmAge((v) => !v)}
+          style={{ flex: 1, fontSize: 12.5, color: colors.foreground }}
+        >
+          {t("consent.ageCheckbox")}
+        </Text>
+      </View>
       <RedButton
         label={loading ? t("auth.signUp.submitting") : t("auth.signUp.submit")}
         disabled={loading || !acceptTerms || !confirmAge}
@@ -231,5 +261,14 @@ export function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   eye: { position: "absolute", right: 8, top: 26, width: 40, height: 40 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 8, minHeight: 0 },
+  checkboxTap: {
+    width: 32,
+    height: 32,
+    marginTop: -6,
+    marginRight: -16,
+    marginBottom: -10,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
   box: { width: 16, height: 16, marginTop: 2, borderRadius: 3, borderWidth: 1.5, borderColor: GOLD },
 });

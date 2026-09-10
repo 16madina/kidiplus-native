@@ -1,6 +1,6 @@
 import { bootLiveKit } from "../lib/livekit-boot";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
-import { ActivityIndicator, Alert, AppState, LogBox, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, LogBox, Platform, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
   AudioSession,
@@ -17,7 +17,6 @@ import { Press } from "../components/Press";
 import { BattleSplitStage } from "../components/battle/BattleSplitStage";
 import { HostBattleGuestPane } from "../components/battle/HostBattleGuestPane";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
-import { HostComposedPreview } from "../components/broadcast/HostComposedPreview";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
 import { HostPublishedPipeline } from "../components/broadcast/HostPublishedPipeline";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
@@ -292,7 +291,21 @@ function useHostLiveExtras(liveId: string) {
   }, [liveId]);
 
   useEffect(() => {
-    void startLiveReplay(liveId);
+    let cancelled = false;
+    const start = async () => {
+      for (let attempt = 1; attempt <= 3 && !cancelled; attempt += 1) {
+        const result = await startLiveReplay(liveId);
+        if (result.ok || cancelled) return;
+        console.warn(`[live-replay] start attempt ${attempt} failed`, result.error);
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
+        }
+      }
+    };
+    void start();
+    return () => {
+      cancelled = true;
+    };
   }, [liveId]);
 
   useEffect(() => {
@@ -502,7 +515,10 @@ function HostKitStage({
       Alert.alert(t("live.endFailed"));
       return;
     }
-    await stopLiveReplay(liveId).catch(() => undefined);
+    const replayStop = await stopLiveReplay(liveId);
+    if (!replayStop.ok) {
+      console.warn("[live-replay] stop failed", replayStop.error);
+    }
     notifyHostLiveEnded(liveId);
     await stopFilteredPublish();
     void stopBridgePreview();
@@ -550,7 +566,6 @@ function HostKitStage({
           {/* Keep the native preview mounted. Recreating its AVCapture input
               during a live can stall Camera Kit when the camera is restored. */}
           <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
-          <HostComposedPreview />
           {!camOn ? (
             <View style={[FILL, styles.center]}>
               <Text style={styles.wait}>Caméra coupée</Text>
@@ -614,7 +629,12 @@ function HostKitStage({
           <HostLiveFxSync
             liveId={liveId}
             userId={identity}
-            bakedBackground={liveEffects.backgroundMode !== "none"}
+            bakedBackground={Platform.OS === "ios" && liveEffects.backgroundMode !== "none"}
+            bakedPoster={
+              Platform.OS === "ios" &&
+              !!liveEffects.posterUrl &&
+              liveEffects.posterMode !== "off"
+            }
           />
         </>
       }
@@ -792,7 +812,10 @@ function HostLiveKitStage({
       Alert.alert(t("live.endFailed"));
       return;
     }
-    await stopLiveReplay(liveId).catch(() => undefined);
+    const replayStop = await stopLiveReplay(liveId);
+    if (!replayStop.ok) {
+      console.warn("[live-replay] stop failed", replayStop.error);
+    }
     notifyHostLiveEnded(liveId);
 
     try {

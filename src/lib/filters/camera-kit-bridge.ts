@@ -58,17 +58,45 @@ export function clearBridgeLensesCache() {
   lensesCache = null;
 }
 
+function mapBridgeLenses(rows: Array<{
+  id?: unknown;
+  groupId?: unknown;
+  name?: unknown;
+  iconUrl?: unknown;
+  previewUrl?: unknown;
+}>): BridgeLens[] {
+  return rows
+    .filter((row) => typeof row.id === "string" && row.id.length > 0)
+    .map((row) => ({
+      lensId: String(row.id),
+      groupId: typeof row.groupId === "string" && row.groupId ? row.groupId : SNAP_LENS_GROUP_ID,
+      name: typeof row.name === "string" && row.name ? row.name : "Lens",
+      iconUrl: typeof row.iconUrl === "string" ? row.iconUrl : undefined,
+      previewUrl: typeof row.previewUrl === "string" ? row.previewUrl : undefined,
+    }));
+}
+
+/** Snap sends a lens group in waves. Keep the carousel synced after the
+ * initial `loadLenses()` promise has already resolved. */
+export function subscribeBridgeLensesUpdated(
+  listener: (lenses: BridgeLens[]) => void,
+): () => void {
+  if (!KidiCameraKit?.addListener) return () => {};
+  const sub = KidiCameraKit.addListener("status", (payload) => {
+    if (payload.phase !== "lensesUpdated" || !Array.isArray(payload.lenses)) return;
+    const rows = mapBridgeLenses(payload.lenses as Array<Record<string, unknown>>);
+    if (rows.length === 0) return;
+    lensesCache = rows;
+    listener(rows);
+  });
+  return () => sub.remove();
+}
+
 export async function loadBridgeLenses(force = false): Promise<BridgeLens[]> {
   if (!force && lensesCache) return lensesCache;
   const mod = await ensureInitialized();
   const res = await mod.loadLenses(SNAP_LENS_GROUP_IDS);
-  lensesCache = (res.lenses ?? []).map((l) => ({
-    lensId: l.id,
-    groupId: l.groupId || SNAP_LENS_GROUP_ID,
-    name: l.name || "Lens",
-    iconUrl: l.iconUrl,
-    previewUrl: l.previewUrl,
-  }));
+  lensesCache = mapBridgeLenses(res.lenses ?? []);
   console.log(
     `[filters] Camera Kit ${lensesCache.length} lens(es)`,
     lensesCache.map((l) => l.name),

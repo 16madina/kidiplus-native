@@ -17,7 +17,7 @@ import { cancelScheduledLiveInDb, fetchMyScheduledLives, type ScheduledLiveRow }
 
 const guestHero = require("../../assets/guest/guest-live-hero.jpg");
 const liveLogo = require("../../assets/brand/kidi-live-logo-v3.png");
-const sellerHero = require("../../assets/guest/seller-hero.jpg");
+const sellerHero = require("../../assets/guest/seller-studio-bg.png");
 const startBg = require("../../assets/golive/golive-start-bg.jpg");
 const scheduleBg = require("../../assets/golive/golive-schedule-bg.jpg");
 
@@ -87,26 +87,49 @@ function BecomeSeller({ onActivate }: { onActivate: () => void }) {
   const { t } = useTranslation();
   const { openOverlay } = useNav();
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ paddingBottom: TAB_SAFE_PADDING + insets.bottom }}
-    >
-      <ImageBackground
+    <View style={styles.sellerRoot}>
+      <Image
         source={sellerHero}
-        style={[styles.sellerHero, { paddingTop: insets.top }]}
-        resizeMode="cover"
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        contentPosition="center"
+        blurRadius={2}
+        accessibilityLabel={t("broadcast.seller.heroAlt", {
+          defaultValue: "Vendeuse présentant un produit pendant un live KiDi+",
+        })}
       />
-      <View style={{ alignItems: "center", paddingHorizontal: 24, marginTop: -16 }}>
+      <LinearGradient
+        colors={[
+          "rgba(2,8,24,0.08)",
+          "rgba(2,8,24,0.18)",
+          "rgba(2,8,24,0.66)",
+          "rgba(2,8,24,0.92)",
+        ]}
+        locations={[0, 0.32, 0.62, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <ScrollView
+        style={styles.sellerScroll}
+        contentContainerStyle={[
+          styles.sellerContent,
+          {
+            paddingTop: insets.top + 260,
+            paddingBottom: TAB_SAFE_PADDING + insets.bottom + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sellerTitle}>{t("broadcast.seller.title", { defaultValue: "Vends en direct sur KiDi+" })}</Text>
         <Text style={styles.sellerSub}>
           {t("broadcast.seller.subtitle", { defaultValue: "Crée tes lives, présente tes articles et laisse les acheteurs enchérir en temps réel." })}
         </Text>
         <View style={styles.feats}>
-          <Feat icon={<Radio size={22} color={NAVY} />} label={t("broadcast.seller.f1", { defaultValue: "Lance ton live" })} />
+          <Feat icon={<Radio size={22} color={GOLD_GUEST} />} label={t("broadcast.seller.f1", { defaultValue: "Lance ton live" })} />
           <View style={styles.featDiv} />
-          <Feat icon={<Gavel size={22} color={NAVY} />} label={t("broadcast.seller.f2", { defaultValue: "Reçois des enchères" })} />
+          <Feat icon={<Gavel size={22} color={GOLD_GUEST} />} label={t("broadcast.seller.f2", { defaultValue: "Reçois des enchères" })} />
           <View style={styles.featDiv} />
-          <Feat icon={<TrendingUp size={22} color={NAVY} />} label={t("broadcast.seller.f3", { defaultValue: "Développe tes ventes" })} />
+          <Feat icon={<TrendingUp size={22} color={GOLD_GUEST} />} label={t("broadcast.seller.f3", { defaultValue: "Développe tes ventes" })} />
         </View>
         <Press
           onPress={() => {
@@ -118,11 +141,11 @@ function BecomeSeller({ onActivate }: { onActivate: () => void }) {
           <Text style={styles.goldCtaText}>{t("broadcast.seller.cta", { defaultValue: "Activer mon espace vendeur" })}</Text>
           <ArrowRight size={20} color={NAVY} strokeWidth={2.4} />
         </Press>
-        <Text style={{ marginTop: 12, fontSize: 12, color: `${NAVY}80` }}>
+        <Text style={styles.sellerFree}>
           {t("broadcast.seller.free", { defaultValue: "Activation rapide et gratuite." })}
         </Text>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -132,7 +155,7 @@ function Feat({ icon, label }: { icon: React.ReactNode; label: string }) {
       <Glass tone="gold" intensity={36} radius={16} elevated={false}>
         <View style={styles.featIcon}>{icon}</View>
       </Glass>
-      <Text style={{ fontSize: 12, fontWeight: "700", textAlign: "center", color: NAVY }}>{label}</Text>
+      <Text style={styles.featLabel}>{label}</Text>
     </View>
   );
 }
@@ -294,16 +317,45 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ctaText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  sellerHero: { height: 320, backgroundColor: NAVY, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: "hidden" },
-  sellerTitle: { fontSize: 26, fontWeight: "900", color: NAVY, textAlign: "center" },
-  sellerSub: { marginTop: 12, fontSize: 14, color: `${NAVY}99`, textAlign: "center", maxWidth: 320 },
+  sellerRoot: { flex: 1, backgroundColor: NAVY },
+  sellerScroll: { flex: 1, backgroundColor: "transparent", zIndex: 1 },
+  sellerContent: { flexGrow: 1, alignItems: "center", paddingHorizontal: 24 },
+  sellerTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#fff",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  sellerSub: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.88)",
+    textAlign: "center",
+    maxWidth: 320,
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
+  },
   feats: { flexDirection: "row", width: "100%", maxWidth: 360, marginTop: 24 },
-  featDiv: { width: 1, height: 48, alignSelf: "center", backgroundColor: `${NAVY}22` },
+  featDiv: { width: 1, height: 48, alignSelf: "center", backgroundColor: "rgba(255,255,255,0.24)" },
   featIcon: {
     width: 48,
     height: 48,
     alignItems: "center",
     justifyContent: "center",
+  },
+  featLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   goldCta: {
     marginTop: 28,
@@ -317,6 +369,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   goldCtaText: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "900", color: NAVY },
+  sellerFree: {
+    marginTop: 12,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.74)",
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   goRoot: { flex: 1, backgroundColor: "#061331" },
   goTop: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 6 },
   goldLine: { marginTop: 4, height: 1, width: 96, backgroundColor: GOLD_GO_LIVE },

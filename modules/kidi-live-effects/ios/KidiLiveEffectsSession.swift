@@ -6,18 +6,26 @@ import UIKit
 import Vision
 
 /// Native virtual-background compositor matching kidiplus.com:
-/// Vision person mask → EMA 0.55/0.45 → feather blur → source-over person
-/// on blurred camera or replacement image + optional poster.
+/// Vision person mask → edge cleanup → feather blur → source-over person on
+/// blurred camera or replacement image + optional poster.
 final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
   static let shared = KidiLiveEffectsSession()
 
   private let session = AVCaptureSession()
   private let videoOut = AVCaptureVideoDataOutput()
   private let queue = DispatchQueue(label: "com.kidiplus.liveeffects.capture")
+  /// Vision must never run on Camera Kit's frame callback. Camera Kit may call
+  /// us on its UI-sensitive delivery queue, so a synchronous segmentation pass
+  /// freezes the whole host studio (including every button).
+  private let visionQueue = DispatchQueue(
+    label: "com.kidiplus.liveeffects.vision",
+    qos: .userInitiated
+  )
   private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+  private let maskLock = NSLock()
 
   private var deviceInput: AVCaptureDeviceInput?
-  private var previewHost: UIView?
+  private weak var previewHost: UIView?
   private let preview: UIImageView
   private var running = false
   /// When true, compose incoming Camera Kit frames for LiveKit. Never open
@@ -38,9 +46,6 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var mirror = true
   private var facing: AVCaptureDevice.Position = .front
 
-  private var prevAlpha: [Float]?
-  private var maskW = 0
-  private var maskH = 0
   private var ladderIndex = 0
   private let ladder: [CGFloat] = [720, 540, 400]
   private var lastTs: CFTimeInterval = 0
@@ -53,8 +58,13 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private var cachedMask: CIImage?
   private var cachedMaskExtent = CGRect.null
   private var visionHold = 0
-  /// Video stays ~30 fps; Vision runs about half that (~10–15 fps).
-  private let visionEvery = 2
+  private var visionInFlight = false
+  private var maskGeneration = 0
+  /// Run the next segmentation pass as soon as the previous asynchronous pass
+  /// finishes. Deliberately adding skipped frames here created a visible stale
+  /// silhouette behind a moving presenter.
+  private let visionEvery = 0
+  private let visionInputWidth: CGFloat = 400
   private var previewTick = 0
   var onUnavailable: (() -> Void)?
   var onFirstFrame: (() -> Void)?
@@ -76,7 +86,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     let create = {
       let view = UIImageView()
       view.contentMode = .scaleAspectFill
-      view.backgroundColor = .black
+      // Never hide Camera Kit with an empty black surface. Until the first
+      // composed host frame arrives, the transparent view reveals Snap below.
+      view.backgroundColor = .clear
+      view.isOpaque = false
+      view.isHidden = true
       view.clipsToBounds = true
       return view
     }
@@ -87,22 +101,35 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   }
 
   func registerPreviewHost(_ host: UIView) {
-    DispatchQueue.main.async {
+    let install = { [weak self, weak host] in
+      guard let self, let host else { return }
       self.previewHost = host
       self.preview.removeFromSuperview()
+      self.preview.image = nil
+      self.preview.isHidden = true
       host.addSubview(self.preview)
       self.preview.frame = host.bounds
       self.preview.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
+    if Thread.isMainThread { install() }
+    else { DispatchQueue.main.async(execute: install) }
   }
 
   func unregisterPreviewHost(_ host: UIView) {
-    DispatchQueue.main.async {
-      if self.previewHost === host {
+    // `deinit` calls this method. Capturing `host` in an async closure retains
+    // an object that is already deallocating and caused EXC_BAD_ACCESS. Keep
+    // only its value-type identity before hopping to the main queue.
+    let hostID = ObjectIdentifier(host)
+    let uninstall = { [weak self] in
+      guard let self else { return }
+      if let current = self.previewHost, ObjectIdentifier(current) == hostID {
         self.preview.removeFromSuperview()
+        self.preview.image = nil
         self.previewHost = nil
       }
     }
+    if Thread.isMainThread { uninstall() }
+    else { DispatchQueue.main.async(execute: uninstall) }
   }
 
   func layoutPreview(in bounds: CGRect) {
@@ -193,7 +220,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
 
   func detachPublished(completion: @escaping () -> Void) {
     composeIntoPublish = false
-    DispatchQueue.main.async { completion() }
+    DispatchQueue.main.async {
+      self.preview.image = nil
+      self.preview.isHidden = true
+      completion()
+    }
   }
 
   func setConfig(_ config: [String: Any], completion: @escaping () -> Void) {
@@ -216,7 +247,11 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       if self.session.isRunning {
         self.session.stopRunning()
       }
-      DispatchQueue.main.async { completion() }
+      DispatchQueue.main.async {
+        self.preview.image = nil
+        self.preview.isHidden = true
+        completion()
+      }
     }
   }
 
@@ -284,10 +319,17 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     let w = image.size.width
     let h = image.size.height
     let edge = max(w, h)
-    guard edge > maxEdge, w > 0, h > 0 else { return image }
-    let scale = maxEdge / edge
+    guard w > 0, h > 0 else { return image }
+    let scale = min(1, maxEdge / max(1, edge))
     let size = CGSize(width: w * scale, height: h * scale)
-    let renderer = UIGraphicsImageRenderer(size: size)
+    // Photos from the iPhone library may be 16-bpc / wide-gamut. Normalizing
+    // every picked image to standard 8-bit sRGB prevents repeated CoreGraphics
+    // decode failures while the live compositor is running.
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = false
+    format.preferredRange = .standard
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
     return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
   }
 
@@ -342,20 +384,29 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
     present(composed)
   }
 
-  /// Camera Kit already applied the Snap filter. We only replace the background.
-  /// Poster stays a viewer overlay — never baked into the published track.
+  /// Camera Kit already applied the Snap filter. Compose every enabled effect
+  /// on that same frame so web and native viewers receive identical pixels.
   func composePublished(_ sample: CMSampleBuffer) -> CMSampleBuffer? {
-    guard composeIntoPublish, !disabled, backgroundMode != "none" else { return nil }
-    if backgroundMode == "image", backgroundImage == nil { return nil }
+    // A slow segmentation pass may disable only the virtual background. A
+    // poster is a cheap Core Image overlay and must keep publishing alongside
+    // the Snap lens even when Vision has stepped down or become unavailable.
+    let wantsBackground = backgroundMode != "none" && !disabled
+    let wantsPoster = posterMode != "off" && posterImage != nil
+    guard composeIntoPublish, wantsBackground || wantsPoster else { return nil }
+    if backgroundMode == "image", backgroundImage == nil, !wantsPoster { return nil }
     guard let pb = CMSampleBufferGetImageBuffer(sample) else { return nil }
     let nativeW = CVPixelBufferGetWidth(pb)
     let nativeH = CVPixelBufferGetHeight(pb)
     guard nativeW > 2, nativeH > 2 else { return nil }
     let camera = CIImage(cvPixelBuffer: pb)
-    trackFps()
-    if disabled { return nil }
-    guard let mask = personMask(for: camera) else { return nil }
-    let composed = applyBackground(camera, mask: mask)
+    if wantsBackground { trackFps() }
+    var composed = camera
+    if wantsBackground, !disabled, let mask = personMask(for: camera) {
+      composed = applyBackground(camera, mask: mask)
+    }
+    if wantsPoster, let poster = posterImage {
+      composed = drawPoster(poster, over: composed, extent: camera.extent)
+    }
     guard let outgoing = makeOutgoingSample(
       from: composed,
       width: nativeW,
@@ -369,9 +420,13 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   }
 
   private func resetMaskCache() {
+    maskLock.lock()
     cachedMask = nil
     cachedMaskExtent = .null
     visionHold = 0
+    visionInFlight = false
+    maskGeneration += 1
+    maskLock.unlock()
     previewTick = 0
   }
 
@@ -498,94 +553,147 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       let dim = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0.12)).cropped(to: extent)
       bg = dim.composited(over: blurred)
     }
-    let person = camera.applyingFilter("CIBlendWithMask", parameters: [
-      kCIInputBackgroundImageKey: CIImage.empty().cropped(to: extent),
+    // `mask` is an explicit black/white luminance matte: white always keeps
+    // the presenter and black always selects the replacement background.
+    // Do not use the alpha-mask variant here; a one-component Vision image has
+    // an opaque storage alpha even when its person confidence is nearly zero.
+    return camera.applyingFilter("CIBlendWithMask", parameters: [
+      kCIInputBackgroundImageKey: bg,
       kCIInputMaskImageKey: mask,
-    ])
-    return person.composited(over: bg).cropped(to: extent)
+    ]).cropped(to: extent)
   }
 
-  /// Ladder downscales only the Vision input. Output mask matches the full frame.
-  /// Reuses the last mask for a few frames so Vision stays ~10–15 fps.
+  /// Returns the most recent mask immediately and refreshes it asynchronously.
+  /// No Vision request or per-pixel Swift loop is allowed on the video callback.
   private func personMask(for image: CIImage) -> CIImage? {
     let target = image.extent
-    if let cachedMask, cachedMaskExtent == target, visionHold < visionEvery {
+    maskLock.lock()
+    let previous = cachedMaskExtent == target ? cachedMask : nil
+    if previous != nil, visionHold < visionEvery {
       visionHold += 1
-      return cachedMask
+      maskLock.unlock()
+      return previous
+    }
+    if visionInFlight {
+      maskLock.unlock()
+      return previous
     }
     visionHold = 0
-    let maxW = ladder[min(ladderIndex, ladder.count - 1)]
+    visionInFlight = true
+    let generation = maskGeneration
+    maskLock.unlock()
+
+    // Snapshot only a small GPU-rendered frame. The sample buffer can then be
+    // released by Camera Kit while Vision works independently.
     var work = image
-    let scale = min(1, maxW / max(1, image.extent.width))
+    let scale = min(1, visionInputWidth / max(1, image.extent.width))
     if scale < 0.999 {
       work = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
     }
-    let handler = VNImageRequestHandler(ciImage: work, options: [:])
+    let workSize = work.extent.size
+    let normalized = Self.originZero(work, size: workSize)
+    let workRect = CGRect(origin: .zero, size: workSize)
+    guard let snapshot = ciContext.createCGImage(normalized, from: workRect) else {
+      finishVision(mask: nil, target: target, generation: generation)
+      return previous
+    }
+
+    visionQueue.async { [weak self] in
+      self?.refreshPersonMask(from: snapshot, target: target, generation: generation)
+    }
+    return previous
+  }
+
+  private func refreshPersonMask(
+    from snapshot: CGImage,
+    target: CGRect,
+    generation: Int
+  ) {
+    let handler = VNImageRequestHandler(cgImage: snapshot, options: [:])
     let req = VNGeneratePersonSegmentationRequest()
     req.qualityLevel = .balanced
     req.outputPixelFormat = kCVPixelFormatType_OneComponent8
     do {
       try handler.perform([req])
     } catch {
-      return cachedMask
+      finishVision(mask: nil, target: target, generation: generation)
+      return
     }
-    guard let pb = req.results?.first?.pixelBuffer else { return cachedMask }
+    guard let pb = req.results?.first?.pixelBuffer else {
+      finishVision(mask: nil, target: target, generation: generation)
+      return
+    }
     let w = CVPixelBufferGetWidth(pb)
     let h = CVPixelBufferGetHeight(pb)
+    // Vision produces an 8-bit confidence map, not a finished compositing
+    // matte. Convert it to real black/white pixels while the request still owns
+    // the buffer. This guarantees that the presenter's interior is 100% opaque
+    // instead of being blended into the replacement image.
     CVPixelBufferLockBaseAddress(pb, .readOnly)
-    defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
-    guard let base = CVPixelBufferGetBaseAddress(pb) else { return nil }
-    let bytes = CVPixelBufferGetBytesPerRow(pb)
-    let count = w * h
-    var alpha = [Float](repeating: 0, count: count)
+    guard let base = CVPixelBufferGetBaseAddress(pb) else {
+      CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+      finishVision(mask: nil, target: target, generation: generation)
+      return
+    }
+    let bytesPerRow = CVPixelBufferGetBytesPerRow(pb)
+    var matte = [UInt8](repeating: 0, count: w * h)
     for y in 0..<h {
-      let row = base.advanced(by: y * bytes).assumingMemoryBound(to: UInt8.self)
+      let source = base.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt8.self)
+      let destinationOffset = y * w
       for x in 0..<w {
-        alpha[y * w + x] = Float(row[x]) / 255
+        // Keep uncertain hair/finger pixels, then let the very small feather
+        // below soften only their outer contour. Every retained pixel is white.
+        matte[destinationOffset + x] = source[x] >= 96 ? 255 : 0
       }
     }
-    if prevAlpha == nil || maskW != w || maskH != h {
-      prevAlpha = alpha
-      maskW = w
-      maskH = h
-    } else if var prev = prevAlpha {
-      for i in 0..<count {
-        prev[i] = prev[i] * 0.55 + alpha[i] * 0.45
-      }
-      prevAlpha = prev
-      alpha = prev
+    CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+
+    guard
+      let provider = CGDataProvider(data: Data(matte) as CFData),
+      let stableCG = CGImage(
+        width: w,
+        height: h,
+        bitsPerComponent: 8,
+        bitsPerPixel: 8,
+        bytesPerRow: w,
+        space: CGColorSpaceCreateDeviceGray(),
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+        provider: provider,
+        decode: nil,
+        shouldInterpolate: true,
+        intent: .defaultIntent
+      )
+    else {
+      finishVision(mask: nil, target: target, generation: generation)
+      return
     }
-    var pixels = [UInt8](repeating: 0, count: count * 4)
-    for i in 0..<count {
-      let a = alpha[i]
-      let v: Float = a <= 0.35 ? 0 : a >= 0.65 ? 1 : (a - 0.35) / 0.3
-      let o = i * 4
-      pixels[o] = 255
-      pixels[o + 1] = 255
-      pixels[o + 2] = 255
-      pixels[o + 3] = UInt8(max(0, min(255, v * 255)))
-    }
-    let cs = CGColorSpaceCreateDeviceRGB()
-    guard let ctx = CGContext(
-      data: &pixels,
-      width: w,
-      height: h,
-      bitsPerComponent: 8,
-      bytesPerRow: w * 4,
-      space: cs,
-      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ), let cg = ctx.makeImage() else { return cachedMask }
-    var mask = CIImage(cgImage: cg)
-    let radius = max(1, CGFloat(w) * 0.008)
-    mask = mask.applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
+    var mask = CIImage(cgImage: stableCG)
+      // A half-pixel expansion preserves fine hair without producing a bright
+      // outline outside the person when the mask follows quick movement.
+      .applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: 0.5])
     let scaleX = target.width / CGFloat(w)
     let scaleY = target.height / CGFloat(h)
-    let result = mask.transformed(
+    mask = mask.transformed(
       by: CGAffineTransform(scaleX: scaleX, y: scaleY).translatedBy(x: target.minX, y: target.minY)
     )
-    cachedMask = result
-    cachedMaskExtent = target
-    return result
+    // Feather in output pixels for a stable, natural edge at every resolution.
+    let result = mask
+      // Only this narrow contour may contain intermediate gray values. The
+      // entire detected body remains solid white and therefore fully opaque.
+      .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 1.0])
+      .cropped(to: target)
+    finishVision(mask: result, target: target, generation: generation)
+  }
+
+  private func finishVision(mask: CIImage?, target: CGRect, generation: Int) {
+    maskLock.lock()
+    defer { maskLock.unlock() }
+    guard generation == maskGeneration else { return }
+    if let mask {
+      cachedMask = mask
+      cachedMaskExtent = target
+    }
+    visionInFlight = false
   }
 
   private func blur(_ image: CIImage, radius: CGFloat) -> CIImage {
@@ -663,11 +771,17 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
       return
     }
     previewTick += 1
-    if previewTick % 2 != 1 { return }
+    // The host only needs a responsive visual preview, not a second 30-fps
+    // encode path. Ten UI updates per second avoid flooding the main thread.
+    if previewTick % 3 != 1 { return }
     let w = CVPixelBufferGetWidth(buffer)
     let h = CVPixelBufferGetHeight(buffer)
     guard w > 2, h > 2 else { return }
-    let src = CIImage(cvPixelBuffer: buffer)
+    let published = CIImage(cvPixelBuffer: buffer)
+    // LiveKit must publish the natural (unmirrored) camera image, while the
+    // presenter expects a selfie-style preview. Keep that mirror local to this
+    // UIImageView so viewers and text/logos in the broadcast remain correct.
+    let src = facing == .front ? Self.mirrorImage(published) : published
     let scale = min(1, 360 / CGFloat(max(w, h)))
     let dest = CGRect(
       origin: .zero,
@@ -681,6 +795,7 @@ final class KidiLiveEffectsSession: NSObject, AVCaptureVideoDataOutputSampleBuff
   private func pushPreview(_ ui: UIImage) {
     DispatchQueue.main.async {
       self.preview.image = ui
+      self.preview.isHidden = false
       self.emitFirstFrameIfNeeded()
     }
   }

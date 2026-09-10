@@ -276,6 +276,7 @@ class KidiCameraKitSession(
                         lens.toMap()
                     }
                     Log.i(TAG, "observer lenses=${cachedLenses.size}")
+                    emit("lensesUpdated", mapOf("lenses" to cachedLenses))
                     scheduleSettle()
                 }
             }

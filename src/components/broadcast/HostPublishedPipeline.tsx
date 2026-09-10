@@ -11,29 +11,33 @@ import {
   type NativeEffectsConfig,
 } from "../../lib/filters/live-effects-native-bridge";
 
-function greenScreenConfig(facing: CameraType, fx: ReturnType<typeof useLiveEffects>): NativeEffectsConfig {
+function publishedEffectsConfig(
+  facing: CameraType,
+  fx: ReturnType<typeof useLiveEffects>,
+): NativeEffectsConfig {
   return {
     backgroundUrl: fx.backgroundUrl,
     backgroundMode: fx.backgroundMode,
-    posterUrl: null,
-    posterMode: "off",
-    posterX: 0.5,
-    posterY: 0.4,
-    posterScale: 1,
+    posterUrl: fx.posterUrl,
+    posterMode: fx.posterMode,
+    posterX: fx.posterTransform.x,
+    posterY: fx.posterTransform.y,
+    posterScale: fx.posterTransform.scale,
     mirror: false,
     facing: facing === "back" ? "environment" : "user",
   };
 }
 
 /**
- * Camera → Snap filter → optional green screen → published track.
- * Poster is not baked; viewers draw it via LiveFxOverlay.
+ * Camera → Snap filter → optional green screen / poster → published track.
+ * iOS viewers (including the website) therefore receive the exact composed
+ * pixels instead of depending on a second realtime overlay channel.
  */
 export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
   const effects = useLiveEffects();
   const { activeLens } = useFilter();
   const attachedRef = useRef(false);
-  const lastBgKeyRef = useRef("");
+  const lastEffectsKeyRef = useRef("");
   const lastLensRef = useRef("");
 
   useEffect(() => {
@@ -56,17 +60,18 @@ export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
   }, [activeLens]);
 
   useEffect(() => {
-    const greenOn = publishedGreenScreenOn(effects.backgroundMode);
-    const key = greenOn
-      ? `${effects.backgroundMode}:${effects.backgroundUrl ?? ""}:${facing}`
+    const posterOn = !!effects.posterUrl && effects.posterMode !== "off";
+    const effectsOn = publishedGreenScreenOn(effects.backgroundMode) || posterOn;
+    const key = effectsOn
+      ? `${effects.backgroundMode}:${effects.backgroundUrl ?? ""}:${effects.posterMode}:${effects.posterUrl ?? ""}:${effects.posterTransform.x}:${effects.posterTransform.y}:${effects.posterTransform.scale}:${facing}`
       : `off:${facing}`;
-    if (key === lastBgKeyRef.current) return;
-    lastBgKeyRef.current = key;
+    if (key === lastEffectsKeyRef.current) return;
+    lastEffectsKeyRef.current = key;
 
     let cancelled = false;
     void (async () => {
-      if (greenOn) {
-        const cfg = greenScreenConfig(facing, effects);
+      if (effectsOn) {
+        const cfg = publishedEffectsConfig(facing, effects);
         if (attachedRef.current) {
           await syncNativeLiveEffects(cfg);
         } else {
@@ -84,7 +89,16 @@ export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
     return () => {
       cancelled = true;
     };
-  }, [effects.backgroundMode, effects.backgroundUrl, facing, effects]);
+  }, [
+    effects.backgroundMode,
+    effects.backgroundUrl,
+    effects.posterMode,
+    effects.posterUrl,
+    effects.posterTransform.x,
+    effects.posterTransform.y,
+    effects.posterTransform.scale,
+    facing,
+  ]);
 
   useEffect(() => {
     return () => {

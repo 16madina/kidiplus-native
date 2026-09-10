@@ -3,11 +3,13 @@
     "name": "KiDi+",
     "slug": "kidiplus-native",
     "scheme": "kidiplus",
-    "version": "1.0.0",
+    "version": "6.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "version": "6.0",
+      "buildNumber": "7",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "appleTeamId": "6XW2XM3NDF",
@@ -20,7 +22,10 @@
         "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
         "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives.",
         "NSFaceIDUsageDescription": "KiDi+ utilise Face ID pour déverrouiller l'app.",
-        "UIBackgroundModes": ["audio", "remote-notification"],
+        "UIBackgroundModes": [
+          "audio",
+          "remote-notification"
+        ],
         "SCCameraKitAPIToken": "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzg0MDQzNzkxLCJzdWIiOiIxOWJhOGM5OC1jMDRhLTRlOTgtOGVkYi04YWM4ZDQyODUzMzN-UFJPRFVDVElPTn43OTRjMjZhNC02ZDg0LTQ5NGYtOGE4Ny04MmZkMmVkZDVmYTUifQ.YE50FTWYfbngNKJGigMDb-I_eVvfASwRF9NRsQ4MD_4",
         "SCCameraKitLensGroupID": "df287f43-6646-4b01-a711-1a0e632c211a"
       },
@@ -31,67 +36,89 @@
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhoneNumber",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhysicalAddress",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePurchaseHistory",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhotosorVideos",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeAudioData",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeOtherUserContent",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeCustomerSupport",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeProductInteraction",
@@ -106,7 +133,9 @@
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeCoarseLocation",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           }
         ]
       }
@@ -115,11 +144,13 @@
       "package": "com.kidiplus.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#10162B",
-        "foregroundImage": "./assets/icon.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-adaptive-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["POST_NOTIFICATIONS"]
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -137,9 +168,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#10162B",
-          "image": "./assets/splash.png",
-          "imageWidth": 200
+          "backgroundColor": "#10162B"
         }
       ],
       "expo-image",
@@ -192,6 +221,12 @@
       ],
       "expo-web-browser",
       [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.788559297564-btr1tkucm4av1k2drq3joren1ejhn62r"
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
@@ -201,7 +236,8 @@
         }
       ],
       "expo-apple-authentication",
-      "expo-local-authentication"
+      "expo-local-authentication",
+      "expo-sharing"
     ]
   }
 }

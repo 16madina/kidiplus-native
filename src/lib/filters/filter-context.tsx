@@ -15,6 +15,7 @@ import {
   clearBridgeLensesCache,
   isCameraKitSupported,
   loadBridgeLenses,
+  subscribeBridgeLensesUpdated,
 } from "./camera-kit-bridge";
 import { composeCarouselLenses } from "./lenses-carousel";
 import { NONE_LENS, STYLE_LENSES, type Lens } from "./lenses-catalog";
@@ -43,6 +44,20 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const loadStartedRef = useRef(false);
   const cameraKitReady = isCameraKitSupported();
 
+  const installSnapLenses = useCallback((rows: Awaited<ReturnType<typeof loadBridgeLenses>>) => {
+    setSnapLenses(
+      rows.map((l) => ({
+        lensId: l.lensId,
+        groupId: l.groupId || SNAP_LENS_GROUP_ID,
+        name: l.name || "Lens",
+        icon: "✨",
+        iconUrl: l.iconUrl || l.previewUrl || undefined,
+        category: "snap" as const,
+        isSnapLens: true,
+      })),
+    );
+  }, []);
+
   const runLoad = useCallback((force: boolean) => {
     if (!force && loadStartedRef.current) return;
     if (!isCameraKitSupported()) {
@@ -58,17 +73,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     setLensesError(null);
     loadBridgeLenses(force)
       .then((rows) => {
-        setSnapLenses(
-          rows.map((l) => ({
-            lensId: l.lensId,
-            groupId: l.groupId || SNAP_LENS_GROUP_ID,
-            name: l.name || "Lens",
-            icon: "✨",
-            iconUrl: l.iconUrl || l.previewUrl || undefined,
-            category: "snap" as const,
-            isSnapLens: true,
-          })),
-        );
+        installSnapLenses(rows);
         if (rows.length === 0) {
           setLensesError("Aucune lens Snap dans le groupe — vérifie my-lenses.snapchat.com");
         }
@@ -79,7 +84,12 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         setLensesError("Impossible de charger les filtres AR. Réessaie.");
       })
       .finally(() => setLensesLoading(false));
-  }, []);
+  }, [installSnapLenses]);
+
+  useEffect(
+    () => subscribeBridgeLensesUpdated(installSnapLenses),
+    [installSnapLenses],
+  );
 
   useEffect(() => {
     runLoad(false);

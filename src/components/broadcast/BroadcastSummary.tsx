@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Modal, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { Home, Play, Share2 } from "lucide-react-native";
 import { Logo } from "../Logo";
 import { Press } from "../Press";
@@ -23,6 +22,7 @@ import {
 import { formatMoney } from "../../lib/money";
 import { supabase } from "../../lib/supabase";
 import { GOLD, NAVY } from "../../theme";
+import { ReplayModal } from "./ReplayModal";
 
 export function BroadcastSummary({
   liveId,
@@ -213,7 +213,12 @@ export function BroadcastSummary({
         </View>
       </ScrollView>
       <MockBanner text={toast} />
-      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+      <ReplayModal
+        url={replayUrl}
+        title={heading}
+        onClose={() => setReplayUrl(null)}
+        onMessage={setToast}
+      />
     </View>
   );
 }
@@ -225,30 +230,6 @@ function Tile({ label, value }: { label: string; value: string }) {
       <Text style={styles.tileValue}>{value}</Text>
     </View>
   );
-}
-
-function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  const { t } = useTranslation();
-  if (!url) return null;
-  return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={styles.replayRoot}>
-        <ReplayPlayer uri={url} />
-        <Press onPress={onClose} style={styles.replayClose}>
-          <Text style={styles.replayCloseTxt}>{t("common.close")}</Text>
-        </Press>
-      </View>
-    </Modal>
-  );
-}
-
-function ReplayPlayer({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = false;
-    p.muted = false;
-    p.play();
-  });
-  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
 }
 
 const MUTED = "#F2F3F7";
@@ -354,7 +335,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   homeTxt: { color: NAVY, fontWeight: "700", fontSize: 15 },
-  replayRoot: { flex: 1, backgroundColor: "#000" },
-  replayClose: { position: "absolute", top: 48, left: 16, minHeight: 40 },
-  replayCloseTxt: { color: "#fff", fontWeight: "800" },
 });

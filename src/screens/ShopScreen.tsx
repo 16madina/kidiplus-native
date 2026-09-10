@@ -2,18 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Plus, Radio, ShoppingBag, Star, Tag, Users, Video } from "lucide-react-native";
+import { Archive, Clapperboard, ImagePlus, MessageCircle, Pencil, Play, Plus, Radio, ShoppingBag, Star, Tag, Users, Video } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { AuthInput } from "../components/AuthInput";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
@@ -48,6 +46,7 @@ import { type ShopItem } from "../mock/account";
 import { ProductOptionsFields } from "../components/shop/ProductOptionsFields";
 import type { ProductCondition } from "../lib/live-product-options";
 import { playableReplayUrl } from "../lib/live-replay";
+import { ReplayModal } from "../components/broadcast/ReplayModal";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -109,6 +108,7 @@ export function ShopScreen({
   const [livesCount, setLivesCount] = useState(0);
   const [vitrineCount, setVitrineCount] = useState(0);
   const [replayUrl, setReplayUrl] = useState<string | null>(null);
+  const [replayTitle, setReplayTitle] = useState<string | null>(null);
 
   const reload = async () => {
     const id = own ? user?.id : sellerId;
@@ -312,6 +312,20 @@ export function ShopScreen({
   const bio = seller?.bio || user?.bio;
   const followers = seller?.followers ?? user?.followers ?? 0;
 
+  const openReplay = async (live: SellerLiveEntry) => {
+    const url = await playableReplayUrl(live.id, {
+      replay_status: live.replay_status as "ready" | "processing" | null,
+      replay_url: live.replay_url,
+      replay_expires_at: live.replay_expires_at,
+    });
+    if (!url) {
+      flash(t("broadcast.replay.openFailed"));
+      return;
+    }
+    setReplayTitle(live.title);
+    setReplayUrl(url);
+  };
+
   if (form && own) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -512,6 +526,7 @@ export function ShopScreen({
             [
               ["boutique", t("sellerProfile.shop", { defaultValue: "Boutique" })],
               ["lives", t("sellerProfile.lives", { defaultValue: "Lives" })],
+              ["replays", t("broadcast.replay.tab")],
               ["avis", "Avis"],
               ["vitrine", t("vitrine.title", { defaultValue: "Vitrine" })],
             ] as const
@@ -595,21 +610,43 @@ export function ShopScreen({
             {orderedLives.length === 0 ? (
               <Text style={{ color: "#6B7289", textAlign: "center", marginTop: 16 }}>{t("admin.lives.empty", { defaultValue: "Aucun live." })}</Text>
             ) : (
-              orderedLives.map((l) => (
-                <Glass key={l.id} tone="light" intensity={32} radius={16} elevated={false}>
-                  <View style={styles.liveRow}>
-                    {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
-                      <Text style={{ color: "#6B7289", marginTop: 2, fontSize: 12 }}>
-                        {l.status === "live" ? "EN DIRECT" : l.status === "scheduled" ? "Programmé" : "Terminé"}
-                        {l.viewer_count ? ` · ${l.viewer_count} viewers` : ""}
-                      </Text>
-                    </View>
-                    {l.status === "live" ? <Radio size={16} color="#E5393F" /> : <Clapperboard size={16} color={GOLD} />}
-                  </View>
-                </Glass>
-              ))
+              orderedLives.map((l) => {
+                const canReplay = isReplayPlayable(l);
+                return (
+                  <Press
+                    key={l.id}
+                    disabled={!canReplay}
+                    onPress={() => void openReplay(l)}
+                    style={{ alignItems: "stretch" }}
+                  >
+                    <Glass tone="light" intensity={32} radius={16} elevated={false}>
+                      <View style={styles.liveRow}>
+                        {l.cover_url ? <Image source={{ uri: l.cover_url }} style={styles.liveCover} contentFit="cover" /> : <View style={styles.liveCover} />}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: "800", color: NAVY }}>{l.title}</Text>
+                          <Text style={{ color: canReplay ? GOLD : "#6B7289", marginTop: 2, fontSize: 12, fontWeight: canReplay ? "700" : "400" }}>
+                            {canReplay
+                              ? t("broadcast.replay.watch")
+                              : l.status === "live"
+                                ? "EN DIRECT"
+                                : l.status === "scheduled"
+                                  ? "Programmé"
+                                  : "Terminé"}
+                            {l.viewer_count ? ` · ${l.viewer_count} viewers` : ""}
+                          </Text>
+                        </View>
+                        {l.status === "live" ? (
+                          <Radio size={16} color="#E5393F" />
+                        ) : canReplay ? (
+                          <Play size={16} color={GOLD} fill={GOLD} />
+                        ) : (
+                          <Clapperboard size={16} color={GOLD} />
+                        )}
+                      </View>
+                    </Glass>
+                  </Press>
+                );
+              })
             )}
           </View>
         ) : null}
@@ -646,15 +683,7 @@ export function ShopScreen({
               replays.map((l) => (
                 <Press
                   key={l.id}
-                  onPress={() => {
-                    void playableReplayUrl(l.id, {
-                      replay_status: (l.replay_status as "ready") ?? "ready",
-                      replay_url: l.replay_url,
-                      replay_expires_at: l.replay_expires_at,
-                    }).then((url) => {
-                      if (url) setReplayUrl(url);
-                    });
-                  }}
+                  onPress={() => void openReplay(l)}
                   style={{ alignItems: "stretch" }}
                 >
                   <Glass tone="light" intensity={32} radius={16} elevated={false}>
@@ -697,7 +726,15 @@ export function ShopScreen({
           </View>
         ) : null}
       </ScrollView>
-      <ReplayModal url={replayUrl} onClose={() => setReplayUrl(null)} />
+      <ReplayModal
+        url={replayUrl}
+        title={replayTitle}
+        onClose={() => {
+          setReplayUrl(null);
+          setReplayTitle(null);
+        }}
+        onMessage={flash}
+      />
       <MockBanner text={toast} />
       {sellerId ? (
         <ReportSheet
@@ -736,29 +773,6 @@ function Stat({
       <Text style={styles.statN}>{value}</Text>
     </Press>
   );
-}
-
-function ReplayModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  if (!url) return null;
-  return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <ReplayPlayer uri={url} />
-        <Press onPress={onClose} style={{ position: "absolute", top: 48, left: 16, minHeight: 40 }}>
-          <Text style={{ color: "#fff", fontWeight: "800" }}>Fermer</Text>
-        </Press>
-      </View>
-    </Modal>
-  );
-}
-
-function ReplayPlayer({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = false;
-    p.muted = false;
-    p.play();
-  });
-  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
 }
 
 const styles = StyleSheet.create({

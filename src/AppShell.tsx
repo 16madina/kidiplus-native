@@ -145,7 +145,8 @@ export function AppShell() {
   const systemPip = pip.systemPip;
   const hideTabs =
     tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live");
-  const statusLight = tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live") || dark;
+  const sellerLanding = tab === "live" && Boolean(user && !user.isSeller);
+  const statusLight = tab === "vitrine" || liveFullScreen || isOverlayOpen("broadcast-live") || sellerLanding || dark;
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -177,7 +178,7 @@ export function AppShell() {
         </View>
       </View>
       <View style={[styles.pane, tab === "live" ? styles.shown : styles.hidden]}>
-        <View style={[{ flex: 1 }, tabletColumn]}>
+        <View style={[{ flex: 1 }, sellerLanding ? null : tabletColumn]}>
           <LiveTabScreen />
         </View>
       </View>
@@ -189,7 +190,7 @@ export function AppShell() {
           <ProfileScreen />
         </View>
       </View>
-      <BottomTabBar active={tab} onChange={setTab} hidden={hideTabs} />
+      <BottomTabBar active={tab} onChange={setTab} hidden={hideTabs} immersive={sellerLanding} />
 
       <PushScreen open={activity.open} onClose={closeOverlay} zIndex={70}>
         <ActivityScreen />

@@ -91,7 +91,13 @@ export async function resolvePlayableReplayUrl(liveId: string): Promise<string |
 }
 
 export function isReplayPlayable(meta: LiveReplayMeta | null | undefined): boolean {
-  if (meta?.replay_status !== "ready") return false;
+  // A previous server race could leave a fully finalized MP4 marked as
+  // `processing`. replay_url is only written during successful finalization,
+  // so it is safe to recover those existing rows on the client.
+  const finalized =
+    meta?.replay_status === "ready" ||
+    (meta?.replay_status === "processing" && Boolean(meta.replay_url));
+  if (!finalized) return false;
   if (meta.replay_expires_at && new Date(meta.replay_expires_at).getTime() <= Date.now()) return false;
   return true;
 }

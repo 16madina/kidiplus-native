@@ -4,7 +4,8 @@ import UIKit
 public final class KidiLiveEffectsPreviewView: ExpoView {
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    backgroundColor = .black
+    backgroundColor = .clear
+    isOpaque = false
     clipsToBounds = true
     KidiLiveEffectsSession.shared.registerPreviewHost(self)
   }
