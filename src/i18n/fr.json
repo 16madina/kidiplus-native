@@ -102,7 +102,8 @@
     "optionsHintEditShop": "Ajoute couleurs / tailles dans Ma boutique pour les retrouver ici.",
     "updated": "Article modifié",
     "imageOnly": "Image uniquement",
-    "imageTooBig": "Image trop lourde (max 5 Mo)"
+    "imageTooBig": "Image trop lourde (max 5 Mo)",
+    "noReplays": "Aucun replay pour le moment. Ils restent 7 jours après le live."
   },
   "reviews": {
     "leave": "Laisser un avis",
@@ -121,7 +122,8 @@
     "vitrineEmpty": "Aucune publication dans ta vitrine.",
     "vitrineEmptyPublic": "Aucune publication pour le moment.",
     "vitrineHint": "Appuie sur la poubelle pour retirer une vidéo.",
-    "availableInLives": "Disponible pendant les lives"
+    "availableInLives": "Disponible pendant les lives",
+    "replayHint": "Tes lives restent 7 jours. Appuie pour regarder, télécharger ou partager le lien."
   },
   "moderator": {
     "title": "Modérateurs",
@@ -599,7 +601,9 @@
       "availableSevenDays": "disponible 7 jours",
       "expiresInDays_one": "expire dans {{count}} jour",
       "expiresInDays_other": "expire dans {{count}} jours",
-      "failed": "Replay indisponible"
+      "failed": "Replay indisponible",
+      "expired": "Replay expiré (7 jours)",
+      "scheduled": "Programmé"
     },
     "rtmp": {
       "toggleTitle": "Multi-plateformes (Restream / OBS)",

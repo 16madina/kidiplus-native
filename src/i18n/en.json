@@ -102,7 +102,8 @@
     "optionsHintEditShop": "Add colors / sizes in My shop to reuse them here.",
     "updated": "Item updated",
     "imageOnly": "Image only",
-    "imageTooBig": "Image too large (max 5 MB)"
+    "imageTooBig": "Image too large (max 5 MB)",
+    "noReplays": "No replays yet. They stay available for 7 days after the live."
   },
   "reviews": {
     "leave": "Leave a review",
@@ -121,7 +122,8 @@
     "vitrineEmpty": "No posts in your showcase yet.",
     "vitrineEmptyPublic": "No posts yet.",
     "vitrineHint": "Tap the trash icon to remove a video.",
-    "availableInLives": "Available during lives"
+    "availableInLives": "Available during lives",
+    "replayHint": "Your lives stay for 7 days. Tap to watch, download, or share the link."
   },
   "moderator": {
     "title": "Moderators",
@@ -599,7 +601,9 @@
       "availableSevenDays": "available for 7 days",
       "expiresInDays_one": "expires in {{count}} day",
       "expiresInDays_other": "expires in {{count}} days",
-      "failed": "Replay unavailable"
+      "failed": "Replay unavailable",
+      "expired": "Replay expired (7 days)",
+      "scheduled": "Scheduled"
     },
     "rtmp": {
       "toggleTitle": "Multi-platform (Restream / OBS)",

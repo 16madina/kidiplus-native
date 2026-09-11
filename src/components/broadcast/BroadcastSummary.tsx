@@ -53,7 +53,11 @@ export function BroadcastSummary({
   const salesCount = orders.length;
   const replayReady = isReplayPlayable(replayMeta);
   const replayPending =
-    replayMeta?.replay_status === "recording" || replayMeta?.replay_status === "processing";
+    !replayReady &&
+    (replayMeta == null ||
+      replayMeta.replay_status === "recording" ||
+      replayMeta.replay_status === "processing" ||
+      replayMeta.replay_status == null);
   const showReplay = replayReady || replayPending;
 
   useEffect(() => {
@@ -97,10 +101,11 @@ export function BroadcastSummary({
   }, [liveId]);
 
   const openReplay = async () => {
-    if (!replayReady) return;
-    const url = await playableReplayUrl(liveId, replayMeta);
+    const fresh = (await fetchLiveReplayMeta(liveId)) ?? replayMeta;
+    if (fresh) setReplayMeta(fresh);
+    const url = await playableReplayUrl(liveId, fresh);
     if (!url) {
-      setToast(t("broadcast.replay.openFailed"));
+      setToast(replayPending ? t("broadcast.replay.preparing") : t("broadcast.replay.openFailed"));
       return;
     }
     setReplayUrl(url);
@@ -186,7 +191,7 @@ export function BroadcastSummary({
 
         <View style={styles.actions}>
           {showReplay ? (
-            <Press disabled={!replayReady} onPress={() => void openReplay()} style={styles.replayBtn}>
+            <Press onPress={() => void openReplay()} style={styles.replayBtn}>
               <LinearGradient
                 colors={["#B4232C", "#8E1B22"]}
                 start={{ x: 0, y: 0 }}

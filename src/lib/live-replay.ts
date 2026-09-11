@@ -112,9 +112,9 @@ function looksPrivateReplayUrl(url: string): boolean {
 }
 
 export async function playableReplayUrl(liveId: string, meta: LiveReplayMeta | null): Promise<string | null> {
-  let url = meta?.replay_url ?? null;
-  if (!url || looksPrivateReplayUrl(url)) {
-    url = await resolvePlayableReplayUrl(liveId);
-  }
-  return url;
+  const signed = await resolvePlayableReplayUrl(liveId);
+  if (signed) return signed;
+  const url = meta?.replay_url ?? null;
+  if (url && !looksPrivateReplayUrl(url)) return url;
+  return null;
 }
