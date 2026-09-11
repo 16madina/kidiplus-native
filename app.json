@@ -209,6 +209,7 @@
         }
       ],
       "./plugins/withLiveKitIos.js",
+      "./plugins/withSilenceIosPodWarnings.js",
       "./plugins/withStatusBarPlist.js",
       "./plugins/withCameraKit.js",
       "./plugins/withPictureInPicture.js",
@@ -238,6 +239,13 @@
       "expo-apple-authentication",
       "expo-local-authentication",
       "expo-sharing"
-    ]
+    ],
+    "autolinking": {
+      "ios": {
+        "flags": {
+          "inhibit_warnings": true
+        }
+      }
+    }
   }
 }

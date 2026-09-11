@@ -71,5 +71,14 @@
     "@types/react": "~19.2.2",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "flags": {
+          "inhibit_warnings": true
+        }
+      }
+    }
   }
 }
