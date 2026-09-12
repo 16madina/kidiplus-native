@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useVideoPlayer, VideoView } from "expo-video";
+import * as Clipboard from "expo-clipboard";
 import { Download, Link2, X } from "lucide-react-native";
 import { saveLiveReplayToDevice } from "../../lib/live-replay-download";
 import { GOLD, NAVY } from "../../theme";
@@ -61,6 +62,12 @@ export function ReplayModal({
     }
   };
 
+  const copyLink = async () => {
+    const publicUrl = shareUrl || url;
+    await Clipboard.setStringAsync(publicUrl);
+    onMessage?.(t("broadcast.replay.linkCopied"));
+  };
+
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
@@ -91,6 +98,10 @@ export function ReplayModal({
           <Press onPress={() => void shareLink()} style={styles.secondary}>
             <Link2 size={18} color="#fff" />
             <Text style={styles.secondaryText}>{t("broadcast.replay.shareLink")}</Text>
+          </Press>
+          <Press onPress={() => void copyLink()} style={styles.secondary}>
+            <Link2 size={18} color="#fff" />
+            <Text style={styles.secondaryText}>{t("broadcast.replay.copyLink")}</Text>
           </Press>
         </View>
       </View>

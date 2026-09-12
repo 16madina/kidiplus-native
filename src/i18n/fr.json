@@ -597,6 +597,8 @@
       "downloading": "Téléchargement…",
       "saveFailed": "Impossible de télécharger la vidéo.",
       "shareLink": "Partager le lien",
+      "copyLink": "Copier le lien",
+      "linkCopied": "Lien du replay copié.",
       "shareFailed": "Impossible de partager le lien.",
       "availableSevenDays": "disponible 7 jours",
       "expiresInDays_one": "expire dans {{count}} jour",

@@ -14,6 +14,7 @@ import { Archive, Clapperboard, Download, ImagePlus, Link2, MessageCircle, Penci
 import { useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
+import * as Clipboard from "expo-clipboard";
 import { AuthInput } from "../components/AuthInput";
 import { GoldButton } from "../components/Buttons";
 import { Glass } from "../components/Glass";
@@ -427,6 +428,11 @@ export function ShopScreen({
     }
   };
 
+  const copyReplayLink = async (live: SellerLiveEntry) => {
+    await Clipboard.setStringAsync(`https://kidiplus.com/live/${live.id}`);
+    flash(t("broadcast.replay.linkCopied"));
+  };
+
   if (form && own) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -796,6 +802,10 @@ export function ShopScreen({
                           <Press onPress={() => void shareReplay(l)} style={styles.replayAction}>
                             <Link2 size={15} color={NAVY} />
                             <Text style={styles.replayActionText}>{t("broadcast.replay.shareLink")}</Text>
+                          </Press>
+                          <Press onPress={() => void copyReplayLink(l)} style={styles.replayAction}>
+                            <Link2 size={15} color={NAVY} />
+                            <Text style={styles.replayActionText}>{t("broadcast.replay.copyLink")}</Text>
                           </Press>
                         </View>
                       ) : null}
