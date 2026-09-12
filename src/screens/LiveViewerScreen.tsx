@@ -268,8 +268,9 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
     if (!s.sellerId || s.fictitious) return;
     if (!blockedIds.has(s.sellerId)) return;
     setToast(t("block.autoClosedLive"));
-    const id = setTimeout(() => closeLive(), 900);
-    return () => clearTimeout(id);
+    // Close immediately so a blocked host cannot remain watchable or be
+    // reopened from a stale live-list entry during a dismissal delay.
+    closeLive();
   }, [blockedIds, s.sellerId, s.fictitious, closeLive, t]);
 
   const openMore = () => {
