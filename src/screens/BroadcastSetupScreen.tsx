@@ -373,7 +373,7 @@ function GoLiveSetup() {
           <View style={styles.drag} />
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 8, gap: 12 }}
+            contentContainerStyle={{ paddingBottom: 56, gap: 12 }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.identity}>
