@@ -31,6 +31,7 @@ import {
   sortLivesNewestFirst,
   type HomeFilter,
 } from "../mock/home-categories";
+import { prioritizeDeliverable } from "../lib/delivery-feed";
 import { mergeUpcomingWithDemos } from "../mock/upcoming-demos";
 import { GOLD, NAVY } from "../theme";
 
@@ -92,7 +93,7 @@ export function HomeScreen() {
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
     if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
     if (liveOnly) list = list.filter((s) => !s.scheduled);
-    return list;
+    return prioritizeDeliverable(list);
   }, [active, filter, liveOnly, blockedIds]);
 
   const liveBySeller = useMemo(() => {

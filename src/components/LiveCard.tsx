@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { CalendarClock, Clock, Eye, BadgeCheck } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
 import { Press } from "./Press";
 import { Glass } from "./Glass";
 import { formatMin, formatViewers, initials, LIVE_RED, NAVY } from "../theme";
@@ -14,6 +15,7 @@ export function LiveCard({
   stream: LiveStream;
   onPress?: (s: LiveStream) => void;
 }) {
+  const { t } = useTranslation();
   const sellerInitials = initials(stream.seller);
   return (
     <Press onPress={() => onPress?.(stream)} style={styles.press} haptic="light">
@@ -93,6 +95,11 @@ export function LiveCard({
               <Text numberOfLines={2} style={styles.title}>
                 {stream.title}
               </Text>
+              {stream.deliversToMe === false ? (
+                <Text numberOfLines={1} style={styles.noShip}>
+                  {t("delivery.feedBadge", "Ne livre pas dans ton pays")}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>
@@ -170,4 +177,5 @@ const styles = StyleSheet.create({
   initials: { color: "#fff", fontSize: 10, fontWeight: "800" },
   seller: { color: "#fff", fontSize: 13, fontWeight: "700" },
   title: { color: "rgba(255,255,255,0.88)", fontSize: 12, marginTop: 1 },
+  noShip: { color: "#FBBF24", fontSize: 10, fontWeight: "800", marginTop: 3 },
 });
