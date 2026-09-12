@@ -151,6 +151,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const [reportOpen, setReportOpen] = useState(false);
   const [reportMsg, setReportMsg] = useState<{ id: string; text: string } | null>(null);
   const blockedIds = useBlockedIds();
+  const hostBlocked = !!s.sellerId && blockedIds.has(s.sellerId);
   const follow = useFollow(s.sellerId && !s.fictitious ? s.sellerId : null);
 
   const requireAccount = () => {
@@ -397,6 +398,11 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onBid = async (amount?: number) => {
+    if (hostBlocked) {
+      setToast(t("block.autoClosedLive"));
+      closeLive();
+      return;
+    }
     const bidAmount = amount ?? nextBid;
     // Demo lives: bid without account/wallet gates so the full auction
     // flow (bid -> sudden death -> winner) is reviewable by Apple.
@@ -524,6 +530,11 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onSendChat = async () => {
+    if (hostBlocked) {
+      setToast(t("block.autoClosedLive"));
+      closeLive();
+      return;
+    }
     const text = draft.trim();
     if (!text) return;
     if (!user) {
@@ -540,6 +551,11 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   };
 
   const onGift = async (key: GiftKey) => {
+    if (hostBlocked) {
+      setToast(t("block.autoClosedLive"));
+      closeLive();
+      return;
+    }
     if (s.fictitious) {
       const res = await room.sendGift(key);
       if (res.ok) {
