@@ -45,24 +45,32 @@ export async function unblockUser(blockedId: string): Promise<{ ok: boolean; err
   const { data, error } = await supabase.rpc("unblock_user", { _blocked_id: blockedId } as never);
   if (error) return { ok: false, error: error.message };
   const r = data as { ok?: boolean; error?: string } | null;
-  if (r?.ok !== false) notifyBlockedListeners();
+  if (r?.ok !== false) {
+    await removeLocalBlock(blockedId);
+    notifyBlockedListeners();
+  }
   return { ok: r?.ok !== false, ...(r?.error ? { error: r.error } : {}) };
+}
+
+function rowsFromBlocksRpc(data: unknown): BlockedRow[] {
+  if (Array.isArray(data)) return data as BlockedRow[];
+  if (data && typeof data === "object" && Array.isArray((data as { rows?: unknown }).rows)) {
+    return (data as { rows: BlockedRow[] }).rows;
+  }
+  return [];
 }
 
 export async function listMyBlockedIds(): Promise<Set<string>> {
   const local = await readLocalBlocks();
   const { data, error } = await supabase.rpc("list_my_blocks" as never);
-  const remote =
-    !error && data
-      ? ((data as { rows?: Array<{ blocked_id: string }> }).rows ?? []).map((r) => r.blocked_id)
-      : [];
+  const remote = !error ? rowsFromBlocksRpc(data).map((r) => r.blocked_id) : [];
   return new Set([...local.map((r) => r.blocked_id), ...remote].filter(Boolean));
 }
 
 export async function listMyBlocks(): Promise<BlockedRow[]> {
   const local = await readLocalBlocks();
   const { data, error } = await supabase.rpc("list_my_blocks" as never);
-  const remote = (!error && data ? (data as { rows?: BlockedRow[] }).rows : []) ?? [];
+  const remote = !error ? rowsFromBlocksRpc(data) : [];
   const seen = new Set<string>();
   const merged: BlockedRow[] = [];
   for (const row of [...local, ...remote]) {
@@ -131,6 +139,15 @@ export async function blockUserAndNotify(
 
   const r = await blockUser(blockedId);
   if (!r.ok) return r;
+  // Keep an immediate local mirror. It closes the live and filters every feed
+  // even if the RPC read is delayed, offline, or returns an array directly.
+  await addLocalBlock({
+    blocked_id: blockedId,
+    handle: meta?.handle || label,
+    display_name: meta?.displayName || label,
+    avatar_url: meta?.avatarUrl ?? null,
+    created_at: new Date().toISOString(),
+  });
   await submitReport({
     targetType: "user",
     targetId: blockedId,
