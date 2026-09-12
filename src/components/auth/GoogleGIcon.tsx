@@ -1,7 +1,11 @@
+import { Platform, Text } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 /** Official four-colour Google G proportions, rendered locally at native resolution. */
 export function GoogleGIcon({ size = 20 }: { size?: number }) {
+  if (Platform.OS === "web") {
+    return <Text style={{ fontSize: size, lineHeight: size, fontWeight: "800", color: "#4285F4" }}>G</Text>;
+  }
   return (
     <Svg accessible={false} width={size} height={size} viewBox="0 0 24 24">
       <Path
