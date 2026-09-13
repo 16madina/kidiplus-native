@@ -5,13 +5,22 @@ import { useAppTheme } from "../context/theme";
 const logoLight = require("../../assets/brand/logo.png");
 const logoDark = require("../../assets/brand/logo-dark.png");
 
-export function Logo({ size = 44, onDark }: { size?: number; onDark?: boolean }) {
+export function Logo({
+  size = 44,
+  onDark,
+  resizeMode = "contain",
+}: {
+  size?: number;
+  onDark?: boolean;
+  resizeMode?: "contain" | "cover";
+}) {
   const { dark } = useAppTheme();
   const darkAsset = onDark ?? dark;
   return (
     <Image
       source={darkAsset ? logoDark : logoLight}
-      style={{ height: size, width: size * 2.4, resizeMode: "contain" }}
+      style={{ height: size, width: size * 2.4 }}
+      resizeMode={resizeMode}
       accessibilityLabel="KiDi+"
     />
   );

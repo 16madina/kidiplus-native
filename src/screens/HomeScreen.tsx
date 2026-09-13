@@ -161,7 +161,7 @@ export function HomeScreen() {
           elevated={false}
           style={styles.headerFrost}
         />
-        <Logo size={44} />
+        <Logo size={48} resizeMode="cover" />
         <View style={styles.headerRight}>
           <GlassIconButton tone={dark ? "dark" : "light"} onPress={() => openOverlay({ kind: "activity" })}>
             <Bell size={20} color={colors.foreground} strokeWidth={1.9} />
