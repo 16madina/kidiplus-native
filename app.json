@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "KiDi+",
+    "name": "KiDi Plus",
     "slug": "kidiplus-native",
     "scheme": "kidiplus",
     "version": "8.1.0",
@@ -17,7 +17,8 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "bitcode": false,
       "infoPlist": {
-        "CFBundleDisplayName": "KiDi+",
+        "CFBundleName": "KiDi Plus",
+        "CFBundleDisplayName": "KiDi Plus",
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "KiDi+ utilise la caméra pour tes lives.",
         "NSMicrophoneUsageDescription": "KiDi+ utilise le micro pour tes lives.",
