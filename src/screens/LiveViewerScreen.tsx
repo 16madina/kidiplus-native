@@ -266,13 +266,13 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
 
   // Auto-leave if the host is already blocked (Apple 1.2 / web parity).
   useEffect(() => {
-    if (!s.sellerId || s.fictitious) return;
+    if (!s.sellerId) return;
     if (!blockedIds.has(s.sellerId)) return;
     setToast(t("block.autoClosedLive"));
     // Close immediately so a blocked host cannot remain watchable or be
     // reopened from a stale live-list entry during a dismissal delay.
     closeLive();
-  }, [blockedIds, s.sellerId, s.fictitious, closeLive, t]);
+  }, [blockedIds, s.sellerId, closeLive, t]);
 
   const openMore = () => {
     if (!requireAccount()) return;

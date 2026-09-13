@@ -93,7 +93,10 @@ export function VitrineScreen() {
   );
   // Réels + démos, triés du plus proche au plus lointain (comme la Home).
   const soon = useMemo(
-    () => mergeUpcomingWithDemos(upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId))),
+    () =>
+      mergeUpcomingWithDemos(upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId))).filter(
+        (s) => !s.sellerId || !blockedIds.has(s.sellerId),
+      ),
     [upcoming, blockedIds],
   );
   const visiblePosts = useMemo(
@@ -120,9 +123,11 @@ export function VitrineScreen() {
     return map;
   }, [lives]);
   const liveCards = useMemo(() => {
-    const samples = sampleLivesForCategory("Pour toi", lives.length);
+    const samples = sampleLivesForCategory("Pour toi", lives.length).filter(
+      (s) => !s.sellerId || !blockedIds.has(s.sellerId),
+    );
     return [...lives, ...samples];
-  }, [lives]);
+  }, [lives, blockedIds]);
   const tabVisible = tab === "vitrine";
 
   const loadAffiches = useCallback(async () => {

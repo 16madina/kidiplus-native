@@ -17,6 +17,7 @@ import { useLivesFeed } from "../hooks/useLivesFeed";
 import { followUser, unfollowUser } from "../lib/follows";
 import { searchSellers, type SellerSearchHit } from "../lib/search";
 import { searchActiveShopProducts, type ShopSearchHit } from "../lib/shop";
+import { useBlockedIds } from "../lib/moderation";
 import {
   browseTileSearchQuery,
   exploreCategoryLabel,
@@ -33,6 +34,7 @@ export function SearchScreen() {
   const { openList, openOverlay } = useNav();
   const { user, guestMode, openAuth } = useAuth();
   const { active, upcoming, loading: livesLoading } = useLivesFeed();
+  const blockedIds = useBlockedIds();
   const [raw, setRaw] = useState("");
   const [focused, setFocused] = useState(false);
   const [tab, setTab] = useState(0);
@@ -67,8 +69,10 @@ export function SearchScreen() {
   const liveResults = useMemo(() => {
     if (!query) return [];
     const match = (s: (typeof active)[number]) => liveMatchesExploreQuery(s, query);
-    return [...active.filter(match), ...upcoming.filter(match)];
-  }, [active, upcoming, query]);
+    return [...active.filter(match), ...upcoming.filter(match)].filter(
+      (s) => !s.sellerId || !blockedIds.has(s.sellerId),
+    );
+  }, [active, upcoming, query, blockedIds]);
 
   const liveSellerIds = useMemo(
     () => new Set(active.filter((s) => !s.scheduled && s.sellerId).map((s) => s.sellerId as string)),
@@ -112,8 +116,10 @@ export function SearchScreen() {
     void Promise.all([searchSellers(query), searchActiveShopProducts(query)]).then(
       ([sellers, rows]) => {
         if (cancelled) return;
-        setSellerHits(sellers.map((r) => ({ ...r, live: liveSellerIds.has(r.id) })));
-        setProducts(rows);
+        setSellerHits(
+          sellers.filter((r) => !blockedIds.has(r.id)).map((r) => ({ ...r, live: liveSellerIds.has(r.id) })),
+        );
+        setProducts(rows.filter((r) => !blockedIds.has(r.sellerId)));
         setProductsLoading(false);
         setSellersLoading(false);
       },
@@ -121,7 +127,7 @@ export function SearchScreen() {
     return () => {
       cancelled = true;
     };
-  }, [query, searching, liveSellerIds]);
+  }, [query, searching, liveSellerIds, blockedIds]);
 
   useEffect(() => {
     if (!searching || sellersLoading || productsLoading) return;

@@ -80,14 +80,16 @@ export function HomeScreen() {
     () =>
       mergeUpcomingWithDemos(
         upcoming.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
-      ),
+      ).filter((s) => !s.sellerId || !blockedIds.has(s.sellerId)),
     [upcoming, blockedIds],
   );
 
   const filtered = useMemo(() => {
     const unblocked = active.filter((s) => !s.sellerId || !blockedIds.has(s.sellerId));
     const scopedReal = applyHomeCategory(unblocked, "Pour toi");
-    const samples = sampleLivesForCategory("Pour toi", scopedReal.length);
+    const samples = sampleLivesForCategory("Pour toi", scopedReal.length).filter(
+      (s) => !s.sellerId || !blockedIds.has(s.sellerId),
+    );
     let list = sortLivesNewestFirst([...scopedReal, ...samples]);
     if (filter === "Populaires") list = [...list].sort((a, b) => b.viewers - a.viewers);
     if (filter === "Nouveautés") list = sortLivesNewestFirst(list);
