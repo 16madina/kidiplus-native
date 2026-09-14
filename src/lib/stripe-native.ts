@@ -4,12 +4,13 @@
 import { NativeModules, TurboModuleRegistry } from "react-native";
 
 type StripeModule = {
-  initStripe: (opts: { publishableKey: string }) => Promise<void>;
+  initStripe: (opts: { publishableKey: string; merchantIdentifier?: string }) => Promise<void>;
   initPaymentSheet: (opts: {
     paymentIntentClientSecret: string;
     merchantDisplayName: string;
     returnURL?: string;
     style?: "automatic" | "alwaysLight" | "alwaysDark";
+    applePay?: { merchantCountryCode: string };
   }) => Promise<{ error?: { message: string } }>;
   presentPaymentSheet: () => Promise<{ error?: { code?: string; message: string } }>;
 };
@@ -60,6 +61,8 @@ export async function presentStripePayment(args: {
   clientSecret: string;
   publishableKey: string;
   merchantName?: string;
+  /** Apple Pay is offered only for checkout of physical marketplace goods. */
+  enableApplePay?: boolean;
 }): Promise<StripeSheetResult> {
   const stripe = loadStripe();
   if (!stripe) {
@@ -70,12 +73,18 @@ export async function presentStripePayment(args: {
     return { ok: false, cancelled: false, error: "Invalid API key provided" };
   }
   try {
-    await stripe.initStripe({ publishableKey: pk });
+    await stripe.initStripe({
+      publishableKey: pk,
+      merchantIdentifier: "merchant.com.kidiplus.app",
+    });
     const init = await stripe.initPaymentSheet({
       paymentIntentClientSecret: args.clientSecret,
       merchantDisplayName: args.merchantName ?? "KiDi+",
       returnURL: "kidiplus://stripe-return",
       style: "automatic",
+      ...(args.enableApplePay
+        ? { applePay: { merchantCountryCode: "CA" } }
+        : {}),
     });
     if (init.error) return { ok: false, cancelled: false, error: init.error.message };
     const res = await stripe.presentPaymentSheet();

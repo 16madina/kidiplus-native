@@ -117,6 +117,7 @@ export function PaymentSheet({ order, onClose, onPaid }: Props) {
     const sheet = await presentStripePayment({
       clientSecret: intent.data.clientSecret,
       publishableKey: intent.data.publishableKey,
+      enableApplePay: true,
     });
     if (!sheet.ok) {
       setBusy(null);
