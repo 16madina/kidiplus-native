@@ -239,6 +239,12 @@
       "expo-apple-authentication",
       "expo-local-authentication",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cf321acb-cbd7-4be0-93ad-9ee18194911e"
+      }
+    },
+    "owner": "missdee"
   }
 }
