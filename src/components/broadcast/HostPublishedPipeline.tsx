@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import type { CameraType } from "expo-camera";
 import { applyBridgeLens, clearBridgeLens } from "../../lib/filters/camera-kit-bridge";
 import { useFilter } from "../../lib/filters/filter-context";
@@ -23,7 +24,7 @@ function publishedEffectsConfig(
     posterX: fx.posterTransform.x,
     posterY: fx.posterTransform.y,
     posterScale: fx.posterTransform.scale,
-    mirror: false,
+    mirror: facing !== "back",
     facing: facing === "back" ? "environment" : "user",
   };
 }
@@ -60,6 +61,11 @@ export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
   }, [activeLens]);
 
   useEffect(() => {
+    // The Android host currently publishes its LiveKit CameraX track directly.
+    // Starting the preview compositor here opens a second physical camera while
+    // that track is active; choosing a background therefore tears down the
+    // active camera and can leave the host with a black frame. iOS composes
+    // inside its Camera Kit publish callback, so it remains safe there.
     const posterOn = !!effects.posterUrl && effects.posterMode !== "off";
     const effectsOn = publishedGreenScreenOn(effects.backgroundMode) || posterOn;
     const key = effectsOn
@@ -70,6 +76,12 @@ export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
 
     let cancelled = false;
     void (async () => {
+      if (Platform.OS === "android") {
+        // Android already owns one effects camera/publisher for the whole
+        // live. Only update its configuration; never attach another session.
+        await syncNativeLiveEffects(publishedEffectsConfig(facing, effects));
+        return;
+      }
       if (effectsOn) {
         const cfg = publishedEffectsConfig(facing, effects);
         if (attachedRef.current) {
@@ -103,7 +115,13 @@ export function HostPublishedPipeline({ facing }: { facing: CameraType }) {
   useEffect(() => {
     return () => {
       attachedRef.current = false;
-      void detachPublishedLiveEffects();
+      // `detachPublished` is an iOS-only operation. On Android the bridge
+      // intentionally falls back to `stopNativeLiveEffects()` when that native
+      // method is absent. Running this cleanup during React's effect probe
+      // therefore stops the single CameraX/LiveKit publisher moments after it
+      // starts and freezes the host video. The owner in BroadcastLiveHost is
+      // responsible for stopping Android capture when the live really ends.
+      if (Platform.OS !== "android") void detachPublishedLiveEffects();
     };
   }, []);
 

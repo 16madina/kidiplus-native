@@ -6,10 +6,10 @@ import { useLiveEffects } from "../../lib/filters/live-effects-context";
 const FILL = StyleSheet.absoluteFill;
 
 /** Same composed frame the viewers receive, shown on the host. */
-export function HostComposedPreview() {
+export function HostComposedPreview({ always = false }: { always?: boolean } = {}) {
   const { backgroundMode } = useLiveEffects();
   const Native = KidiLiveEffectsPreviewNative;
-  if (!publishedGreenScreenOn(backgroundMode) || !Native) return null;
+  if ((!always && !publishedGreenScreenOn(backgroundMode)) || !Native) return null;
   return (
     <View pointerEvents="none" style={FILL}>
       <Native style={FILL} />

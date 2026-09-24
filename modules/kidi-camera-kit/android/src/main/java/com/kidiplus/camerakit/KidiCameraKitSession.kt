@@ -271,10 +271,16 @@ class KidiCameraKitSession(
                 LensesComponent.Repository.QueryCriteria.Available(ids.toSet()),
             ) { result ->
                 if (result is LensesComponent.Repository.Result.Some) {
-                    cachedLenses = result.lenses.map { lens ->
+                    // Repository updates can arrive in multiple partial waves.
+                    // Do not replace an earlier wave with the latest subset;
+                    // retain every lens seen for the requested groups and let
+                    // the JS subscription refresh the carousel as it grows.
+                    result.lenses.forEach { lens ->
                         lensByKey[key(lens.id, lens.groupId)] = lens
-                        lens.toMap()
                     }
+                    cachedLenses = lensByKey.values
+                        .filter { it.groupId in ids }
+                        .map { it.toMap() }
                     Log.i(TAG, "observer lenses=${cachedLenses.size}")
                     emit("lensesUpdated", mapOf("lenses" to cachedLenses))
                     scheduleSettle()
@@ -1102,21 +1108,23 @@ class KidiCameraKitSession(
         private const val STALL_TIMEOUT_MS = 3_000L
         private const val ADAPT_WARMUP_MS = 4_000L
         private const val ADAPT_WINDOW_MS = 2_000L
-        private const val ADAPT_MIN_FPS = 20.0
+        private const val ADAPT_MIN_FPS = 18.0
         private const val BATTLE_GUEST_WIDTH = 960
         private const val BATTLE_GUEST_HEIGHT = 540
         private const val BATTLE_GUEST_FPS = 24
         private const val BATTLE_GUEST_BITRATE = 700_000
 
         /**
-         * Capture/publish ladder used when Camera Kit owns the camera. 720p30 is
-         * the cap (never higher: a live-selling stream gains nothing from 1080p
-         * and the lens shader + encoder share the same GPU). Steps down only.
+         * Capture/publish ladder used when Camera Kit owns the camera. A face
+         * Lens, Camera Kit and the hardware encoder share the same GPU. Starting
+         * at 720p30 made mid-range devices (notably the SM-T220) look like slow
+         * motion until adaptation kicked in. Start at a stable 540p24 and step
+         * down only when the delivered frame rate still cannot hold.
          */
         val CAPTURE_PROFILES = listOf(
-            CaptureProfile(1280, 720, 30, 1_600_000),
             CaptureProfile(960, 540, 24, 900_000),
             CaptureProfile(854, 480, 24, 650_000),
+            CaptureProfile(640, 360, 20, 450_000),
         )
     }
 }
@@ -1150,7 +1158,8 @@ private class CameraKitSurfaceCapturer(
     @Volatile private var targetWidth = width
     @Volatile private var targetHeight = height
     /** Minimum spacing between delivered frames; extra frames are dropped
-     * before they reach the encoder (cheap: no copy, just a release). */
+     * before they reach the encoder. SurfaceTextureHelper releases every
+     * callback frame after this listener returns. */
     @Volatile private var minIntervalNs = 1_000_000_000L / fps.coerceAtLeast(1) - 2_000_000L
     private var lastDeliveredNs = 0L
 
@@ -1186,7 +1195,10 @@ private class CameraKitSurfaceCapturer(
         helper.startListening { frame: VideoFrame ->
             val now = frame.timestampNs
             if (lastDeliveredNs != 0L && now - lastDeliveredNs < minIntervalNs) {
-                frame.release()
+                // Do not call frame.release() here. `startListening` owns the
+                // frame reference and releases it once this callback returns.
+                // Releasing manually caused a second release in
+                // SurfaceTextureHelper and crashed the development build.
                 return@startListening
             }
             lastDeliveredNs = now

@@ -197,6 +197,51 @@ export async function finalizeAuctionInDb(args: {
   return { ok: true };
 }
 
+/**
+ * The realtime event is useful for updating the bid bar, but it is not the
+ * source of truth when an auction ends: a final event can arrive late on the
+ * host. Read the committed bid, then resolve its public profile name before
+ * announcing a winner to every viewer.
+ */
+async function resolveAuctionWinner(
+  liveId: string,
+  productId: string,
+  auctionRound: number,
+): Promise<{ bidderId: string; bidderName: string; amount: number } | null> {
+  const { data } = await supabase
+    .from("live_bids")
+    .select("bidder_id, bidder_name, amount, created_at")
+    .eq("live_id", liveId)
+    .eq("product_id", productId)
+    .eq("auction_round", auctionRound)
+    .order("amount", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+
+  const row = data as {
+    bidder_id: string;
+    bidder_name: string | null;
+    amount: number | null;
+  };
+  let bidderName = row.bidder_name?.trim() || "Acheteur";
+  if (row.bidder_id && !isSimBidderId(row.bidder_id)) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, handle")
+      .eq("id", row.bidder_id)
+      .maybeSingle();
+    const p = profile as { display_name?: string | null; handle?: string | null } | null;
+    bidderName = p?.display_name?.trim() || p?.handle?.trim() || bidderName;
+  }
+  return {
+    bidderId: row.bidder_id,
+    bidderName,
+    amount: Number(row.amount ?? 0),
+  };
+}
+
 export async function activateFixedInDb(productId: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from("live_products").update({ status: "active" }).eq("id", productId);
   return error ? { ok: false, error: error.message } : { ok: true };
@@ -809,31 +854,36 @@ export function useHostLiveSession(args: {
       !!bid &&
       bid.productId === auction.productId &&
       (bid.auctionRound === round || bid.ts >= auctionRoundStartTsRef.current);
-    const winnerName = lastBidMatches ? bid!.bidderName : null;
-    const winnerId = lastBidMatches ? bid!.bidderId : null;
-    const finalPrice = product?.price ?? 0;
     const endId = `end-${auction.productId}-${round}-${auction.deadlineMs}`;
-    sendBroadcast("auction:end", {
-      productId: auction.productId,
-      winnerId,
-      winnerName,
-      winnerAvatarUrl: null,
-      finalPrice,
-      orderId: null,
-      autoPaid: false,
-      auctionRound: round,
-      endId,
-      ts: Date.now(),
-    });
-    setLastEnd({
-      endId,
-      productId: auction.productId,
-      productName: product?.name ?? null,
-      winnerId,
-      winnerName,
-    });
     setAuction(null);
     void (async () => {
+      // Do not announce the local realtime value immediately. The database
+      // contains the adjudicated highest bid and its profile is the only
+      // reliable source for the name shown to everyone at the end.
+      const committed = await resolveAuctionWinner(liveId, auction.productId, round).catch(() => null);
+      const fallbackWinner = lastBidMatches ? bid! : null;
+      const winnerId = committed?.bidderId ?? fallbackWinner?.bidderId ?? null;
+      const winnerName = committed?.bidderName ?? fallbackWinner?.bidderName ?? null;
+      const finalPrice = committed?.amount ?? product?.price ?? 0;
+      sendBroadcast("auction:end", {
+        productId: auction.productId,
+        winnerId,
+        winnerName,
+        winnerAvatarUrl: null,
+        finalPrice,
+        orderId: null,
+        autoPaid: false,
+        auctionRound: round,
+        endId,
+        ts: Date.now(),
+      });
+      setLastEnd({
+        endId,
+        productId: auction.productId,
+        productName: product?.name ?? null,
+        winnerId,
+        winnerName,
+      });
       // Sim winners have non-UUID ids ("sim:Name") the RPC would reject.
       const dbWinnerId = winnerId && !isSimBidderId(winnerId) ? winnerId : null;
       let res = await finalizeAuctionInDb({

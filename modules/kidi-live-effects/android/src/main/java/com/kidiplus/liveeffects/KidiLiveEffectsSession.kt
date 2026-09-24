@@ -31,17 +31,26 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.Segmentation
 import com.google.mlkit.vision.segmentation.Segmenter
 import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions
+import io.livekit.android.LiveKit
+import io.livekit.android.room.Room
+import io.livekit.android.room.participant.VideoTrackPublishOptions
+import io.livekit.android.room.track.LocalVideoTrack
+import io.livekit.android.room.track.LocalVideoTrackOptions
+import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.VideoCaptureParameter
+import io.livekit.android.room.track.VideoEncoding
 import java.net.URL
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.runBlocking
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
  * Native virtual-background compositor matching kidiplus.com / MediaPipe:
- * ML Kit selfie mask → EMA 0.55/0.45 → feather blur → source-over person
+ * ML Kit selfie mask → temporal smoothing → feather blur → source-over person
  * on blurred camera or replacement image + optional poster.
  *
  * Preview is an ImageView in the RN host. Publication of composed frames
@@ -103,6 +112,10 @@ class KidiLiveEffectsSession(
     private var pendingRecycle: Bitmap? = null
     private var boundFacingFront: Boolean? = null
     private var bindRetries = 0
+    private var liveKitRoom: Room? = null
+    private var liveKitTrack: LocalVideoTrack? = null
+    private var publishCapturer: BitmapVideoCapturer? = null
+    @Volatile private var publishing = false
 
     private val filterPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val dstInPaint = Paint().apply {
@@ -178,6 +191,7 @@ class KidiLiveEffectsSession(
     }
 
     fun stop() {
+        runCatching { runBlocking { stopPublishing() } }
         running = false
         disabled = false
         boundFacingFront = null
@@ -190,6 +204,71 @@ class KidiLiveEffectsSession(
             displayed = null
         }
         prevAlpha = null
+    }
+
+    suspend fun setPublishEnabled(enabled: Boolean, roomUrl: String?, token: String?): Boolean {
+        if (!enabled) {
+            stopPublishing()
+            return false
+        }
+        val url = roomUrl.orEmpty()
+        val tok = token.orEmpty()
+        require(url.isNotEmpty() && tok.isNotEmpty()) { "Missing roomUrl or token" }
+        if (!running) error("Effects camera is not running")
+        if (publishing) return true
+        val room = LiveKit.create(context.applicationContext)
+        room.connect(url, tok)
+        val capturer = BitmapVideoCapturer()
+        val track = room.localParticipant.createVideoTrack(
+            name = "camera",
+            capturer = capturer,
+            options = LocalVideoTrackOptions(
+                isScreencast = false,
+                captureParams = VideoCaptureParameter(540, 960, 15, adaptOutputToDimensions = false),
+            ),
+        )
+        liveKitRoom = room
+        liveKitTrack = track
+        publishCapturer = capturer
+        track.startCapture()
+        room.localParticipant.publishVideoTrack(
+            track,
+            VideoTrackPublishOptions(
+                videoEncoding = VideoEncoding(900_000, 15),
+                simulcast = false,
+                source = Track.Source.CAMERA,
+            ),
+        )
+        room.localParticipant.setMicrophoneEnabled(true)
+        publishing = true
+        return true
+    }
+
+    suspend fun setCameraEnabled(enabled: Boolean): Boolean {
+        val room = liveKitRoom ?: return false
+        return room.localParticipant.setCameraEnabled(enabled)
+    }
+
+    suspend fun setMicrophoneEnabled(enabled: Boolean): Boolean {
+        val room = liveKitRoom ?: return false
+        return room.localParticipant.setMicrophoneEnabled(enabled)
+    }
+
+    fun status(): Map<String, Any?> = mapOf(
+        "running" to running,
+        "publishing" to publishing,
+        "frameCount" to (publishCapturer?.frameCount() ?: 0L),
+        "facing" to if (facingFront) "user" else "environment",
+    )
+
+    private suspend fun stopPublishing() {
+        publishing = false
+        runCatching { liveKitTrack?.stopCapture() }
+        liveKitTrack = null
+        publishCapturer = null
+        val room = liveKitRoom
+        liveKitRoom = null
+        if (room != null) runCatching { room.disconnect() }
     }
 
     fun onHostPause() {
@@ -239,7 +318,9 @@ class KidiLiveEffectsSession(
             val analysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .setTargetResolution(Size(720, 1280))
+                // Match the published track so the low-end Android pipeline
+                // does not rescale and convert a 720p bitmap for every frame.
+                .setTargetResolution(Size(540, 960))
                 .build()
             analysis.setAnalyzer(executor) { image -> analyze(image) }
             val selector = if (facingFront) {
@@ -309,7 +390,12 @@ class KidiLiveEffectsSession(
             seg.process(input)
                 .addOnSuccessListener { mask ->
                     val out = try {
-                        compose(src, mask.buffer, mask.width, mask.height)
+                        compose(
+                            src,
+                            mask.buffer.order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer(),
+                            mask.width,
+                            mask.height,
+                        )
                     } catch (e: Exception) {
                         Log.w(TAG, "compose failed", e)
                         maybeMirror(src, src.width, src.height) ?: src
@@ -415,7 +501,13 @@ class KidiLiveEffectsSession(
         } else {
             val prev = prevAlpha!!
             for (i in 0 until count) {
-                prev[i] = prev[i] * 0.55f + src[i] * 0.45f
+                // Decay old foreground very quickly when the subject moves so
+                // the previous silhouette cannot linger behind them. Growing
+                // the mask keeps a little more history to avoid sparkling hair
+                // edges, but remains far more responsive than the old 62%
+                // history blend (which looked like slow motion at 15-20 fps).
+                val historyWeight = if (src[i] < prev[i]) 0.18f else 0.32f
+                prev[i] = prev[i] * historyWeight + src[i] * (1f - historyWeight)
             }
         }
         val alpha = prevAlpha!!
@@ -423,9 +515,12 @@ class KidiLiveEffectsSession(
         for (i in 0 until count) {
             val a = alpha[i]
             val v = when {
-                a <= 0.35f -> 0f
-                a >= 0.65f -> 1f
-                else -> (a - 0.35f) / 0.3f
+                a <= 0.22f -> 0f
+                a >= 0.78f -> 1f
+                else -> {
+                    val t = (a - 0.22f) / 0.56f
+                    t * t * (3f - 2f * t)
+                }
             }
             val ai = (v * 255f).toInt().coerceIn(0, 255)
             pixels[i] = (ai shl 24) or 0x00FFFFFF
@@ -439,7 +534,9 @@ class KidiLiveEffectsSession(
         val feathered = Bitmap.createBitmap(destW, destH, Bitmap.Config.ARGB_8888)
         feathered.setHasAlpha(true)
         val c = Canvas(feathered)
-        val radius = max(1f, mw * 0.008f * (destW.toFloat() / mw))
+        // A wide blur amplifies temporal trails around hands and shoulders.
+        // Keep only enough feathering to hide the raw low-resolution mask.
+        val radius = max(1.25f, destW * 0.0075f)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
             maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
         }
@@ -524,9 +621,6 @@ class KidiLiveEffectsSession(
                 if (ladderIndex < ladder.lastIndex) {
                     ladderIndex += 1
                     Log.i(TAG, "downgrade width=${ladder[ladderIndex]}")
-                } else if (!disabled) {
-                    disabled = true
-                    listener?.onUnavailable()
                 }
             }
         }
@@ -534,6 +628,7 @@ class KidiLiveEffectsSession(
     }
 
     private fun present(bmp: Bitmap) {
+        publishCapturer?.push(bmp)
         runOnUi {
             pendingRecycle?.recycle()
             pendingRecycle = displayed

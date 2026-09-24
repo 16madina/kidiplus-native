@@ -114,7 +114,7 @@ class KidiCameraKitModule : Module() {
             requireSession().applyLens(lensId, groupId)
         }
 
-        AsyncFunction("clearLens") Coroutine {
+        AsyncFunction("clearLens").Coroutine<Map<String, Any?>> {
             requireSession().clearLens()
         }
 
@@ -122,11 +122,11 @@ class KidiCameraKitModule : Module() {
             requireSession().startPreview(mirrored, facing)
         }
 
-        AsyncFunction("stopPreview") Coroutine {
+        AsyncFunction("stopPreview").Coroutine<Map<String, Any?>> {
             requireSession().stopPreview()
         }
 
-        AsyncFunction("flipCamera") Coroutine {
+        AsyncFunction("flipCamera").Coroutine<Map<String, Any?>> {
             requireSession().flipCamera()
         }
 

@@ -45,7 +45,13 @@ export function publishedGreenScreenOn(backgroundMode: string | null | undefined
  * like kidiplus.com. Confirmed only when native status reports real frames.
  */
 export function canAttemptKitPublish(os: string, cameraKit: boolean): boolean {
-  return (os === "android" || os === "ios") && cameraKit;
+  // Both native modules now own a complete Camera Kit → SurfaceTexture →
+  // LiveKit path. Android used to be disabled here while its external capturer
+  // was being hardened; leaving that guard in place makes the UI select a Lens
+  // while the published track continues to come from the unrelated effects
+  // camera, so only the local tint is visible and face tracking can never be
+  // sent to viewers.
+  return (os === "ios" || os === "android") && cameraKit;
 }
 
 /** Native publish is real when Camera Kit reports it is sending frames. */

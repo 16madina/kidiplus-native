@@ -16,7 +16,7 @@ const POSTER_H = 160;
  * to scale. Gestures run on the preview overlay (not only the 200×160 frame)
  * so a pinch actually fits. Taps do not move the image.
  */
-export function PosterGestureLayer() {
+export function PosterGestureLayer({ showImage = true }: { showImage?: boolean } = {}) {
   const { t } = useTranslation();
   const { posterUrl, posterMode, posterTransform, setPosterTransform } = useLiveEffects();
   const win = Dimensions.get("window");
@@ -104,9 +104,11 @@ export function PosterGestureLayer() {
   return (
     <GestureDetector gesture={gesture}>
       <View style={styles.layer} onLayout={onLayout} collapsable={false}>
-        <Animated.View style={[styles.posterWrap, posterStyle]} pointerEvents="none">
-          <Image source={{ uri: posterUrl }} style={styles.posterImg} contentFit="contain" />
-        </Animated.View>
+        {showImage ? (
+          <Animated.View style={[styles.posterWrap, posterStyle]} pointerEvents="none">
+            <Image source={{ uri: posterUrl }} style={styles.posterImg} contentFit="contain" />
+          </Animated.View>
+        ) : null}
         <Text pointerEvents="none" style={styles.hint}>
           {t("broadcast.effects.posterHint", "Glisse pour déplacer · Pince pour zoomer")}
         </Text>

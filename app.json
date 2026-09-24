@@ -143,14 +143,25 @@
     },
     "android": {
       "package": "com.kidiplus.app",
+      "versionCode": 54,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#000000",
+        "backgroundColor": "#03031c",
         "foregroundImage": "./assets/android-adaptive-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -169,7 +180,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#10162B"
+          "backgroundColor": "#10162B",
+          "image": "./assets/splash-icon.png"
         }
       ],
       "expo-image",
@@ -202,6 +214,7 @@
         }
       ],
       "@livekit/react-native-expo-plugin",
+      "./plugins/withLiveKitAudioSwitch.js",
       [
         "@config-plugins/react-native-webrtc",
         {
@@ -239,6 +252,12 @@
       "expo-apple-authentication",
       "expo-local-authentication",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cf321acb-cbd7-4be0-93ad-9ee18194911e"
+      }
+    },
+    "owner": "missdee"
   }
 }

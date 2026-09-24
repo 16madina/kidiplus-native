@@ -52,6 +52,31 @@ export async function startNativeLiveEffects(cfg: NativeEffectsConfig): Promise<
   await KidiLiveEffects.start(cfg);
 }
 
+export async function setNativeEffectsPublish(opts: {
+  enabled: boolean;
+  roomUrl?: string;
+  token?: string;
+}): Promise<void> {
+  if (!KidiLiveEffects) throw new Error("kidi-live-effects module absent — rebuild natif requis");
+  await KidiLiveEffects.setPublishEnabled(
+    opts.enabled,
+    opts.roomUrl ?? null,
+    opts.token ?? null,
+  );
+}
+
+export async function getNativeEffectsStatus() {
+  return KidiLiveEffects?.getStatus() ?? null;
+}
+
+export async function setNativeEffectsCameraEnabled(enabled: boolean): Promise<void> {
+  await KidiLiveEffects?.setCameraEnabled(enabled);
+}
+
+export async function setNativeEffectsMicrophoneEnabled(enabled: boolean): Promise<void> {
+  await KidiLiveEffects?.setMicrophoneEnabled(enabled);
+}
+
 /** Compose on the Camera Kit frames already published. Does not open a camera. */
 export async function attachPublishedLiveEffects(cfg: NativeEffectsConfig): Promise<void> {
   if (!KidiLiveEffects?.attachPublished) return;

@@ -355,7 +355,9 @@ export function HostStudioHud({
         <LiveFxOverlay fx={hostFx} includePoster={false} />
       </View>
       <LiveEffectsOverlay />
-      <PosterGestureLayer />
+      {/* Android already bakes the poster into the native frame. Keep the
+          gesture surface, but do not draw the same image a second time. */}
+      <PosterGestureLayer showImage={Platform.OS !== "android"} />
       <GiftAnimationOverlay
         trigger={
           session.lastGift

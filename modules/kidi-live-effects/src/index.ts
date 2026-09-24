@@ -22,6 +22,10 @@ export type KidiLiveEffectsNativeModule = {
   attachPublished?(config: LiveEffectsNativeConfig): Promise<{ attached: boolean }>;
   detachPublished?(): Promise<{ detached: boolean }>;
   setConfig(config: LiveEffectsNativeConfig): Promise<{ updated: boolean }>;
+  setPublishEnabled(enabled: boolean, roomUrl: string | null, token: string | null): Promise<{ enabled: boolean }>;
+  setCameraEnabled(enabled: boolean): Promise<{ enabled: boolean }>;
+  setMicrophoneEnabled(enabled: boolean): Promise<{ enabled: boolean }>;
+  getStatus(): Promise<{ running: boolean; publishing: boolean; frameCount: number; facing: string }>;
   stop(): Promise<{ stopped: boolean }>;
 };
 

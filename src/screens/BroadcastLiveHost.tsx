@@ -19,6 +19,7 @@ import { HostBattleGuestPane } from "../components/battle/HostBattleGuestPane";
 import { BroadcastSummary } from "../components/broadcast/BroadcastSummary";
 import { HostLiveFxSync } from "../components/broadcast/HostLiveFxSync";
 import { HostPublishedPipeline } from "../components/broadcast/HostPublishedPipeline";
+import { HostComposedPreview } from "../components/broadcast/HostComposedPreview";
 import { HostStudioHud } from "../components/broadcast/HostStudioHud";
 import { SnapCameraPreview } from "../components/broadcast/SnapCameraPreview";
 import { useNav } from "../context/navigation";
@@ -43,7 +44,15 @@ import {
 import { useFilter } from "../lib/filters/filter-context";
 import { stopFilteredPublish, tryStartFilteredPublish } from "../lib/filters/host-pipeline";
 import { useLiveEffects } from "../lib/filters/live-effects-context";
-import { stopNativeLiveEffects } from "../lib/filters/live-effects-native-bridge";
+import {
+  getNativeEffectsStatus,
+  setNativeEffectsCameraEnabled,
+  setNativeEffectsMicrophoneEnabled,
+  setNativeEffectsPublish,
+  startNativeLiveEffects,
+  stopNativeLiveEffects,
+  syncNativeLiveEffects,
+} from "../lib/filters/live-effects-native-bridge";
 import {
   delayMs,
   registerHostPickerPause,
@@ -89,14 +98,18 @@ export function BroadcastLiveHost({
 }) {
   const { closeOverlay } = useNav();
   const { activeLens } = useFilter();
-  const { hasEffects } = useLiveEffects();
+  const liveEffects = useLiveEffects();
   const endingRef = useRef(false);
+  const initialFacingRef = useRef(facing);
   const lensRef = useRef(activeLens);
-  const effectsRef = useRef(hasEffects);
+  const effectsRef = useRef(liveEffects);
   lensRef.current = activeLens;
-  effectsRef.current = hasEffects;
+  effectsRef.current = liveEffects;
   const [session, setSession] = useState<{ url: string; token: string } | null>(null);
   const [kitPublishing, setKitPublishing] = useState(false);
+  const [effectsPublishing, setEffectsPublishing] = useState(false);
+  const publisherRef = useRef<"kit" | "effects" | null>(null);
+  const switchingPublisherRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<LiveSummaryStats | null>(null);
   const handleRoomError = useCallback((e: Error) => {
@@ -110,19 +123,81 @@ export function BroadcastLiveHost({
 
   useEffect(() => {
     let cancelled = false;
+    // React development builds intentionally mount, clean up, then mount an
+    // effect again. Only tear down publishers that this exact effect run has
+    // acquired; otherwise the first probe cleanup can stop the real Android
+    // publisher a few seconds after it starts.
+    let ownsFilteredPublisher = false;
+    let ownsNativePublisher = false;
     void (async () => {
       try {
         bootLiveKit();
         await AudioSession.startAudioSession();
         const s = await fetchLiveKitSession(roomName, identity, displayName, "host");
         if (cancelled) return;
+        const fx = effectsRef.current;
+        // A Snap Lens must be published by Camera Kit itself: applying it to a
+        // second preview while the effects camera owns LiveKit only changes the
+        // local tint and never sends the face-tracked pixels to viewers.
+        // Prefer Camera Kit when a Lens was selected before going live. If its
+        // native track cannot be confirmed, fall back to the stable effects
+        // publisher instead of leaving the host on a black frame.
+        if (Platform.OS === "android") {
+          const selectedLens = lensRef.current;
+          const snapOn = !!selectedLens?.isSnapLens && selectedLens.lensId !== "none";
+          if (snapOn) {
+            const kit = await tryStartFilteredPublish({
+              url: s.url,
+              token: s.token,
+              facing: initialFacingRef.current === "back" ? "environment" : "user",
+              lens: selectedLens,
+              hasEffects: fx.hasEffects,
+            });
+            ownsFilteredPublisher = kit.path === "kit_publish";
+            if (ownsFilteredPublisher) {
+              if (cancelled) {
+                await stopFilteredPublish();
+                return;
+              }
+              publisherRef.current = "kit";
+              setKitPublishing(true);
+              setSession(s);
+              return;
+            }
+          }
+          await startNativeLiveEffects({
+            backgroundUrl: fx.backgroundUrl,
+            backgroundMode: fx.backgroundMode,
+            posterUrl: fx.posterUrl,
+            posterMode: fx.posterMode,
+            posterX: fx.posterTransform.x,
+            posterY: fx.posterTransform.y,
+            posterScale: fx.posterTransform.scale,
+            mirror: initialFacingRef.current !== "back",
+            facing: initialFacingRef.current === "back" ? "environment" : "user",
+          });
+          await setNativeEffectsPublish({ enabled: true, roomUrl: s.url, token: s.token });
+          ownsNativePublisher = true;
+          const status = await getNativeEffectsStatus();
+          if (!status?.publishing) throw new Error("Le flux d’effets Android n’a pas démarré");
+          if (cancelled) {
+            await setNativeEffectsPublish({ enabled: false });
+            await stopNativeLiveEffects();
+            return;
+          }
+          setEffectsPublishing(true);
+          publisherRef.current = "effects";
+          setSession(s);
+          return;
+        }
         const kit = await tryStartFilteredPublish({
           url: s.url,
           token: s.token,
-          facing: facing === "back" ? "environment" : "user",
+          facing: initialFacingRef.current === "back" ? "environment" : "user",
           lens: lensRef.current,
-          hasEffects: effectsRef.current,
+          hasEffects: effectsRef.current.hasEffects,
         });
+        ownsFilteredPublisher = kit.path === "kit_publish";
         if (cancelled) {
           await stopFilteredPublish();
           return;
@@ -134,6 +209,7 @@ export function BroadcastLiveHost({
           return;
         }
         setKitPublishing(kit.path === "kit_publish");
+        publisherRef.current = kit.path === "kit_publish" ? "kit" : null;
         setSession(s);
       } catch (e) {
         if (cancelled) return;
@@ -149,9 +225,95 @@ export function BroadcastLiveHost({
     })();
     return () => {
       cancelled = true;
-      void stopFilteredPublish();
+      if (ownsFilteredPublisher) void stopFilteredPublish();
+      if (ownsNativePublisher) {
+        void setNativeEffectsPublish({ enabled: false }).catch(() => undefined);
+        void stopNativeLiveEffects();
+      }
     };
-  }, [roomName, identity, displayName, facing]);
+    // Camera flips are synchronized by HostPublishedPipeline. Restarting the
+    // room here would disconnect the publisher and freeze viewers.
+  }, [roomName, identity, displayName]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android" || !session || switchingPublisherRef.current) return;
+    const snapOn = !!activeLens.isSnapLens && activeLens.lensId !== "none";
+    const desired: "kit" | "effects" = snapOn ? "kit" : "effects";
+    if (publisherRef.current === desired) return;
+
+    switchingPublisherRef.current = true;
+    void (async () => {
+      try {
+        if (desired === "kit") {
+          await setNativeEffectsPublish({ enabled: false }).catch(() => undefined);
+          await stopNativeLiveEffects();
+          const kit = await tryStartFilteredPublish({
+            url: session.url,
+            token: session.token,
+            facing: initialFacingRef.current === "back" ? "environment" : "user",
+            lens: activeLens,
+            hasEffects: effectsRef.current.hasEffects,
+          });
+          if (kit.path !== "kit_publish") {
+            const fx = effectsRef.current;
+            await startNativeLiveEffects({
+              backgroundUrl: fx.backgroundUrl,
+              backgroundMode: fx.backgroundMode,
+              posterUrl: fx.posterUrl,
+              posterMode: fx.posterMode,
+              posterX: fx.posterTransform.x,
+              posterY: fx.posterTransform.y,
+              posterScale: fx.posterTransform.scale,
+              mirror: initialFacingRef.current !== "back",
+              facing: initialFacingRef.current === "back" ? "environment" : "user",
+            });
+            await setNativeEffectsPublish({
+              enabled: true,
+              roomUrl: session.url,
+              token: session.token,
+            });
+            publisherRef.current = "effects";
+            setKitPublishing(false);
+            setEffectsPublishing(true);
+            return;
+          }
+          publisherRef.current = "kit";
+          setKitPublishing(true);
+          setEffectsPublishing(false);
+          return;
+        }
+
+        await stopFilteredPublish();
+        setNativeLensApplyAllowed(false);
+        const fx = effectsRef.current;
+        await startNativeLiveEffects({
+          backgroundUrl: fx.backgroundUrl,
+          backgroundMode: fx.backgroundMode,
+          posterUrl: fx.posterUrl,
+          posterMode: fx.posterMode,
+          posterX: fx.posterTransform.x,
+          posterY: fx.posterTransform.y,
+          posterScale: fx.posterTransform.scale,
+          mirror: initialFacingRef.current !== "back",
+          facing: initialFacingRef.current === "back" ? "environment" : "user",
+        });
+        await setNativeEffectsPublish({
+          enabled: true,
+          roomUrl: session.url,
+          token: session.token,
+        });
+        const status = await getNativeEffectsStatus();
+        if (!status?.publishing) throw new Error("Le flux Android n'a pas redémarré");
+        publisherRef.current = "effects";
+        setKitPublishing(false);
+        setEffectsPublishing(true);
+      } catch (e) {
+        console.warn("[broadcast] native publisher switch failed", e);
+      } finally {
+        switchingPublisherRef.current = false;
+      }
+    })();
+  }, [activeLens, session]);
 
   useEffect(() => {
     return () => {
@@ -196,7 +358,7 @@ export function BroadcastLiveHost({
     );
   }
 
-      if (kitPublishing) {
+  if (kitPublishing || effectsPublishing) {
     return (
       <HostKitStage
         liveId={liveId}
@@ -207,6 +369,7 @@ export function BroadcastLiveHost({
         endingRef={endingRef}
         onEnded={setSummary}
         rtmpMode={rtmpMode}
+        publisher={effectsPublishing ? "effects" : "kit"}
       />
     );
   }
@@ -447,6 +610,7 @@ function HostKitStage({
   endingRef,
   onEnded,
   rtmpMode = false,
+  publisher = "kit",
 }: {
   liveId: string;
   roomName: string;
@@ -456,6 +620,7 @@ function HostKitStage({
   endingRef: MutableRefObject<boolean>;
   onEnded: (stats: LiveSummaryStats) => void;
   rtmpMode?: boolean;
+  publisher?: "kit" | "effects";
 }) {
   const { t } = useTranslation();
   const extras = useHostLiveExtras(liveId);
@@ -473,7 +638,7 @@ function HostKitStage({
     userId: identity,
     displayName,
     remoteRoomName: extras.opponentLive?.room_name ?? null,
-    nativeKitPublishing: true,
+    nativeKitPublishing: publisher === "kit",
   });
 
   useEffect(() => {
@@ -491,13 +656,13 @@ function HostKitStage({
   }, [roomName, identity, displayName]);
 
   useEffect(() => {
-    setNativeLensApplyAllowed(true);
-    void stopNativeLiveEffects();
+    setNativeLensApplyAllowed(publisher === "kit");
+    if (publisher === "kit") void stopNativeLiveEffects();
     registerHostPickerPause(async (work) => work());
     return () => {
       registerHostPickerPause(null);
     };
-  }, []);
+  }, [publisher]);
   const liveEffects = useLiveEffects();
 
   const actuallyFinish = async () => {
@@ -520,7 +685,12 @@ function HostKitStage({
       console.warn("[live-replay] stop failed", replayStop.error);
     }
     notifyHostLiveEnded(liveId);
-    await stopFilteredPublish();
+    if (publisher === "effects") {
+      await setNativeEffectsPublish({ enabled: false }).catch(() => undefined);
+      await stopNativeLiveEffects();
+    } else {
+      await stopFilteredPublish();
+    }
     void stopBridgePreview();
     onEnded({ durationSec, peakViewers });
   };
@@ -543,11 +713,27 @@ function HostKitStage({
     if (flipBusy || !camOn) return;
     setFlipBusy(true);
     try {
-      const result = await flipBridgeCamera();
-      if (result?.facing === "environment" || result?.facing === "user") {
-        setFacing(result.facing === "environment" ? "back" : "front");
+      if (publisher === "effects") {
+        const next: CameraType = facing === "back" ? "front" : "back";
+        await syncNativeLiveEffects({
+          backgroundUrl: liveEffects.backgroundUrl,
+          backgroundMode: liveEffects.backgroundMode,
+          posterUrl: liveEffects.posterUrl,
+          posterMode: liveEffects.posterMode,
+          posterX: liveEffects.posterTransform.x,
+          posterY: liveEffects.posterTransform.y,
+          posterScale: liveEffects.posterTransform.scale,
+          mirror: next !== "back",
+          facing: next === "back" ? "environment" : "user",
+        });
+        setFacing(next);
       } else {
-        setFacing((prev) => (prev === "back" ? "front" : "back"));
+        const result = await flipBridgeCamera();
+        if (result?.facing === "environment" || result?.facing === "user") {
+          setFacing(result.facing === "environment" ? "back" : "front");
+        } else {
+          setFacing((prev) => (prev === "back" ? "front" : "back"));
+        }
       }
     } finally {
       setFlipBusy(false);
@@ -565,7 +751,11 @@ function HostKitStage({
         <View style={FILL}>
           {/* Keep the native preview mounted. Recreating its AVCapture input
               during a live can stall Camera Kit when the camera is restored. */}
-          <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+          {publisher === "effects" ? (
+            <HostComposedPreview always />
+          ) : (
+            <SnapCameraPreview facing={facing} persistPreviewOnUnmount />
+          )}
           {!camOn ? (
             <View style={[FILL, styles.center]}>
               <Text style={styles.wait}>Caméra coupée</Text>
@@ -602,7 +792,9 @@ function HostKitStage({
         if (micBusyRef.current) return;
         const next = !micOn;
         micBusyRef.current = true;
-        void setBridgeMicrophoneEnabled(next)
+        void (publisher === "effects"
+          ? setNativeEffectsMicrophoneEnabled(next)
+          : setBridgeMicrophoneEnabled(next))
           .then(() => setMicOn(next))
           .catch(() => Alert.alert("Microphone", t("broadcast.microphone.toggleFailed")))
           .finally(() => {
@@ -613,7 +805,9 @@ function HostKitStage({
         if (camBusyRef.current) return;
         const next = !camOn;
         camBusyRef.current = true;
-        void setBridgeCameraEnabled(next)
+        void (publisher === "effects"
+          ? setNativeEffectsCameraEnabled(next)
+          : setBridgeCameraEnabled(next))
           .then(() => setCamOn(next))
           .catch(() => Alert.alert(t("broadcast.camera.unavailable"), t("broadcast.camera.toggleFailed")))
           .finally(() => {
@@ -629,9 +823,12 @@ function HostKitStage({
           <HostLiveFxSync
             liveId={liveId}
             userId={identity}
-            bakedBackground={Platform.OS === "ios" && liveEffects.backgroundMode !== "none"}
+            bakedBackground={
+              (Platform.OS === "ios" || publisher === "effects") &&
+              liveEffects.backgroundMode !== "none"
+            }
             bakedPoster={
-              Platform.OS === "ios" &&
+              (Platform.OS === "ios" || publisher === "effects") &&
               !!liveEffects.posterUrl &&
               liveEffects.posterMode !== "off"
             }

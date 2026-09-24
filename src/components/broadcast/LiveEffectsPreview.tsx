@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { KidiLiveEffectsPreviewNative } from "../../../modules/kidi-live-effects/src";
 import { LiveEffectsVideoProcessor } from "../../lib/filters/live-effects-processor";
 import { useLiveEffects } from "../../lib/filters/live-effects-context";
@@ -32,8 +32,15 @@ export function LiveEffectsPreview({
   useEffect(() => subscribeNativeLiveEffectsFirstFrame(() => setReady(true)), []);
 
   useEffect(() => {
+    // Android's published camera is currently owned by LiveKit. Do not start
+    // a second CameraX analysis session for the setup preview: it races the
+    // active camera (especially after the system photo picker) and freezes
+    // both previews. Android backgrounds are enabled again only when the
+    // compositor feeds the published track, rather than a separate camera.
     const wantsNativeBg =
-      isNativeLiveEffectsSupported() && effects.backgroundMode !== "none";
+      Platform.OS === "ios" &&
+      isNativeLiveEffectsSupported() &&
+      effects.backgroundMode !== "none";
     if (!wantsNativeBg) {
       void processorRef.current?.destroy();
       processorRef.current = null;
@@ -74,7 +81,7 @@ export function LiveEffectsPreview({
     };
   }, []);
 
-  if (!isNativeLiveEffectsSupported() || !NativePreview) {
+  if (Platform.OS !== "ios" || !isNativeLiveEffectsSupported() || !NativePreview) {
     return null;
   }
 

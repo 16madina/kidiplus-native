@@ -213,7 +213,13 @@ function GoLiveEntry() {
         <Text style={styles.goTitle}>{t("golive.entry.title")}</Text>
         <Text style={styles.goSub}>{t("golive.entry.subtitle")}</Text>
         <View style={styles.choiceRow}>
-          <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "now" })} style={styles.choice}>
+          <Press
+            // On Android tablets this large image-backed card can lose the final
+            // `onPress` event after a camera/modal transition. Start navigation
+            // at touch-down so the host setup reliably opens.
+            onPressIn={() => openOverlay({ kind: "broadcast-setup", mode: "now" })}
+            style={styles.choice}
+          >
             <Image source={startBg} style={StyleSheet.absoluteFill} contentFit="cover" />
             <Glass tone="dark" intensity={28} radius={8} elevated={false} style={styles.choiceBadge}>
               <Text style={styles.choiceBadgeText}>EN DIRECT</Text>
@@ -222,7 +228,10 @@ function GoLiveEntry() {
             <Text style={styles.choiceTitle}>{t("golive.entry.startNow")}</Text>
             <Text style={styles.choiceSub}>{t("golive.entry.startNowSub")}</Text>
           </Press>
-          <Press onPress={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })} style={styles.choice}>
+          <Press
+            onPressIn={() => openOverlay({ kind: "broadcast-setup", mode: "schedule" })}
+            style={styles.choice}
+          >
             <Image source={scheduleBg} style={StyleSheet.absoluteFill} contentFit="cover" />
             <Glass tone="gold" intensity={32} radius={8} elevated={false} style={styles.choiceBadge}>
               <Text style={[styles.choiceBadgeText, { color: "#fff" }]}>PLANIFIER</Text>

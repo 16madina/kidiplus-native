@@ -85,17 +85,29 @@ function GoLiveSetup() {
   const { tint, cameraKitReady } = useFilter();
   const { backgroundMode } = useLiveEffects();
   const currency = user?.walletCurrency ?? "EUR";
-  const wantEffectsCamera = backgroundMode !== "none" && isNativeLiveEffectsSupported();
+  // Android must keep the regular setup camera until its compositor is part
+  // of the same LiveKit publication pipeline. A standalone compositor opens
+  // a competing CameraX session and freezes the preview after image picking.
+  const wantEffectsCamera =
+    Platform.OS === "ios" && backgroundMode !== "none" && isNativeLiveEffectsSupported();
   const [effectsCameraOn, setEffectsCameraOn] = useState(false);
+  // On Android the Camera Kit preview and the ML Kit background compositor
+  // each open a physical camera. Switching from one to the other can leave
+  // the old Camera Kit session holding the device camera, producing a black
+  // (or frozen) effects preview. The normal setup camera releases cleanly;
+  // reserve the Camera Kit setup preview for iOS where it is also the publish
+  // path. Android falls through to the regular SetupCamera below.
   const [snapAllowed, setSnapAllowed] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     if (wantEffectsCamera) {
       setSnapAllowed(false);
+      // Android needs time for the previous CameraX/Expo camera surface to
+      // detach before the compositor binds its own analysis use case.
       const id = setTimeout(() => {
         if (!cancelled) setEffectsCameraOn(true);
-      }, 700);
+      }, Platform.OS === "android" ? 1200 : 700);
       return () => {
         cancelled = true;
         clearTimeout(id);
@@ -113,7 +125,11 @@ function GoLiveSetup() {
 
   const useEffectsPreview = effectsCameraOn && wantEffectsCamera;
   const useSnapPreview =
-    snapAllowed && !useEffectsPreview && isCameraKitSupported() && cameraKitReady;
+    Platform.OS === "ios" &&
+    snapAllowed &&
+    !useEffectsPreview &&
+    isCameraKitSupported() &&
+    cameraKitReady;
 
   const [title, setTitle] = useState(user?.displayName?.trim() || "");
   const [category, setCategory] = useState<BroadcastCategoryKey>("Fashion");

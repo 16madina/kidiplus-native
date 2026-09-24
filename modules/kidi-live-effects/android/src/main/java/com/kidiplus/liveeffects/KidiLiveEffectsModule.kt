@@ -54,7 +54,7 @@ class KidiLiveEffectsModule : Module() {
             session = null
         }
 
-        AsyncFunction("warmup") Coroutine {
+        AsyncFunction("warmup").Coroutine<Map<String, Any?>> {
             mapOf("supported" to requireSession().warmup())
         }
 
@@ -67,7 +67,23 @@ class KidiLiveEffectsModule : Module() {
             mapOf("updated" to true)
         }
 
-        AsyncFunction("stop") Coroutine {
+        AsyncFunction("setPublishEnabled") Coroutine { enabled: Boolean, roomUrl: String?, token: String? ->
+            mapOf("enabled" to requireSession().setPublishEnabled(enabled, roomUrl, token))
+        }
+
+        AsyncFunction("setCameraEnabled") Coroutine { enabled: Boolean ->
+            mapOf("enabled" to requireSession().setCameraEnabled(enabled))
+        }
+
+        AsyncFunction("setMicrophoneEnabled") Coroutine { enabled: Boolean ->
+            mapOf("enabled" to requireSession().setMicrophoneEnabled(enabled))
+        }
+
+        AsyncFunction("getStatus").Coroutine<Map<String, Any?>> {
+            requireSession().status()
+        }
+
+        AsyncFunction("stop").Coroutine<Map<String, Any?>> {
             session?.stop()
             mapOf("stopped" to true)
         }
