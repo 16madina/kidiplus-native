@@ -143,7 +143,7 @@
     },
     "android": {
       "package": "com.kidiplus.app",
-      "versionCode": 54,
+      "versionCode": 60,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#03031c",

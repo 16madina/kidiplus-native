@@ -608,9 +608,17 @@ function VitrinePostSlide({
     ]);
   };
 
+  // Keep every post in the same mobile-first 9:16 stage.  Phones can be
+  // taller than 9:16, so the surrounding slide remains black while the media
+  // itself never stretches beyond its intended frame.
+  const mediaHeight = Math.min(height, (width * 16) / 9);
+  const mediaTop = Math.max(0, (height - mediaHeight) / 2);
+
   return (
     <View style={{ width, height, backgroundColor: "#000" }}>
-      <VitrineMedia post={post} active={active} />
+      <View style={[styles.mediaStage, { height: mediaHeight, top: mediaTop }]}>
+        <VitrineMedia post={post} active={active} />
+      </View>
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.65)"]} style={styles.bottomGrad} pointerEvents="none" />
       <View
         pointerEvents="box-none"
@@ -688,7 +696,7 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
       : <VitrineVideo uri={first} poster={post.posterUrl} active={active} clip={post.clip} />
     : <VitrineStill uri={first} />;
   return (
-    <View style={FILL}>
+    <View style={[FILL, { backgroundColor: "#080A12" }]}>
       {body}
       <VitrineMusicLayer music={post.music} active={active} />
     </View>
@@ -725,7 +733,7 @@ function VitrineStill({ uri }: { uri: string }) {
       <Image
         source={{ uri }}
         style={FILL}
-        contentFit="cover"
+        contentFit="contain"
         onLoad={() => setReady(true)}
         onError={() => setFailed(true)}
       />
@@ -821,12 +829,12 @@ function VitrineVideo({
   };
 
   return (
-    <View style={FILL}>
-      {poster ? <Image source={{ uri: poster }} style={FILL} contentFit="cover" /> : null}
+    <View style={[FILL, { backgroundColor: "#080A12" }]}>
+      {poster ? <Image source={{ uri: poster }} style={FILL} contentFit="contain" /> : null}
       <VideoView
         player={player}
         style={FILL}
-        contentFit="cover"
+        contentFit="contain"
         nativeControls={false}
         fullscreenOptions={{ enable: false }}
       />
@@ -873,6 +881,13 @@ function Empty({ onExplore, labelKey = "vitrine.emptyLive" }: { onExplore: () =>
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  mediaStage: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    overflow: "hidden",
+    backgroundColor: "#080A12",
+  },
   top: {
     position: "absolute",
     left: 0,

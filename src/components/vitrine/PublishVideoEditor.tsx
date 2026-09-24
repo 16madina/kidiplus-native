@@ -174,7 +174,7 @@ export function PublishVideoEditor({
     <View style={styles.root}>
       <Text style={styles.title}>{t("publish.edit.trim")}</Text>
       <View style={styles.preview}>
-        <VideoView player={player} style={FILL} contentFit="cover" nativeControls={false} />
+        <VideoView player={player} style={FILL} contentFit="contain" nativeControls={false} />
         <Press onPress={togglePlay} haptic="none" style={styles.playHit}>
           <View style={styles.playBtn}>
             {playing ? <Pause size={22} color="#fff" fill="#fff" /> : <Play size={22} color="#fff" fill="#fff" />}
@@ -237,6 +237,9 @@ const styles = StyleSheet.create({
   title: { color: "#fff", fontWeight: "900", fontSize: 16, textAlign: "center", marginVertical: 8 },
   preview: {
     flex: 1,
+    alignSelf: "center",
+    width: "100%",
+    aspectRatio: 9 / 16,
     borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#111",

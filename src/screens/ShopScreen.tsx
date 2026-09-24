@@ -850,7 +850,7 @@ export function ShopScreen({
                 const thumb = p.posterUrl || p.mediaUrls[0];
                 return (
                   <View key={p.id} style={styles.vitrineCell}>
-                    {thumb ? <Image source={{ uri: thumb }} style={styles.vitrineImg} contentFit="cover" /> : <View style={styles.vitrineImg} />}
+                    {thumb ? <Image source={{ uri: thumb }} style={styles.vitrineImg} contentFit="contain" /> : <View style={styles.vitrineImg} />}
                     {looksLikeVideo(p.mediaUrls[0] || "", p.mediaType) ? (
                       <View style={styles.vitrineBadge}>
                         <Video size={12} color="#fff" />
@@ -1063,7 +1063,7 @@ const styles = StyleSheet.create({
   },
   replayActionText: { color: NAVY, fontSize: 11.5, fontWeight: "800" },
   vitrineGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 14, gap: 6 },
-  vitrineCell: { width: "31.5%", aspectRatio: 0.75, borderRadius: 10, overflow: "hidden", backgroundColor: "#111" },
+  vitrineCell: { width: "31.5%", aspectRatio: 9 / 16, borderRadius: 10, overflow: "hidden", backgroundColor: "#080A12" },
   vitrineImg: { width: "100%", height: "100%" },
   vitrineBadge: { position: "absolute", right: 6, top: 6 },
 });

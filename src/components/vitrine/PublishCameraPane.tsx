@@ -451,7 +451,7 @@ function ReviewPane({
           <Text style={styles.hint}>{t("publish.storyVideoReady", { defaultValue: "Vidéo prête — publie ta story." })}</Text>
         </View>
       ) : (
-        <Image source={{ uri: draft.preview }} style={FILL} contentFit="cover" />
+        <Image source={{ uri: draft.preview }} style={FILL} contentFit="contain" />
       )}
       {mode !== "story" ? (
         <TextInput
@@ -512,7 +512,7 @@ function ReviewVideo({ uri, clip }: { uri: string; clip: VideoClip | null }) {
     return () => time.remove();
   }, [player, clip]);
 
-  return <VideoView player={player} style={FILL} contentFit="cover" nativeControls={false} />;
+  return <VideoView player={player} style={FILL} contentFit="contain" nativeControls={false} />;
 }
 
 const styles = StyleSheet.create({

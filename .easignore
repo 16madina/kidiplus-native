@@ -1,0 +1,18 @@
+# Keep EAS uploads focused on source files and assets.
+# Generated IDE and Gradle output is recreated during the cloud build.
+.git/
+.idea/
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+**/build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.env*.local
+*.tsbuildinfo
