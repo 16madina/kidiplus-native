@@ -215,6 +215,7 @@
       ],
       "@livekit/react-native-expo-plugin",
       "./plugins/withLiveKitAudioSwitch.js",
+      "./plugins/withRemoveLiveKitScreenShare.js",
       [
         "@config-plugins/react-native-webrtc",
         {
