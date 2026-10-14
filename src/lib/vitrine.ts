@@ -3,6 +3,7 @@ import { isVideoMediaUrl, parseVideoClipCaption, type VideoClip } from "./publis
 import { MUSIC_COLUMNS, musicFromRow, musicToRow, type VitrineMusic } from "./vitrine-music";
 import { resolveAvatarUrl, resolveStoredImage } from "./storage";
 import { supabase } from "./supabase";
+import { exportPortraitVideo } from "./video-export";
 import { CONTENT_BLOCKED_ERROR, moderateUserText } from "./content-moderation";
 
 export type VitrineMediaType = "image" | "video" | "carousel";
@@ -382,15 +383,21 @@ export async function uploadVitrineMedia(picked: PickedImage): Promise<string | 
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `${uid}/${rand}.${picked.ext || "jpg"}`;
-  const body =
-    picked.contentType.startsWith("video/") && picked.blob.size === 0
+  const isVideo = picked.contentType.startsWith("video/");
+  // Videos are cut to 9:16 and compressed on device first (original file if unavailable).
+  const portrait = isVideo ? await exportPortraitVideo(picked.preview) : null;
+  const ext = portrait?.ext ?? (picked.ext || "jpg");
+  const contentType = portrait?.contentType ?? picked.contentType;
+  const path = `${uid}/${rand}.${ext}`;
+  const body = portrait
+    ? await fetch(portrait.uri).then((r) => r.blob())
+    : isVideo && picked.blob.size === 0
       ? await fetch(picked.preview).then((r) => r.blob())
       : picked.blob;
   const { error } = await supabase.storage.from("vitrine-media").upload(path, body, {
     cacheControl: "3600",
     upsert: false,
-    contentType: picked.contentType || undefined,
+    contentType: contentType || undefined,
   });
   if (error) return null;
   const { data } = supabase.storage.from("vitrine-media").getPublicUrl(path);

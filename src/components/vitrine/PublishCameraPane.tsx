@@ -40,6 +40,8 @@ import { musicLabel, type VitrineMusic } from "../../lib/vitrine-music";
 import { MusicPickerSheet } from "./MusicPickerSheet";
 
 const FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 };
+// 720p clips: ~2.5 Mbps keeps a 60 s video under ~20 MB.
+const VIDEO_BITRATE = 2_500_000;
 
 type Stage = "capture" | "edit" | "review";
 
@@ -164,7 +166,11 @@ export function PublishCameraPane({
     }
     try {
       setRecording(true);
-      const rec = await camRef.current.recordAsync({ maxDuration: maxSec });
+      const rec = await camRef.current.recordAsync({
+        maxDuration: maxSec,
+        // iOS only applies videoBitrate when a codec is given.
+        ...(Platform.OS === "ios" ? { codec: "avc1" as const } : null),
+      });
       setRecording(false);
       holdRef.current = false;
       if (!rec?.uri) return;
@@ -322,6 +328,7 @@ export function PublishCameraPane({
           mute={false}
           active={active}
           videoQuality="720p"
+          videoBitrate={VIDEO_BITRATE}
           mirror={facing === "front" && Platform.OS === "ios"}
           onCameraReady={() => setCamReady(true)}
           onMountError={() => setCamReady(false)}

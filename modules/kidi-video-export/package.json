@@ -1,0 +1,14 @@
+{
+  "name": "kidi-video-export",
+  "version": "1.0.0",
+  "description": "Re-encode a local video to 9:16 720x1280 H.264 before upload (center crop + compression)",
+  "license": "UNLICENSED",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

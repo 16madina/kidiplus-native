@@ -1,0 +1,30 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.kidiplus.videoexport'
+version = '1.0.0'
+
+android {
+  namespace "com.kidiplus.videoexport"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+dependencies {
+  // Keep in step with expo-video's androidx.media3 version.
+  def androidxMedia3Version = "1.9.0"
+  implementation "androidx.media3:media3-common:${androidxMedia3Version}"
+  implementation "androidx.media3:media3-effect:${androidxMedia3Version}"
+  implementation "androidx.media3:media3-transformer:${androidxMedia3Version}"
+}
