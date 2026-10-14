@@ -124,7 +124,9 @@ Deno.serve(async (req) => {
         },
         { idempotencyKey: `kidi-payout-${payoutId}` },
       );
-      const { error: updateError } = await supabase
+      // Never overwrite a refund: a `refund: true` call (or a client retry after a
+      // timeout) can re-credit the seller while this transfer is still in flight.
+      const { data: persisted, error: updateError } = await supabase
         .from("payouts")
         .update({
           stripe_transfer_id: transfer.id,
@@ -133,7 +135,9 @@ Deno.serve(async (req) => {
           processed_at: new Date().toISOString(),
           admin_note: "Stripe Connect (automatique)",
         })
-        .eq("id", payoutId);
+        .eq("id", payoutId)
+        .neq("status", "rejected")
+        .select("id");
       if (updateError) {
         // The Stripe transfer already exists. Never refund here: a retry with
         // the same idempotency key returns the same transfer and can persist it.
@@ -142,6 +146,26 @@ Deno.serve(async (req) => {
           { error: "payout_persistence_failed", transferred: true, transferId: transfer.id },
           500,
         );
+      }
+      if (!persisted || persisted.length === 0) {
+        // Already refunded: the seller must not keep both the earnings and the
+        // transfer, so take the transfer back.
+        try {
+          await stripe.transfers.createReversal(
+            transfer.id,
+            { metadata: { payoutId, reason: "refunded_while_transfer_in_flight" } },
+            { idempotencyKey: `kidi-payout-reversal-${payoutId}` },
+          );
+          return json({ error: "already_refunded", refunded: true, reversed: true }, 409);
+        } catch (reversalError) {
+          console.error(
+            "connect-payout CRITICAL: transfer sent on a refunded payout and reversal failed",
+            payoutId,
+            transfer.id,
+            reversalError instanceof Error ? reversalError.message : String(reversalError),
+          );
+          return json({ error: "reversal_failed", transferred: true, transferId: transfer.id }, 500);
+        }
       }
       return json({ ok: true, transferId: transfer.id });
     } catch (e) {
