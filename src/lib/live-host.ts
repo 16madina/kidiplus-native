@@ -546,10 +546,24 @@ export function useHostLiveSession(args: {
     handleRef.current?.send(event, payload);
   }, []);
 
+  // nowMs feeds the auction countdown and the live duration, both shown in
+  // whole seconds: only re-render the host screen when one of them changes.
+  const auctionDeadlineMs = auction?.deadlineMs ?? null;
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 250);
+    let shown = "";
+    const tick = () => {
+      const now = Date.now();
+      const secLeft =
+        auctionDeadlineMs == null ? -1 : Math.max(0, Math.ceil((auctionDeadlineMs - now) / 1000));
+      const key = `${secLeft}|${Math.floor((now - startedAtMs) / 1000)}`;
+      if (key === shown) return;
+      shown = key;
+      setNowMs(now);
+    };
+    tick();
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, []);
+  }, [auctionDeadlineMs, startedAtMs]);
 
   useEffect(() => {
     let alive = true;

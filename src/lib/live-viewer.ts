@@ -145,10 +145,15 @@ export function useViewerLiveRoom(
   const ingestGiftRef = useRef(ingestGift);
   ingestGiftRef.current = ingestGift;
 
+  // Every bid triggers a refetch. Responses can come back out of order during a
+  // bidding burst; applying an older one made the price jump back.
+  const refreshSeqRef = useRef(0);
   const refreshProducts = useCallback(async () => {
     if (!liveId) return;
+    const seq = ++refreshSeqRef.current;
     try {
       const rows = await fetchLiveProducts(liveId);
+      if (seq !== refreshSeqRef.current) return;
       setProducts(rows);
       const running = rows.find((r) => auctionFromRow(r));
       if (running) {
@@ -195,10 +200,24 @@ export function useViewerLiveRoom(
     }
   }, [liveId]);
 
+  // Only the auction countdown reads nowMs. Re-rendering the whole live screen
+  // 4x/s for nothing caused jank: tick only while an auction runs, and only
+  // when the displayed second changes.
+  const auctionDeadlineMs = auction?.deadlineMs ?? null;
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 250);
+    if (auctionDeadlineMs == null) return;
+    let shown = -1;
+    const tick = () => {
+      const now = Date.now();
+      const secLeft = Math.max(0, Math.ceil((auctionDeadlineMs - now) / 1000));
+      if (secLeft === shown) return;
+      shown = secLeft;
+      setNowMs(now);
+    };
+    tick();
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, []);
+  }, [auctionDeadlineMs]);
 
   useEffect(() => {
     if (!liveId) {
