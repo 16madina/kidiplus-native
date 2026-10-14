@@ -140,7 +140,7 @@ export function SocialLoginButtons({
         onPress={() => void runGoogle()}
         style={[styles.googleBtn, useRow && styles.googleBtnRow]}
       >
-        <View style={styles.googleIconWrap}>
+        <View style={[styles.googleIconWrap, useRow && styles.googleIconWrapRow]}>
           <GoogleGIcon />
         </View>
         <Text
@@ -180,6 +180,8 @@ const styles = StyleSheet.create({
   },
   googleBtnRow: { flex: 1 },
   googleIconWrap: { position: "absolute", left: 14 },
+  // Half-width button: the icon sits in the flow, or it covers the first letter.
+  googleIconWrapRow: { position: "relative", left: 0, marginRight: 6 },
   googleText: { color: "#1F1F1F", fontSize: 15, fontWeight: "600" },
-  googleTextRow: { fontSize: 13 },
+  googleTextRow: { fontSize: 13, flexShrink: 1 },
 });

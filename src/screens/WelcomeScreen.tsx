@@ -49,7 +49,8 @@ export function WelcomeScreen() {
         style={styles.topFade}
       />
       <LinearGradient
-        colors={["rgba(11,20,54,0)", "rgba(11,20,54,0.6)", WELCOME_BG]}
+        colors={["rgba(11,20,54,0)", "rgba(11,20,54,0.82)", "rgba(11,20,54,0.95)", WELCOME_BG]}
+        locations={[0, 0.22, 0.55, 1]}
         style={styles.bottomFade}
       />
       <ScrollView
@@ -193,7 +194,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: WELCOME_BG },
   scroll: { flex: 1 },
   topFade: { position: "absolute", left: 0, right: 0, top: 0, height: "32%" },
-  bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "22%" },
+  // Covers the consent boxes and sign-in buttons so the artwork never sits behind text.
+  bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "50%" },
   content: { flexGrow: 1, alignItems: "center", paddingHorizontal: 24 },
   topRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   badge: {

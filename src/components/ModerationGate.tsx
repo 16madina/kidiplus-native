@@ -27,19 +27,21 @@ export function ModerationGate({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function check() {
-      const { data } = await supabase
-        .from("profiles")
-        .select("moderation_status, moderation_reason, suspended_until")
-        .eq("id", user!.id)
-        .single();
+      // Same RPC as the website. The reason and end date live in user_sanctions,
+      // not on profiles (selecting them there fails with a 400).
+      const { data } = await supabase.rpc("my_moderation_state");
       if (cancelled) return;
-      if (data?.moderation_status === "banned") {
-        setGate({ status: "banned", reason: data.moderation_reason });
-      } else if (data?.moderation_status === "suspended") {
+      const state = data as {
+        status?: string;
+        active_sanction?: { reason?: string | null; expires_at?: string | null } | null;
+      } | null;
+      if (state?.status === "banned") {
+        setGate({ status: "banned", reason: state.active_sanction?.reason });
+      } else if (state?.status === "suspended") {
         setGate({
           status: "suspended",
-          reason: data.moderation_reason,
-          suspendedUntil: data.suspended_until,
+          reason: state.active_sanction?.reason,
+          suspendedUntil: state.active_sanction?.expires_at,
         });
       } else {
         setGate({ status: null });

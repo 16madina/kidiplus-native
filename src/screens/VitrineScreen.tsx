@@ -703,6 +703,17 @@ function VitrineMedia({ post, active }: { post: VitrineFeedPost; active: boolean
   );
 }
 
+/** Same picture, blurred and zoomed, behind media that is not 9:16 (instead of black bars). */
+function BlurBackdrop({ uri }: { uri: string }) {
+  return (
+    <View style={FILL} pointerEvents="none">
+      {/* Slightly oversized so the blur's soft edges fall outside the stage. */}
+      <Image source={{ uri }} style={[FILL, { transform: [{ scale: 1.2 }] }]} contentFit="cover" blurRadius={40} />
+      <View style={[FILL, { backgroundColor: "rgba(0,0,0,0.35)" }]} />
+    </View>
+  );
+}
+
 function VitrineStill({ uri }: { uri: string }) {
   const { t } = useTranslation();
   const [ready, setReady] = useState(false);
@@ -730,6 +741,7 @@ function VitrineStill({ uri }: { uri: string }) {
           <ActivityIndicator color={GOLD} />
         </View>
       ) : null}
+      <BlurBackdrop uri={uri} />
       <Image
         source={{ uri }}
         style={FILL}
@@ -830,6 +842,7 @@ function VitrineVideo({
 
   return (
     <View style={[FILL, { backgroundColor: "#080A12" }]}>
+      {poster ? <BlurBackdrop uri={poster} /> : null}
       {poster ? <Image source={{ uri: poster }} style={FILL} contentFit="contain" /> : null}
       <VideoView
         player={player}
