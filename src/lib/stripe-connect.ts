@@ -1,6 +1,6 @@
 // Stripe Connect — same /api/connect/* contract as kidiplus.com stripe-connect-client.
 import { AppState, Linking } from "react-native";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, fetchMyPrivateProfile, supabase } from "./supabase";
 import { paymentsEnvHeaders } from "./stripe-web";
 import { isConnectReturnUrl } from "./payout-setup-logic";
 import { normalizeCountryCode } from "./countries";
@@ -127,12 +127,22 @@ function emptyConnectState(): ConnectState {
 }
 
 async function connectStateFromProfile(): Promise<ConnectState | null> {
-  const { data } = await supabase
-    .from("profiles")
-    .select(
-      "stripe_account_id, stripe_connect_id, connect_status, connect_payouts_enabled, stripe_payouts_enabled, connect_charges_enabled",
-    )
-    .maybeSingle();
+  const mine = await fetchMyPrivateProfile();
+  let data: unknown = mine.ok ? mine.data : null;
+  if (!mine.ok) {
+    // Database without get_my_private_profile(). Filter on the caller's id:
+    // without it every readable profile matches and maybeSingle() fails.
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return null;
+    const legacy = await supabase
+      .from("profiles")
+      .select(
+        "stripe_account_id, stripe_connect_id, connect_status, connect_payouts_enabled, stripe_payouts_enabled, connect_charges_enabled",
+      )
+      .eq("id", uid)
+      .maybeSingle();
+    data = legacy.data;
+  }
   if (!data) return null;
   const row = data as Record<string, unknown>;
   const accountId =

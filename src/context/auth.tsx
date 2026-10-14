@@ -11,7 +11,13 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { User } from "@supabase/supabase-js";
 import i18n from "../i18n";
-import { PROFILE_SAFE_SELECT, supabase, type ProfileRow } from "../lib/supabase";
+import {
+  PROFILE_PUBLIC_SELECT,
+  PROFILE_SAFE_SELECT,
+  fetchMyPrivateProfile,
+  supabase,
+  type ProfileRow,
+} from "../lib/supabase";
 import { resolveAvatarUrl } from "../lib/storage";
 import { fetchMyWallet } from "../lib/wallet";
 import { applyPromoCodeWithRetry } from "../lib/referrals";
@@ -177,12 +183,22 @@ async function toAuthUser(
 
 async function readProfile(userId: string): Promise<ProfileRow | null> {
   for (let attempt = 0; attempt < 4; attempt++) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(PROFILE_SAFE_SELECT)
-      .eq("id", userId)
-      .maybeSingle();
-    if (!error && data) return data as ProfileRow;
+    const [publicRow, privateRow] = await Promise.all([
+      supabase.from("profiles").select(PROFILE_PUBLIC_SELECT).eq("id", userId).maybeSingle(),
+      fetchMyPrivateProfile(),
+    ]);
+    if (!publicRow.error && publicRow.data && privateRow.ok) {
+      return { ...publicRow.data, phone: null, ...(privateRow.data ?? {}) } as ProfileRow;
+    }
+    if (!privateRow.ok) {
+      // Database without get_my_private_profile(): read the private columns directly.
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(PROFILE_SAFE_SELECT)
+        .eq("id", userId)
+        .maybeSingle();
+      if (!error && data) return data as ProfileRow;
+    }
     await new Promise((r) => setTimeout(r, 350));
   }
   return null;
