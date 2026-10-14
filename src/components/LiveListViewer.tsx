@@ -33,13 +33,18 @@ export function LiveListViewer({
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const flatRef = useRef<FlatList<LiveStream>>(null);
 
+  // FlatList throws "Changing onViewableItemsChanged on the fly is not
+  // supported" if this callback's identity changes. It used to depend on
+  // `compact`, so minimizing the live crashed the app: read it from a ref.
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-      if (compact) return;
+      if (compactRef.current) return;
       const first = viewableItems[0]?.index;
       if (first != null) setActiveIndex(first);
     },
-    [compact],
+    [],
   );
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;

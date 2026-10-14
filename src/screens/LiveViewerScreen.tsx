@@ -15,7 +15,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, Gavel, Gift, Heart, MoreVertical, Plus, Send, ShoppingBag, UserPlus, Wallet, X } from "lucide-react-native";
+import {
+  Check,
+  Gavel,
+  Gift,
+  Heart,
+  MoreVertical,
+  PictureInPicture2,
+  Plus,
+  Send,
+  ShoppingBag,
+  UserPlus,
+  Wallet,
+  X,
+} from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
@@ -91,7 +104,7 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   const { t, i18n } = useTranslation();
-  const { openOverlay, livePresentation, closeLive } = useNav();
+  const { openOverlay, livePresentation, closeLive, minimizeLive } = useNav();
   const { user, openAuth, refreshUser } = useAuth();
   const s = stream;
   const liveId = s.liveId && !s.fictitious ? s.liveId : undefined;
@@ -777,6 +790,15 @@ export function LiveViewerScreen({ stream, active = true }: { stream: LiveStream
           ) : null}
           <GlassIconButton size={chromeIcon} tone="dark" onPress={openMore}>
             <MoreVertical size={16} color="#fff" />
+          </GlassIconButton>
+          {/* Same as the left-edge swipe: keeps the live playing in the mini player. */}
+          <GlassIconButton
+            size={chromeIcon}
+            tone="dark"
+            accessibilityLabel={t("live.minimize")}
+            onPress={minimizeLive}
+          >
+            <PictureInPicture2 size={16} color="#fff" />
           </GlassIconButton>
           <GlassIconButton
             size={chromeIcon}
