@@ -146,7 +146,7 @@ export function AfficheEditor({
   };
 
   const addArticleFromGallery = async () => {
-    const picked = await pickImageFromLibrary();
+    const picked = await pickImageFromLibrary({ keepPng: true });
     if (!picked) return;
     const url = await uploadVitrineMedia(picked);
     if (!url) return;

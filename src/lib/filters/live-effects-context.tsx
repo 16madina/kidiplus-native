@@ -113,7 +113,7 @@ export function LiveEffectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setPosterFromPicker = useCallback(async () => {
-    const picked = await withHostPickerPause(() => pickImageFromLibrary());
+    const picked = await withHostPickerPause(() => pickImageFromLibrary({ keepPng: true }));
     if (!picked) return;
     const pickId = ++posterPickRef.current;
     setPosterUrl(picked.preview);
